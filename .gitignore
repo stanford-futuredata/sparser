@@ -1,0 +1,7 @@
+run
+data.csv
+small.csv
+*.s
+*.o
+*.swp
+.DS_Store
