@@ -30,7 +30,7 @@ int baseline(const char *filename) {
 int main() {
     clock_t start, end;
     start = clock();
-    long result = baseline("../data/airplanes_small.csv");
+    long result = baseline("../data/airplanes_big.csv");
     end = clock();
     double cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
     printf("%ld (%.3f seconds)\n", result, cpu_time_used);

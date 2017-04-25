@@ -6,3 +6,4 @@ small.csv
 *.swp
 .DS_Store
 lineitem.tbl
+airplanes_big.csv
