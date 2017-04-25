@@ -5,3 +5,4 @@ small.csv
 *.o
 *.swp
 .DS_Store
+lineitem.tbl
