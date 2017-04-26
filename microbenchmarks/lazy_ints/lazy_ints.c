@@ -6,9 +6,12 @@
 #include <time.h>
 #include <limits.h>
 
+#include <immintrin.h>
+
 #include "common.h"
 
-const int thres = 100000;
+const int thres = 1000000;
+const char *thres_str = "1000000";
 
 double sum_data_standard(const char *filename) {
     char *data = read_all(filename);
@@ -65,10 +68,42 @@ next_iter:
     return time;
 }
 
-int main() {
-    const char *filename = "../data/numbers.csv";
-    double a = sum_data_standard(filename);
-    double b = sum_data_lazy(filename);
+double sum_data_string_compare(const char *filename) {
 
-    printf("Speedup: %f\n", a / b);
+    char *data = read_all(filename);
+    char *token;
+
+    long result = 0;
+
+    unsigned len = strlen(thres_str);
+
+    time_start();
+    while((token = strsep(&data, "\n")) != NULL) {
+        long x = *(long *)token;
+        long target = *(long *)thres_str;
+
+        //printf("token:  0x%lx %s\n", x, token);
+        //printf("target: 0x%lx %s\n", target, thres_str);
+        x = ~(x & target);
+        if (flsl(x) >= len) {
+            result++;
+        }
+    }
+
+    double time = time_stop();
+    printf("%.3f seconds\n", time);
+    printf("%ld\n", result);
+
+    free(data);
+
+    return time;
+}
+
+int main() {
+    const char *filename = "../data/100000s.csv";
+    //double a = sum_data_standard(filename);
+    //double b = sum_data_lazy(filename);
+    double c = sum_data_string_compare(filename);
+
+    //printf("Speedup: %f\n", a / b);
  }
