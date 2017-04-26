@@ -68,6 +68,29 @@ next_iter:
     return time;
 }
 
+double sum_data_exact_match(const char *filename) {
+    char *data = read_all(filename);
+    char *token;
+
+    long result = 0;
+
+    time_start();
+    while((token = strsep(&data, "\n")) != NULL) {
+        long l = atoi(token);
+        if (l == thres) {
+            result += l;
+        }
+    }
+
+    double time = time_stop();
+    printf("%.3f seconds\n", time);
+    printf("%ld\n", result);
+
+    free(data);
+
+    return time;
+}
+
 double sum_data_string_compare(const char *filename) {
 
     char *data = read_all(filename);
@@ -76,17 +99,17 @@ double sum_data_string_compare(const char *filename) {
     long result = 0;
 
     unsigned len = strlen(thres_str);
+    len *= 8;
+    printf("%u\n", len);
+    uint64_t mask = (1UL << len) - 1;
+    printf("mask: %lld\n", mask);
 
     time_start();
     while((token = strsep(&data, "\n")) != NULL) {
-        long x = *(long *)token;
-        long target = *(long *)thres_str;
-
-        //printf("token:  0x%lx %s\n", x, token);
-        //printf("target: 0x%lx %s\n", target, thres_str);
-        x = ~(x & target);
-        if (flsl(x) >= len) {
-            result++;
+        unsigned long x = *(unsigned long *)token;
+        unsigned long target = *(unsigned long *)thres_str;
+        if ((x & mask) == (target & mask)) {
+            result+=thres;
         }
     }
 
@@ -100,10 +123,16 @@ double sum_data_string_compare(const char *filename) {
 }
 
 int main() {
-    const char *filename = "../data/100000s.csv";
-    //double a = sum_data_standard(filename);
-    //double b = sum_data_lazy(filename);
-    double c = sum_data_string_compare(filename);
-
+    const char *filename_a = "../data/numbers.csv";
+    const char *filename_b = "../data/100000s.csv";
+    
+    // Compare a < predicate and abort if we know we'll fail
+    //double a = sum_data_standard(filename_a);
+    //double b = sum_data_lazy(filename_a);
     //printf("Speedup: %f\n", a / b);
+
+    // Compare exact match without parsing.
+    double c = sum_data_exact_match(filename_b);
+    double d = sum_data_string_compare(filename_b);
+    printf("Speedup: %f\n", c / d);
  }
