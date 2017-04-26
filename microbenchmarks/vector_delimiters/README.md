@@ -1,0 +1,2 @@
+
+Tests parsing integers lazily.
