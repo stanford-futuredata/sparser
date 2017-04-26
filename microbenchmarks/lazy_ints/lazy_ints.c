@@ -106,6 +106,7 @@ double sum_data_string_compare(const char *filename) {
 
     time_start();
     while((token = strsep(&data, "\n")) != NULL) {
+        // TODO generalize to > 8 character integers.
         unsigned long x = *(unsigned long *)token;
         unsigned long target = *(unsigned long *)thres_str;
         if ((x & mask) == (target & mask)) {
