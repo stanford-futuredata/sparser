@@ -9,7 +9,7 @@ import sys
 
 import argparse
 
-def generate_data(rows, columns, maxint=1000000, filename="data/numbers.csv"):
+def generate_data(rows, columns, maxint, filename="data/numbers.csv"):
     numbers = np.random.rand(rows,columns) * maxint
     np.savetxt("data/numbers.csv", numbers, fmt="%d", delimiter=",")
 
@@ -19,9 +19,12 @@ if __name__=="__main__":
             help='number of lines to generate in the file')
     parser.add_argument('-c', '--cols', metavar='cols', type=int, default=[1], nargs=1,
             help='number of columns to generate in the file')
+    parser.add_argument('-m', '--maxval', metavar='maxval', type=int, default=[10000000], nargs=1, 
+           help='Max value generated')
 
     args = parser.parse_args()
 
     rows = args.lines[0]
     columns = args.cols[0]
-    generate_data(rows, columns)
+    maxint = args.maxval[0]
+    generate_data(rows, columns, maxint=maxint)

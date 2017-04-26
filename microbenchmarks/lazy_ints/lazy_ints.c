@@ -6,85 +6,69 @@
 #include <time.h>
 #include <limits.h>
 
-#define THRES 0
-#define THRES_STRLEN 3
+#include "common.h"
 
-long sum_data_standard(const char *filename) {
-    const unsigned SIZE = 4096;
-    static char buf[SIZE];
+const int thres = 100000;
 
-    int result = 0;
-    FILE *f = fopen(filename, "r");
-    assert(f);
+double sum_data_standard(const char *filename) {
+    char *data = read_all(filename);
+    char *token;
 
-    while (fgets(buf, SIZE, f)) {
-        char *c;
-        long l = atoi(buf);
-        if (l < THRES) {
+    long result = 0;
+
+    time_start();
+    while((token = strsep(&data, "\n")) != NULL) {
+        long l = atoi(token);
+        if (l < thres) {
             result += l;
         }
     }
-    fclose(f);
-    return result;
+
+    double time = time_stop();
+    printf("%.3f seconds\n", time);
+    printf("%ld\n", result);
+
+    free(data);
+
+    return time;
 }
 
-long sum_data_lazy(const char *filename) {
-    const unsigned SIZE = 4096;
-    static char buf[SIZE];
+double sum_data_lazy(const char *filename) {
 
-    int result = 0;
-    FILE *f = fopen(filename, "r");
-    assert(f);
+    char *data = read_all(filename);
+    char *token;
 
-    while (fgets(buf, SIZE, f)) {
-        register char *p = buf;
-        unsigned long maxres = ULONG_MAX / 10;
-        register unsigned long int parse_result = 0;
-        register unsigned digit;
-        int overflow = 0;
-        for ( ; ; p += 1) {
-            digit = *p - '0';
-            if (digit > 9) {
-                break;
-            }
-            if (parse_result > maxres) { overflow = 1; }
-            parse_result *= 10;
-            if (digit > (ULONG_MAX - parse_result)) { overflow = 1; }
-            if (overflow) {
+    long result = 0;
+
+    time_start();
+    while((token = strsep(&data, "\n")) != NULL) {
+        register char *p = token;
+        register int k = 0;
+        while (*p) {
+            k = (k << 3) + (k << 1) + (*p) - '0';
+            if (k >= thres) {
                 goto next_iter;
             }
-            parse_result += digit;
-            if (parse_result >= THRES) {
-                goto next_iter;
-            }
+            p++;
         }
-        result += parse_result;
+        result += k;
 next_iter:
         ;
     }
-    fclose(f);
-    return result;
+
+    double time = time_stop();
+    printf("%.3f seconds\n", time);
+    printf("%ld\n", result);
+
+    free(data);
+
+    return time;
 }
 
 int main() {
-    const char *filename = "data.csv";
-    time_t start, end;
+    const char *filename = "../data/numbers.csv";
+    double a = sum_data_standard(filename);
+    double b = sum_data_lazy(filename);
 
-    start = clock();
-    long result2 = sum_data_lazy(filename);
-    end = clock();
-    double cpu_time_used_2 = ((double) (end - start)) / CLOCKS_PER_SEC;
-
-    start = clock();
-    long result = sum_data_standard(filename);
-    end = clock();
-    double cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("%ld (%.3f seconds)\n", result, cpu_time_used);
-
-    printf("%ld == %ld\n", result, result2);	
-    assert(result == result2);
-
-    printf("%ld (%.3f seconds)\n", result2, cpu_time_used_2);
-
-    printf("%.3fx speedup with lazy\n", cpu_time_used / cpu_time_used_2);
-}
+    printf("Speedup: %f\n", a / b);
+ }
