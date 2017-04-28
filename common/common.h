@@ -2,7 +2,7 @@
 #define _COMMON_H_
 
 /** Reads the entire file filename into memory. */
-char *read_all(const char *filename);
+long read_all(const char *filename, char **buf);
 
 /** Starts the clock for a benchmark. */
 void time_start();

@@ -8,7 +8,7 @@ static clock_t start, end;
 static int reset = 0;
 
 /** Reads the entire file filename into memory. */
-char *read_all(const char *filename) {
+long read_all(const char *filename, char **buf) {
     FILE *f = fopen(filename, "r");
 
 	fseek(f, 0, SEEK_END);
@@ -20,7 +20,9 @@ char *read_all(const char *filename) {
 	fclose(f);
 
 	string[fsize] = 0;
-	return string;
+
+    *buf = string;
+	return fsize + 1;
 }
 
 /** Starts the clock for a benchmark. */

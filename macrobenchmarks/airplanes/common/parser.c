@@ -93,7 +93,8 @@ int parse(char *input, aircraft_t **buf) {
 }
 
 int load(const char *filename, aircraft_t **buf) {
-    char *data = read_all(filename);
+    char *data = NULL;
+    read_all(filename, &data);
     int length = parse(data, buf);
     free(data);
     return length;

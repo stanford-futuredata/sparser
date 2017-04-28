@@ -13,8 +13,10 @@
 void baseline(const char *filename) {
     aircraft_t *data = NULL;
 
+    char *raw = NULL;
     // Don't count disk load time.
-    char *raw = read_all(filename);
+    // Returns number of bytes in the buffer.
+    read_all(filename, &raw);
 
     time_start();
     int length = parse(raw, &data);
@@ -38,7 +40,7 @@ void baseline(const char *filename) {
     double query_time = time_stop();
     free(data);
 
-    printf("%d (parse %.3f, query %.3f, total %.3f)\n", count, parse_time, query_time, parse_time+query_time);
+    printf("%d (parse %.3f, query %.3f, total %.3f)\n", count, parse_time, query_time, parse_time + query_time);
 }
 
 
@@ -60,18 +62,25 @@ void baseline(const char *filename) {
 
 void fast(const char *filename) {
 
+    // The  final result.
+    int count = 0;
+
+    char *raw = NULL;
     // Don't count disk load time.
-    char *raw = read_all(filename);
+    // Returns number of bytes in the buffer.
+    int length = read_all(filename, &raw);
 
+    time_start();
 
-
+    const char *model = "B747-400";
+    const char *airline = "United Airlines";
+    size_t len_airline = strlen(airline);
+    size_t len_model = strlen(model);
 
     // Current line.
     char *line = raw;
     // Finds newline characters.
     __m256i line_seeker = _mm256_set1_epi8('\n');
-    // 
-    int length = 86;
     for (int i = 0; i < length; i += VECSIZE) {
         __m256i word = _mm256_load_si256((__m256i const *)(raw + i));
         // Last iteration - mask out bytes past the end of the input
@@ -90,12 +99,16 @@ void fast(const char *filename) {
         while (imask) {
             int idx = ffs(imask) - 1;
             raw[idx + i] = '\0';
-            printf("line %ld -> %d: %s\n", line - raw, idx + i, line);
+            //printf("line %ld -> %d: %s\n", line - raw, idx + i, line);
 
             // Process `line` here. Length of the line is (idx + i) - (line - raw).
             
             /////////////
             // Begin Token Processing. 
+            
+            // Token index being processed.
+            int token_index = 0;
+            int passing = 1;
             
             // Current token.
             char *token = line;
@@ -122,17 +135,51 @@ void fast(const char *filename) {
                 while (line_imask) {
                     int line_idx = ffs(line_imask) - 1;
                     line[line_idx + j] = '\0';
-                    printf("token %ld -> %d: %s\n", token - line, line_idx + j, token);
+                    //printf("%d\n", token_index);
+                    //printf("token %ld -> %d: %s\n", token - line, line_idx + j, token);
 
-                    // Process `line` here. Length of the line is (idx + i) - (line - raw).
+                    // Process `token` here. Length of the line is (line_idx + j) - (token - line).
+                    switch (token_index) {
+                        case AIRCRAFT_MODEL:
+                            if (strncmp(model, token, len_model) != 0) {
+                                passing = 0;
+                            }
+                            break;
+                        case AIRLINE:
+                            if (strncmp(airline, token, len_airline) != 0) {
+                                passing = 0;
+                            }
+                            break;
+                        default:
+                            break;
+                    }
 
                     token = line + j + line_idx + 1;
                     line_imask &= ~(1 << line_idx);
+                    token_index++;
                 }
             }
 
             // The last token, goes to the end of the buffer.
-            printf("token %ld -> %d: %s\n", token - line, line_length, token);
+            switch (token_index) {
+                case AIRCRAFT_MODEL:
+                    if (strncmp(model, token, len_model) > 0) {
+                        passing = 0;
+                    }
+                    break;
+                case AIRLINE:
+                    if (strncmp(airline, token, len_airline) > 0) {
+                        passing = 0;
+                    }
+                    break;
+                default:
+                    break;
+            }
+
+
+            if (passing == 1) {
+                count++;
+            }
 
             // End Token Processing. 
             ////////////
@@ -143,9 +190,13 @@ void fast(const char *filename) {
 
         // TODO Special processing for the last line?
     }
+
+
+    double total = time_stop();
+    printf("%d (parse + query: %.3f)\n", count, total);
 }
 
 int main() {
-    //baseline("../data/airplanes_big.csv");
-    fast("../data/single.csv");
+    baseline("../data/airplanes_small.csv");
+    fast("../data/airplanes_small.csv");
 }
