@@ -10,7 +10,7 @@
 #include "../common/parser.h"
 #include "../../../common/common.h"
 
-void baseline(const char *filename) {
+double baseline(const char *filename) {
     aircraft_t *data = NULL;
 
     char *raw = NULL;
@@ -41,6 +41,7 @@ void baseline(const char *filename) {
     free(data);
 
     printf("%d (parse %.3f, query %.3f, total %.3f)\n", count, parse_time, query_time, parse_time + query_time);
+    return parse_time + query_time;
 }
 
 
@@ -60,7 +61,7 @@ void baseline(const char *filename) {
 // Size of a single vector.
 #define VECSIZE 32
 
-void fast(const char *filename) {
+double fast(const char *filename) {
 
     // The  final result.
     int count = 0;
@@ -157,6 +158,12 @@ void fast(const char *filename) {
                     token = line + j + line_idx + 1;
                     line_imask &= ~(1 << line_idx);
                     token_index++;
+
+                    // Some simple short circuiting. Comment this out to disable and parse all the
+                    // data unconditionally.
+                    if (token_index > AIRLINE || !passing) {
+                        goto end_token_processing;
+                    }
                 }
             }
 
@@ -176,7 +183,7 @@ void fast(const char *filename) {
                     break;
             }
 
-
+end_token_processing:
             if (passing == 1) {
                 count++;
             }
@@ -191,12 +198,16 @@ void fast(const char *filename) {
         // TODO Special processing for the last line?
     }
 
-
     double total = time_stop();
+    free(raw);
+
     printf("%d (parse + query: %.3f)\n", count, total);
+    return total;
 }
 
 int main() {
-    baseline("../data/airplanes_small.csv");
-    fast("../data/airplanes_small.csv");
+    double a = baseline("../data/airplanes_big.csv");
+    double b = fast("../data/airplanes_big.csv");
+
+    printf("Speedup: %.3f\n", a / b);
 }
