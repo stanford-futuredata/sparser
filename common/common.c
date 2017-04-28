@@ -4,7 +4,6 @@
 #include <string.h>
 #include <assert.h>
 
-
 static clock_t start, end;
 static int reset = 0;
 

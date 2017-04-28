@@ -74,7 +74,6 @@ double measure_vector() {
 }
 
 int main() {
-
     printf("String length: %u\n", strlen(test_string));
 
     // Compare exact match without parsing.

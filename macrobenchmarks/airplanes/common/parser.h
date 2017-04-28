@@ -23,7 +23,7 @@ typedef struct {
     int modification_date;
 } aircraft_t;
 
-int *parse(char *input, aircraft_t **buf);
+int parse(char *input, aircraft_t **buf);
 int load(const char *filename, aircraft_t **buf);
 
 #endif
