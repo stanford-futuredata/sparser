@@ -63,18 +63,15 @@ void fast(const char *filename) {
     // Don't count disk load time.
     char *raw = read_all(filename);
 
+
+
+
     // Current line.
     char *line = raw;
-    // Current token.
-    char *token = raw;
-
     // Finds newline characters.
     __m256i line_seeker = _mm256_set1_epi8('\n');
-    // Finds delimiting characters.
-    __m256i delimiter = _mm256_set1_epi8(',');
-
+    // 
     int length = 86;
-
     for (int i = 0; i < length; i += VECSIZE) {
         __m256i word = _mm256_load_si256((__m256i const *)(raw + i));
         // Last iteration - mask out bytes past the end of the input
@@ -96,10 +93,55 @@ void fast(const char *filename) {
             printf("line %ld -> %d: %s\n", line - raw, idx + i, line);
 
             // Process `line` here. Length of the line is (idx + i) - (line - raw).
+            
+            /////////////
+            // Begin Token Processing. 
+            
+            // Current token.
+            char *token = line;
+            // Finds delimiting characters.
+            __m256i delimiter = _mm256_set1_epi8(',');
+            int line_length = (idx + i) - (line - raw);
+
+            for (int j = 0; j < line_length; j += VECSIZE) {
+                __m256i line_word = _mm256_load_si256((__m256i const *)(line + j));
+                // Last iteration - mask out bytes past the end of the input
+                if (j + VECSIZE > line_length) {
+                    // mask out unused "out of bounds" bytes.
+                    // This is slow...optimize.
+                    __m256i line_eraser = _mm256_cmpeq_epi8(delimiter, delimiter);
+                    for (int k = 0; k < j + VECSIZE - line_length; k++) {
+                        //printf("masking top %d byte\n", VECSIZE - k - 1);
+                        line_eraser = _mm256_insert_epi8(line_eraser, 0, VECSIZE - k - 1);
+                    }
+                    line_word = _mm256_and_si256(line_word, line_eraser);
+                }
+
+                __m256i line_mask = _mm256_cmpeq_epi8(line_word, delimiter);
+                int line_imask = _mm256_movemask_epi8(line_mask);
+                while (line_imask) {
+                    int line_idx = ffs(line_imask) - 1;
+                    line[line_idx + j] = '\0';
+                    printf("token %ld -> %d: %s\n", token - line, line_idx + j, token);
+
+                    // Process `line` here. Length of the line is (idx + i) - (line - raw).
+
+                    token = line + j + line_idx + 1;
+                    line_imask &= ~(1 << line_idx);
+                }
+            }
+
+            // The last token, goes to the end of the buffer.
+            printf("token %ld -> %d: %s\n", token - line, line_length, token);
+
+            // End Token Processing. 
+            ////////////
 
             line = raw + i + idx + 1;
             imask &= ~(1 << idx);
         }
+
+        // TODO Special processing for the last line?
     }
 }
 
