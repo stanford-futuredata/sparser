@@ -6,6 +6,8 @@
 
 #include <immintrin.h>
 
+#include "common.h"
+
 // Columnar TPCH Q6 data.
 struct lineitem_q6 {
     int *l_shipdate;
@@ -223,7 +225,7 @@ int q6(struct lineitem_q6 *items) {
 }
 
 int main() {
-    const char *filename = "lineitem.tbl";
+    const char *filename = path_for_data("lineitem.tbl");
     time_t start, end;
 
     // Loading

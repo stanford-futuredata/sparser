@@ -9,5 +9,5 @@ Query 1:
 ```
 SELECT COUNT(*) FROM airplanes WHERE
     AircraftModel == "B747-400" AND
-    Airline == "United"
+    Airline == "United Airlines"
 ```

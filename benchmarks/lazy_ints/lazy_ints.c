@@ -19,7 +19,7 @@ double sum_data_standard(const char *filename) {
 
     long result = 0;
 
-    time_start();
+    bench_time_t s = time_start();
     while((token = strsep(&data, "\n")) != NULL) {
         long l = atoi(token);
         if (l < thres) {
@@ -27,7 +27,7 @@ double sum_data_standard(const char *filename) {
         }
     }
 
-    double time = time_stop();
+    double time = time_stop(s);
     printf("%.3f seconds\n", time);
     printf("%ld\n", result);
 
@@ -43,7 +43,7 @@ double sum_data_lazy(const char *filename) {
 
     long result = 0;
 
-    time_start();
+    bench_time_t s = time_start();
     while((token = strsep(&data, "\n")) != NULL) {
         register char *p = token;
         register int k = 0;
@@ -59,7 +59,7 @@ next_iter:
         ;
     }
 
-    double time = time_stop();
+    double time = time_stop(s);
     printf("%.3f seconds\n", time);
     printf("%ld\n", result);
 
@@ -74,7 +74,7 @@ double sum_data_exact_match(const char *filename) {
 
     long result = 0;
 
-    time_start();
+    bench_time_t s = time_start();
     while((token = strsep(&data, "\n")) != NULL) {
         long l = atoi(token);
         if (l == thres) {
@@ -82,7 +82,7 @@ double sum_data_exact_match(const char *filename) {
         }
     }
 
-    double time = time_stop();
+    double time = time_stop(s);
     printf("%.3f seconds\n", time);
     printf("%ld\n", result);
 
@@ -104,7 +104,7 @@ double sum_data_string_compare(const char *filename) {
     uint64_t mask = (1UL << len) - 1;
     printf("mask: %lld\n", mask);
 
-    time_start();
+    bench_time_t s = time_start();
     while((token = strsep(&data, "\n")) != NULL) {
         // TODO generalize to > 8 character integers.
         unsigned long x = *(unsigned long *)token;
@@ -114,7 +114,7 @@ double sum_data_string_compare(const char *filename) {
         }
     }
 
-    double time = time_stop();
+    double time = time_stop(s);
     printf("%.3f seconds\n", time);
     printf("%ld\n", result);
 
@@ -124,8 +124,8 @@ double sum_data_string_compare(const char *filename) {
 }
 
 int main() {
-    const char *filename_a = "../data/numbers.csv";
-    const char *filename_b = "../data/100000s.csv";
+    const char *filename_a = path_for_data("numbers.csv");
+    const char *filename_b = path_for_data("../data/100000s.csv");
     
     // Compare a < predicate and abort if we know we'll fail
     //double a = sum_data_standard(filename_a);

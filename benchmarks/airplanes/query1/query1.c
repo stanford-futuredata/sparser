@@ -7,8 +7,8 @@
 
 #include <immintrin.h>
 
-#include "../common/parser.h"
-#include "../../../common/common.h"
+#include "parser.h"
+#include "common.h"
 
 double baseline(const char *filename) {
     aircraft_t *data = NULL;
@@ -18,13 +18,13 @@ double baseline(const char *filename) {
     // Returns number of bytes in the buffer.
     read_all(filename, &raw);
 
-    time_start();
+    bench_timer_t s = time_start();
     int length = parse(raw, &data);
-    double parse_time = time_stop();
+    double parse_time = time_stop(s);
 
     free(raw);
 
-    time_start();
+    s = time_start();
     const char *model = "B747-400";
     const char *airline = "United Airlines";
     size_t len_airline = strlen(airline);
@@ -37,7 +37,7 @@ double baseline(const char *filename) {
         }
     }
 
-    double query_time = time_stop();
+    double query_time = time_stop(s);
     free(data);
 
     printf("%d (parse %.3f, query %.3f, total %.3f)\n", count, parse_time, query_time, parse_time + query_time);
@@ -69,9 +69,10 @@ double fast(const char *filename) {
     char *raw = NULL;
     // Don't count disk load time.
     // Returns number of bytes in the buffer.
-    int length = read_all(filename, &raw);
+    long length = read_all(filename, &raw);
 
-    time_start();
+    printf("%ld\n", length);
+    bench_timer_t s = time_start();
 
     const char *model = "B747-400";
     const char *airline = "United Airlines";
@@ -82,7 +83,7 @@ double fast(const char *filename) {
     char *line = raw;
     // Finds newline characters.
     __m256i line_seeker = _mm256_set1_epi8('\n');
-    for (int i = 0; i < length; i += VECSIZE) {
+    for (long i = 0; i < length; i += VECSIZE) {
         __m256i word = _mm256_load_si256((__m256i const *)(raw + i));
         // Last iteration - mask out bytes past the end of the input
         if (i + VECSIZE > length) {
@@ -117,7 +118,7 @@ double fast(const char *filename) {
             __m256i delimiter = _mm256_set1_epi8(',');
             int line_length = (idx + i) - (line - raw);
 
-            for (int j = 0; j < line_length; j += VECSIZE) {
+            for (long j = 0; j < line_length; j += VECSIZE) {
                 __m256i line_word = _mm256_load_si256((__m256i const *)(line + j));
                 // Last iteration - mask out bytes past the end of the input
                 if (j + VECSIZE > line_length) {
@@ -198,7 +199,7 @@ end_token_processing:
         // TODO Special processing for the last line?
     }
 
-    double total = time_stop();
+    double total = time_stop(s);
     free(raw);
 
     printf("%d (parse + query: %.3f)\n", count, total);
@@ -206,8 +207,9 @@ end_token_processing:
 }
 
 int main() {
-    double a = baseline("../data/airplanes_big.csv");
-    double b = fast("../data/airplanes_big.csv");
+    //double a = baseline(path_for_data("airplanes_big.csv"));
+    double b = fast(path_for_data("airplanes_big.csv"));
+    double a = 0;
 
     printf("Speedup: %.3f\n", a / b);
 }

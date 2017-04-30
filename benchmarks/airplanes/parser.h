@@ -1,11 +1,15 @@
+/**
+ * Contains routines for parsing the Airplane dataset into a array of structs format.
+ */
+
+#ifndef _PARSER_H_
+#define _PARSER_H_
+
 #include <stdlib.h>
 #include <stdio.h>
 
 #include <string.h>
-
 #include <time.h>
-
-#include "../../../common/common.h"
 
 typedef enum {
     AIRCRAFT_ID = 0,
@@ -29,11 +33,10 @@ typedef struct {
     int modification_date;
 } aircraft_t;
 
+/** Parse a buffer representing the airplane SFO dataset into structs. */
+int parse(char *input, aircraft_t **buf);
+
 int parse(char *input, aircraft_t **buf) {
-
-    clock_t start, end;
-
-    start = clock();
 
     const size_t BUFSZ = 4096;
 
@@ -83,19 +86,7 @@ int parse(char *input, aircraft_t **buf) {
     }
 
     *buf = ret;
-
-
-    end = clock();
-    double cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
-    printf("Baseline Parser: %.3f seconds\n", cpu_time_used);
-
     return length;
 }
 
-int load(const char *filename, aircraft_t **buf) {
-    char *data = NULL;
-    read_all(filename, &data);
-    int length = parse(data, buf);
-    free(data);
-    return length;
-}
+#endif

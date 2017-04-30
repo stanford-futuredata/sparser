@@ -6,6 +6,8 @@
 
 #include <time.h>
 
+#include "common.h"
+
 struct data {
     // The line buffer
     char *_buf;
@@ -84,7 +86,7 @@ int process_inline(const char *filename, const char *delim) {
 }
 
 int main() {
-    const char *filename = "data.csv";
+    const char *filename = path_for_data("us_cities_states_counties.csv");
     time_t start, end;
 
     start = clock();
