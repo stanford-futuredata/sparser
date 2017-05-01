@@ -11,3 +11,12 @@ SELECT COUNT(*) FROM airplanes WHERE
     AircraftModel == "B747-400" AND
     Airline == "United Airlines"
 ```
+
+Query 2:
+
+```
+SELECT COUNT(*) FROM airplanes WHERE
+    Airline CONTAINS "United Airlines" OR
+    Airline CONTAINS "Delta Airlines" OR
+    Airline CONTAINS "American Airlines"
+```
