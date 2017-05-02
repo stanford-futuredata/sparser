@@ -42,7 +42,7 @@ double baseline(const char *filename) {
         for(int j = 0; j < 3; j++) {
             const char *airline = airlines[j];
             const size_t strsize = strsizes[j];
-            if (strnstr(data[i].airline, airline, strsize)) {
+            if (strncmp(data[i].airline, airline, strsize) == 0) {
                 count++;
                 break;
             }
@@ -73,6 +73,9 @@ double baseline(const char *filename) {
 // Size of a single vector.
 #define VECSIZE 32
 
+// If true, uses a single packed vector compare to check all predicates.
+#define PACKED_COMPARE  1
+
 double fast(const char *filename) {
 
     // The  final result.
@@ -96,6 +99,12 @@ double fast(const char *filename) {
         strlen(airlines[1]),
         strlen(airlines[2]),
     };
+
+#if PACKED_COMPARE
+    // Possible predicates start at byte 0, 3, 5
+    const char *pred_prefixes_str = "UniAmDel";
+    unsigned long pred_prefixes = *((unsigned long *)pred_prefixes_str);
+#endif
 
     // Current line.
     char *line = raw;
@@ -159,15 +168,37 @@ double fast(const char *filename) {
                     //printf("token %ld -> %d: %s\n", token - line, line_idx + j, token);
 
                     // Process `token` here. Length of the line is (line_idx + j) - (token - line).
+                    size_t token_size = (line_idx + j) - (token - line);
                     if (token_index == AIRLINE) {
+#if PACKED_COMPARE
+                        unsigned long token_long = *((unsigned long *)token);
+                        // Copy first three bytes, then first two bytes, then first three bytes
+                        // again.
+                        unsigned long first_three = token_long & 0xffffff;
+                        unsigned long first_two = (token_long & 0xffff) << 3*8;
+                        unsigned long last_three = (first_three << 5*8);
+                        unsigned long to_compare = first_three | first_two | last_three;
+
+                        unsigned long predmask = (pred_prefixes & to_compare);
+                        if ((predmask & 0xffffffL) == first_three && strncmp(token, airlines[0], strsizes[0]) == 0) {
+                            count++;
+                        } 
+                        else if ((predmask & 0xffff000000L) == first_two && strncmp(token, airlines[1], strsizes[1]) == 0) {
+                            count++;
+                        }
+                        else if ((predmask & 0xffffff0000000000L) == last_three && strncmp(token, airlines[2], strsizes[2]) == 0) {
+                            count++;
+                        }
+#else
                         for(int j = 0; j < 3; j++) {
                             const char *airline = airlines[j];
                             const size_t strsize = strsizes[j];
-                            if (strnstr(token, airline, strsize)) {
+                            if (strncmp(token, airline, strsize) == 0) {
                                 count++;
                                 break;
                             }
                         }
+#endif
                     }
 
                     token = line + j + line_idx + 1;
@@ -176,25 +207,25 @@ double fast(const char *filename) {
 
                     // Some simple short circuiting. Comment this out to disable and parse all the
                     // data unconditionally.
-                    /*
                     if (token_index > AIRLINE) {
                         goto end_token_processing;
                     }
-                    */
                 }
             }
 
             // The last token, goes to the end of the buffer.
-            if (token_index == AIRLINE) {
-                for(int j = 0; j < 3; j++) {
-                    const char *airline = airlines[j];
-                    const size_t strsize = strsizes[j];
-                    if (strnstr(token, airline, strsize)) {
-                        count++;
-                        break;
-                    }
+#if PACKED_COMPARE
+#else
+            for(int j = 0; j < 3; j++) {
+                const char *airline = airlines[j];
+                const size_t strsize = strsizes[j];
+                if (strncmp(token, airline, strsize) == 0) {
+                    count++;
+                    break;
                 }
             }
+#endif
+
 
 
 end_token_processing:
