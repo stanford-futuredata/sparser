@@ -16,7 +16,7 @@ Query 2:
 
 ```
 SELECT COUNT(*) FROM airplanes WHERE
-    Airline CONTAINS "United Airlines" OR
-    Airline CONTAINS "Delta Airlines" OR
-    Airline CONTAINS "American Airlines"
+    Airline CONTAINS "United" OR
+    Airline CONTAINS "Delta" OR
+    Airline CONTAINS "American"
 ```
