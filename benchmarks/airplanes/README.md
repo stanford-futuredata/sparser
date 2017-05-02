@@ -4,6 +4,12 @@ This directory contains queries on the on the following dataset:
 
 https://catalog.data.gov/dataset/aircraft-tail-numbers-and-models-at-sfo
 
+Query 0:
+
+```
+Scan Input without parsing
+```
+
 Query 1:
 
 ```
