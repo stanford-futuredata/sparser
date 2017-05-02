@@ -22,7 +22,7 @@ Query 2:
 
 ```
 SELECT COUNT(*) FROM airplanes WHERE
-    Airline CONTAINS "United" OR
-    Airline CONTAINS "Delta" OR
-    Airline CONTAINS "American"
+    Airline PREFIX == "United" OR
+    Airline PREFIX == "Delta" OR
+    Airline PREFIX == "American"
 ```
