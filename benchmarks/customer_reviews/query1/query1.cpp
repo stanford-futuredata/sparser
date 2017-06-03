@@ -1,4 +1,3 @@
-// rapidjson/example/simpledom/simpledom.cpp`
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
@@ -55,7 +54,11 @@ double fast() {
             // Begin Token Processing. 
             int line_length = (idx + i) - (line - raw);
 
-            // TODO - nesting.
+            // TODO - nesting - we don't need to parse the whole tree hopefully, but just 
+            // check if the nesting level of this particular "overall" is correct.
+            // TODO - what if we need to parse out multiple fields? Do we check this token for all
+            // the fields? That would be an O(mn^2) operation where m is the number of fields to
+            // parse and n is the length of the string.
             char *field_offset = strnstr(line, "\"overall\":", line_length);
             // Not general enough right now, but whatever
             field_offset += strlen("\"overall\":");
@@ -64,7 +67,7 @@ double fast() {
             if (endptr == field_offset) {
                 printf("%s\n", field_offset);
             }
-            score_average += 1;
+            score_average += f;
             doc_index++;
 
             // End Token Processing. 
@@ -79,7 +82,7 @@ end_line_processing:
     }
 
     double elapsed = time_stop(s);
-    printf("Average overall score: %f (%.3f seconds)\n", score_average / doc_index, elapsed);
+    printf("Custom Average overall score: %f (%.3f seconds)\n", score_average / doc_index, elapsed);
     return elapsed;
 }
 
@@ -146,7 +149,7 @@ end_line_processing:
     }
 
     double elapsed = time_stop(s);
-    printf("Average overall score: %f (%.3f seconds)\n", score_average / doc_index, elapsed);
+    printf("Rapid Average overall score: %f (%.3f seconds)\n", score_average / doc_index, elapsed);
     return elapsed;
 }
 
@@ -174,13 +177,13 @@ double baseline_rapidjson() {
     }
 
     double elapsed = time_stop(s);
-    printf("Average overall score: %f (%.3f seconds)\n", score_average / doc_index, elapsed);
+    printf("Baseline Average overall score: %f (%.3f seconds)\n", score_average / doc_index, elapsed);
     return elapsed;
 }
 
 int main() {
     double a = baseline_rapidjson();
-    //double b = rapidjson_fast_newline();
-    double b = fast();
-    printf("Speedup: %.3f\n", a / b);
+    double b = rapidjson_fast_newline();
+    double c = fast();
+    printf("Speedup: %.3f\n", a / c);
 }

@@ -57,7 +57,7 @@ double lazy_8byte() {
             unsigned cbs_mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(inp, cbrackets));
             unsigned qbs_mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(inp, quotes));
 
-            // Need to do something like a merge in a merge sort here; take the minimum of the
+            // TODO Need to do something like a merge in a merge sort here; take the minimum of the
             // three, update state, and continue for each set bit. If depth == 1 and !is_string,
             // check for the key we're looking for. Should we also look for commas or something?
             while(obs_mask) {
