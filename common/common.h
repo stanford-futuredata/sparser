@@ -21,7 +21,9 @@ static char *benchmark_string(const char *name, double time) {
 static char *path_for_data(const char *datafile) {
     static char buf[8192];
     char *envvar = getenv("SPARSER_HOME");
-    assert(envvar);
+    if (!envvar) {
+        envvar = "/Users/shoumikpalkar/work/sparser/";
+    }
 
     snprintf(buf, sizeof(buf), "%s/benchmarks/datagen/_data/%s", envvar, datafile);
     return buf;

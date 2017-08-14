@@ -12,34 +12,40 @@
 
 #define VECSZ 32
 
-inline int check(__m256i xs, const char *address) {
+int check(__m256i xs, const char *address) {
     int count = 0;
-
-    // For debugging.
-    char buf[VECSZ + 1];
-    buf[VECSZ] = 0;
-
     __m256i val = _mm256_loadu_si256((__m256i const *)(address));
+    // change to epi8 for single bit comparison
+    unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(xs, val));
 
-    int mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(xs, val));
-    if (mask) {
-        int prev = ffs(mask) - 1;
-        while ((prev) % 2 != 0 && mask) {
-            mask &= ~(1 << prev);
-            prev = ffs(mask) - 1;
+    // Remove redundancy from movemask instruction (for epi16 only)
+    mask &= 0xf0f0f0f0;
+
+    while (mask) {
+        int index = ffs(mask) - 1;
+        mask &= ~(1 << index);
+
+        // for epi16 version
+        count++;
+
+        // for epi8 version
+        /*
+        // Odd offset - don't count it as a match.
+        if (index % 2 == 1) {
+            continue;
         }
 
-        while (mask) {
-            int index = ffs(mask) - 1;
-            // check if characters are adjacent.
-            if (index - prev == 1 && index % 2 == 1) {
-                count++;
-                // memcpy(buf, address, VECSZ);
-                // printf("found \"%s\" in string: %s\n", search_str, (char *)buf);
-            }
-            mask &= ~(1 << index);
+        // Even offset - check the next bit.
+        int next = ffs(mask) - 1;
+        mask &= ~(1 << next);
+
+        // match if consecutive bits are set.
+        if (next - index == 1) {
+            count++;
         }
+        */
     }
+
     return count;
 }
 
@@ -71,7 +77,7 @@ double baseline_sum(const char *filename) {
 
     double parse_time = time_stop(s);
 
-    printf("%ld\n", final);
+    printf("%hd\n", (short)final);
     printf("%f seconds\n", parse_time);
 
     free(raw);
@@ -118,8 +124,8 @@ double baseline(const char *filename) {
 
 int main() {
     const char *filename = path_for_data("tweets.json");
-    baseline_sum(filename);
     baseline(filename);
+    baseline_sum(filename);
 
     return 0;
 }

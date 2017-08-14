@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=-O3 -flto -march=native
+CFLAGS=-O3 -flto -march=native -g
 INCLUDES=-I.. -I../../common
 
 .PHONY: all clean

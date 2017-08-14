@@ -88,10 +88,14 @@ end_line_processing:
 
 double rapidjson_fast_newline() {
     char *raw;
-    size_t length = read_all(path_for_data("amazon_video_reviews.json"), &raw);
+    size_t length = read_all(path_for_data("tweets.json"), &raw);
+
+    long count = 0;
 
     int doc_index = 1;
     double score_average = 0.0;
+
+    Value::ConstMemberIterator itr;
 
     bench_timer_t s = time_start();
 
@@ -134,7 +138,22 @@ double rapidjson_fast_newline() {
                 goto end_line_processing;
             }
 
-            score_average += d["overall"].GetDouble();
+
+#if 0
+static const char* kTypeNames[] = 
+    { "Null", "False", "True", "Object", "Array", "String", "Number" };
+for (Value::ConstMemberIterator itr = d.MemberBegin();
+    itr != d.MemberEnd(); ++itr)
+{
+    printf("Type of member %s is %s\n",
+        itr->name.GetString(), kTypeNames[itr->value.GetType()]);
+}
+#endif
+
+            if (d.HasMember("favorited")) {
+                count++;
+            }
+
             doc_index++;
             
             // End Token Processing. 
@@ -149,13 +168,13 @@ end_line_processing:
     }
 
     double elapsed = time_stop(s);
-    printf("Rapid Average overall score: %f (%.3f seconds)\n", score_average / doc_index, elapsed);
+    printf("Rapid Count: %ld (%f%%) (%.3f seconds)\n", count, (float)count / (float)doc_index, elapsed);
     return elapsed;
 }
 
 double baseline_rapidjson() {
     char *data, *line;
-    size_t bytes = read_all(path_for_data("amazon_video_reviews.json"), &data);
+    size_t bytes = read_all(path_for_data("tweets.json"), &data);
     int doc_index = 1;
 
     double score_average = 0.0;
@@ -172,7 +191,6 @@ double baseline_rapidjson() {
             continue;
         }
 
-        score_average += d["overall"].GetDouble();
         doc_index++;
     }
 
@@ -184,6 +202,6 @@ double baseline_rapidjson() {
 int main() {
     double a = baseline_rapidjson();
     double b = rapidjson_fast_newline();
-    double c = fast();
-    printf("Speedup: %.3f\n", a / c);
+    //double c = fast();
+    //printf("Speedup: %.3f\n", a / c);
 }
