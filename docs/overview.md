@@ -42,9 +42,7 @@ tweet.hashtags contains 'B747'
 * For nested predicates, any way to do the same (e.g., retrieving some nested thing faster)
 * Can information about the position of each field be stored while traversing the data? What's efficient?
 * Structures for holding indexing information (relevant for column-oriented stuff?)
-* For example, storing order of key names
-* Byte substrings (e.g., find a 4-bit sequence to root search) - fancy AVX blending instructions?
-* Temporary hash tables or something to compute a LSH or something
+* Parallel approximate substring search (see `search.md`)
 
 ## Format-Specific Techniques
 
