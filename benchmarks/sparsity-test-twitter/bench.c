@@ -16,10 +16,11 @@ int check(__m256i xs, const char *address) {
     int count = 0;
     __m256i val = _mm256_loadu_si256((__m256i const *)(address));
     // change to epi8 for single bit comparison
-    unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(xs, val));
+    unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(xs, val));
 
-    // Remove redundancy from movemask instruction (for epi16 only)
-    mask &= 0xf0f0f0f0;
+    // Remove redundancy from movemask instruction.
+    // Set to 0x11111111 for epi32, 0xf0f0f0f0f0 for epi16. No mask for byte-level comparator.
+    mask &= 0x11111111;
 
     while (mask) {
         int index = ffs(mask) - 1;
@@ -96,11 +97,12 @@ double baseline(const char *filename) {
 
     const unsigned short z1 = 0;
 
-    const char *search_str = "fo";
-    uint16_t search = *((uint16_t *)search_str);
+    const char *search_str = "fals";
+    uint32_t search = *((uint32_t *)search_str);
     printf("%s 0x%x\n", search_str, search);
 
-    __m256i xs = _mm256_set1_epi16(search);
+    // set to correct instrution!
+    __m256i xs = _mm256_set1_epi32(search);
 
     char buf[33];
     buf[32] = 0;
@@ -110,11 +112,18 @@ double baseline(const char *filename) {
     for (size_t offset = 0; offset < size; offset += VECSZ) {
         count += check(xs, raw + offset);
         count += check(xs, raw + offset + 1);
+        count += check(xs, raw + offset + 2);
+        count += check(xs, raw + offset + 3);
+
+        count += check(xs1, raw + offset);
+        count += check(xs1, raw + offset + 1);
+        count += check(xs1, raw + offset + 2);
+        count += check(xs1, raw + offset + 3);
     }
 
     double parse_time = time_stop(s);
 
-    printf("Number of xs: %ld (%.3f%% of the input)\n", count, 100.0 * (double)(count * strlen(search_str)) / (double)size);
+    printf("Number of \"%s\" found: %ld (%.3f%% of the input)\n", search_str, count, 100.0 * (double)(count * strlen(search_str)) / (double)size);
     printf("%f seconds\n", parse_time);
 
     free(raw);
