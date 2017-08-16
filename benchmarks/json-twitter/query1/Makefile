@@ -1,5 +1,5 @@
 CC=clang++
-CFLAGS=-O3 -flto -march=native -g
+CFLAGS=-std=c++11 -O3 -flto -march=native -g
 INCLUDES=-I.. -I../../../common -I ../../../common/rapidjson/include
 
 .PHONY: all clean

@@ -19,9 +19,15 @@ using namespace rapidjson;
 
 #define VECSZ 32
 
-static char print_buffer[4096];
+// The query string.
+const char *search_str = "Putin";
+const char *search_str1 = "LaVerne";
 
-const char *search_str = "SAD!";
+// This is the substring to search using sparser.
+const char *seek_str = "Puti";
+
+// For printing debug information.
+static char print_buffer[4096];
 
 bool rapidjson_parse(const char *line);
 
@@ -78,11 +84,11 @@ double baseline(const char *filename) {
     bench_timer_t s = time_start();
 
     // Tokens sparser matched.
-    long sparser_matched = 1;
+    long sparser_matched = 0;
     // Number of records sparser chose to pass to the full parser.
-    long sparser_records_passed = 1;
+    long sparser_records_passed = 0;
     // Number of records which actually matched using the full parser.
-    long matching = 1;
+    long matching = 0;
     // Total number of documents.
     long doc_index = 1;
 
@@ -91,9 +97,8 @@ double baseline(const char *filename) {
     // we want to match.
     //
     // Currently set to 32-bit matching (so we should use .._epi32() everywhere).
-    uint32_t search = *((uint32_t *)search_str);
+    uint32_t search = *((uint32_t *)seek_str);
     __m256i xs = _mm256_set1_epi32(search);
-    __m256i newlines = _mm256_set1_epi8('\n');
 
     RESET_PRINTER();
     _mm256_storeu_si256((__m256i *)print_buffer, xs);
@@ -101,23 +106,6 @@ double baseline(const char *filename) {
 
     for (size_t offset = 0; offset < size; offset += VECSZ) {
         int tokens_found = 0;
-
-        /*
-        // Probably don't want to load these over and over again...hopefully -O3 fixes it for us.
-        __m256i val = _mm256_loadu_si256((__m256i const *)(raw + offset));
-        __m256i mask = _mm256_cmpeq_epi8(val, newlines);
-        int imask = _mm256_movemask_epi8(mask);
-        if (imask) {
-            int idx = ffs(imask) - 1;
-
-            assert(raw[offset + idx] == '\n');
-
-            // Index where the record starts.
-            record_start = offset + idx;
-            raw[record_start] = '\0';
-            record_start++;
-        }
-        */
 
         // Fuzzy check
         tokens_found += check(xs, raw + offset);
@@ -127,25 +115,21 @@ double baseline(const char *filename) {
 
         // Fuzzy check passed - use full parser to verify.
         if (tokens_found) {
-
             // Race forward to null-terminate so we can pass the token to the parser.
-            // TODO use vectors
             int record_end = offset;
             for (; record_end < size && raw[record_end] != '\n'; record_end++);
             raw[record_end] = '\0';
 
+            // Seek back to the previous newline so we can pass the full record to the parser.
             int record_start = offset;
             for (; record_start > 0 && raw[record_start] != '\0' && raw[record_start] != '\n'; record_start--);
             raw[record_start] = '\0';
             record_start++;
 
-            //printf("%s\n", raw + record_start);
-
             sparser_records_passed++; 
             if (rapidjson_parse(raw + record_start)) {
                 matching++;
             }
-
             offset = record_end + 1 - VECSZ;
         }
 
@@ -156,8 +140,15 @@ double baseline(const char *filename) {
     free(raw);
 
     double percent_bytes_matched = (double)(sparser_matched * strlen(search_str)) / (double)size;
-    double actual_matches = ((double)matching) / ((double)sparser_records_passed); 
-    double false_positives = 1.0 - actual_matches;
+    double actual_matches;
+    double false_positives;
+    if (sparser_records_passed > 0) {
+        actual_matches = ((double)matching) / ((double)sparser_records_passed); 
+        false_positives = 1.0 - actual_matches;
+    } else {
+        actual_matches = 0;
+        false_positives = 0;
+    }
 
     // Print some statistics about what we found here.
     printf("Number of \"%s\" found by sparser: %ld (%.3f%% of the input)\n",
@@ -182,36 +173,27 @@ bool rapidjson_parse(const char *line) {
         return false;
     }
 
-    const char *en = "en";
-    const unsigned retweet_thres = 50;
-    Value::ConstMemberIterator itr;
-
-    /*
-    Value::ConstMemberIterator itr = d.FindMember("lang");
-    if (itr != d.MemberEnd()) {
-        if (strncmp(en, itr->value.GetString(), strlen(en)) == 0) {
-            return false;
-        }
-    } else {
+    Value::ConstMemberIterator itr = d.FindMember("text");
+    if (itr == d.MemberEnd()) {
+        // The field wasn't found.
+        return false;
+    }
+    if (strstr(itr->value.GetString(), search_str) == NULL) {
         return false;
     }
 
-    itr = d.FindMember("retweet_count");
-    if (itr != d.MemberEnd()) {
-        if (retweet_thres > itr->value.GetUint()) {
-            return false;
-        }
-    } else {
+    itr = d.FindMember("user");
+    if (itr == d.MemberEnd()) {
         return false;
     }
-    */
 
-    itr = d.FindMember("text");
-    if (itr != d.MemberEnd()) {
-        if (!strstr(itr->value.GetString(), search_str)) {
-            return false;
-        }
-    } else {
+    auto user = itr->value.GetObject();
+    itr = user.FindMember("name");
+    if (itr == d.MemberEnd()) {
+        return false;
+    }
+    
+    if (strcmp(itr->value.GetString(), search_str1) != 0) {
         return false;
     }
 

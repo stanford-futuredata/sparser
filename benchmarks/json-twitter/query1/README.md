@@ -1,9 +1,8 @@
 Filter rows which have
 
 ```
-tweet.lang == 'en'
-tweet.retweet_count > 50
-tweet.text contains "trump"
+tweet.user.name == "LaVerne" &&
+tweet.text contains "Putin"
 ```
 
 Uses the `tweets.json` dataset.
