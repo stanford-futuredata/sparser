@@ -104,7 +104,7 @@ double baseline(const char *filename) {
     _mm256_storeu_si256((__m256i *)print_buffer, xs);
     printf("%s\n", print_buffer);
 
-    for (size_t offset = 0; offset < size; offset += VECSZ) {
+    for (size_t offset = 0; offset < size - VECSZ - 3; offset += VECSZ) {
         int tokens_found = 0;
 
         // Fuzzy check
@@ -116,15 +116,17 @@ double baseline(const char *filename) {
         // Fuzzy check passed - use full parser to verify.
         if (tokens_found) {
             // Race forward to null-terminate so we can pass the token to the parser.
-            int record_end = offset;
+            long record_end = offset;
             for (; record_end < size && raw[record_end] != '\n'; record_end++);
             raw[record_end] = '\0';
 
             // Seek back to the previous newline so we can pass the full record to the parser.
-            int record_start = offset;
+            long record_start = offset;
             for (; record_start > 0 && raw[record_start] != '\0' && raw[record_start] != '\n'; record_start--);
-            raw[record_start] = '\0';
-            record_start++;
+            if (record_start != 0) {
+                raw[record_start] = '\0';
+                record_start++;
+            }
 
             sparser_records_passed++; 
             if (rapidjson_parse(raw + record_start)) {

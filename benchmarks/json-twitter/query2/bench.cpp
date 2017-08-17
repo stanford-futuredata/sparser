@@ -99,11 +99,11 @@ double baseline(const char *filename) {
     printf("%s\n", print_buffer);
 
     bool swapped = false;
-    for (size_t offset = 0; offset < size - VECSZ; offset += VECSZ) {
+    for (size_t offset = 0; offset < size - VECSZ - 3; offset += VECSZ) {
         int tokens_found = 0;
 
         // Swap half way through from 2017 -> maga
-        if (!swapped && offset >= 0) {
+        if (!swapped && offset >= size / 1000) {
             swapped = true;
             printf("swapping\n");
             const char *seek_str2 = "maga";
@@ -122,7 +122,7 @@ double baseline(const char *filename) {
             // Race forward to null-terminate so we can pass the token to the parser.
             long record_end = offset;
             long checked_neighborhood = false;
-            for (; record_end < size - VECSZ && raw[record_end] != '\n'; record_end++) {
+            for (; record_end < size && raw[record_end] != '\n'; record_end++) {
 
                 // neighborhood search.
                 /*
@@ -144,8 +144,10 @@ double baseline(const char *filename) {
             // Seek back to the previous newline so we can pass the full record to the parser.
             long record_start = offset;
             for (; record_start > 0 && raw[record_start] != '\0' && raw[record_start] != '\n'; record_start--);
-            raw[record_start] = '\0';
-            record_start++;
+            if (record_start != 0) {
+                raw[record_start] = '\0';
+                record_start++;
+            }
 
             sparser_records_passed++; 
             if (rapidjson_parse(raw + record_start)) {
