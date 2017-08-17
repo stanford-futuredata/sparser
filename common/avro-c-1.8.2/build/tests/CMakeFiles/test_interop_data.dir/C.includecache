@@ -1,0 +1,46 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../src/avro/errors.h
+
+../src/avro/msinttypes.h
+msstdint.h
+../src/avro/msstdint.h
+
+../src/avro/msstdint.h
+limits.h
+-
+wchar.h
+-
+
+../src/avro/platform.h
+avro/msinttypes.h
+-
+inttypes.h
+-
+
+../src/avro_private.h
+errno.h
+-
+avro/errors.h
+../src/avro/errors.h
+avro/platform.h
+../src/avro/platform.h
+config.h
+../src/config.h
+sys/param.h
+-
+errno.h
+-
+
+/Users/shoumikpalkar/work/sparser/common/avro-c-1.8.2/tests/test_interop_data.c
+avro_private.h
+/Users/shoumikpalkar/work/sparser/common/avro-c-1.8.2/tests/avro_private.h
+stdio.h
+-
+

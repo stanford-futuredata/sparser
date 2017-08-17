@@ -1,0 +1,7 @@
+Name: avro-c
+Description: C library for parsing Avro data
+Version: 1.8.2
+URL: http://avro.apache.org/
+Libs: -L/Users/shoumikpalkar/work/sparser/common/lib -lavro
+Cflags: -I/Users/shoumikpalkar/work/sparser/common/include
+Requires: zlib liblzma 
