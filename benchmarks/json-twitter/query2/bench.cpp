@@ -19,12 +19,8 @@ using namespace rapidjson;
 
 #define VECSZ 32
 
-// The query string.
-const char *search_str = "Putin";
-const char *search_str1 = "LaVerne";
-
 // This is the substring to search using sparser.
-const char *seek_str = "Puti";
+const char *seek_str = "2017";
 
 // For printing debug information.
 static char print_buffer[4096];
@@ -89,8 +85,6 @@ double baseline(const char *filename) {
     long sparser_records_passed = 0;
     // Number of records which actually matched using the full parser.
     long matching = 0;
-    // Total number of documents.
-    long doc_index = 1;
 
     // This is the string to search.
     // TODO - generalize this - the check function should be a function pointer set according to the number of bytes
@@ -104,8 +98,18 @@ double baseline(const char *filename) {
     _mm256_storeu_si256((__m256i *)print_buffer, xs);
     printf("%s\n", print_buffer);
 
-    for (size_t offset = 0; offset < size; offset += VECSZ) {
+    bool swapped = false;
+    for (size_t offset = 0; offset < size - VECSZ; offset += VECSZ) {
         int tokens_found = 0;
+
+        // Swap half way through from 2017 -> maga
+        if (!swapped && offset >= 0) {
+            swapped = true;
+            printf("swapping\n");
+            const char *seek_str2 = "maga";
+            uint32_t search = *((uint32_t *)seek_str2);
+            xs = _mm256_set1_epi32(search);
+        }
 
         // Fuzzy check
         tokens_found += check(xs, raw + offset);
@@ -116,12 +120,29 @@ double baseline(const char *filename) {
         // Fuzzy check passed - use full parser to verify.
         if (tokens_found) {
             // Race forward to null-terminate so we can pass the token to the parser.
-            int record_end = offset;
-            for (; record_end < size && raw[record_end] != '\n'; record_end++);
+            long record_end = offset;
+            long checked_neighborhood = false;
+            for (; record_end < size - VECSZ && raw[record_end] != '\n'; record_end++) {
+
+                // neighborhood search.
+                /*
+                if (!checked_neighborhood && raw[record_end] == ':') {
+                    int searcher = record_end - VECSZ;
+                    __m256i val = _mm256_loadu_si256((__m256i const *)(raw + searcher));
+                    __m256i checker = _mm256_set1_epi8('x');
+                    unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(checker, val));
+                    if (!mask) {
+                        goto next;
+                    }
+                    checked_neighborhood = true;
+                }
+                */
+
+            }
             raw[record_end] = '\0';
 
             // Seek back to the previous newline so we can pass the full record to the parser.
-            int record_start = offset;
+            long record_start = offset;
             for (; record_start > 0 && raw[record_start] != '\0' && raw[record_start] != '\n'; record_start--);
             raw[record_start] = '\0';
             record_start++;
@@ -134,12 +155,15 @@ double baseline(const char *filename) {
         }
 
         sparser_matched += tokens_found;
+
+next:
+        {}
     }
 
     double parse_time = time_stop(s);
     free(raw);
 
-    double percent_bytes_matched = (double)(sparser_matched * strlen(search_str)) / (double)size;
+    double percent_bytes_matched = (double)(sparser_matched * strlen(seek_str)) / (double)size;
     double actual_matches;
     double false_positives;
     if (sparser_records_passed > 0) {
@@ -152,9 +176,9 @@ double baseline(const char *filename) {
 
     // Print some statistics about what we found here.
     printf("Number of \"%s\" found by sparser: %ld (%.3f%% of the input)\n",
-            search_str,
+            seek_str,
             sparser_matched,
-            100.0 * (double)(sparser_matched * strlen(search_str)) / (double)size);
+            100.0 * (double)(sparser_matched * strlen(seek_str)) / (double)size);
     printf("Fraction of sparser matches which were actual matches: %f\n", actual_matches);
     printf("Fraction of sparser matches which were false positives: %f\n", false_positives);
     printf("%ld Actual Matches\n", matching);
@@ -173,31 +197,40 @@ bool rapidjson_parse(const char *line) {
         return false;
     }
 
-    Value::ConstMemberIterator itr = d.FindMember("text");
+    Value::ConstMemberIterator itr = d.FindMember("created_at");
     if (itr == d.MemberEnd()) {
         // The field wasn't found.
         return false;
     }
-    if (strstr(itr->value.GetString(), search_str) == NULL) {
+    if (strstr(itr->value.GetString(), "2017") == NULL) {
         return false;
     }
 
-    itr = d.FindMember("user");
+    itr = d.FindMember("entities");
     if (itr == d.MemberEnd()) {
         return false;
     }
 
-    auto user = itr->value.GetObject();
-    itr = user.FindMember("name");
+    auto entities = itr->value.GetObject();
+    itr = entities.FindMember("hashtags");
     if (itr == d.MemberEnd()) {
         return false;
     }
-    
-    if (strcmp(itr->value.GetString(), search_str1) != 0) {
-        return false;
+
+    for (auto& v : itr->value.GetArray()) {
+        Value::ConstMemberIterator itr2 = v.GetObject().FindMember("text");
+        if (itr2 == v.MemberEnd()) {
+            // The field wasn't found.
+            return false;
+        }
+
+        // Found it!
+        if (strcmp(itr2->value.GetString(), "maga") == 0) {
+            return true;
+        }
     }
 
-    return true;
+    return false;
 }
 
 /// JSON Parser version.
