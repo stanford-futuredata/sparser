@@ -7,10 +7,10 @@
 typedef sparser_callback_t parser_t;
 
 /** Uses sparser and RapidJSON to count the number of records matching the
- * predicate.
+ * search query.
  *
  * @param filename the data to check
- * @param query a search query. If this is NULL, TEXT is used. At most four
+ * @param query a search query. At most four
  * bytes from this query will be used.
  * @param callback the callback which invokes the full parser.
  *
@@ -49,6 +49,8 @@ double bench_sparser(const char *filename, const char *query,
  *
  * @param filename
  * @param callback the function which performs the parse.
+ *
+ * @return the running time.
  */
 double bench_rapidjson(const char *filename, parser_t callback) {
   char *data, *line;
