@@ -8,4 +8,4 @@ all:
 	$(CC) $(CFLAGS) $(INCLUDES) bench.cpp -o bench
 
 clean:
-	rm -rf bench
+	rm -rf bench bench.dSYM

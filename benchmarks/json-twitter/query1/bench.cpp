@@ -18,7 +18,7 @@
 
 using namespace rapidjson;
 
-// The query string.
+// The query strings.
 const char *TEXT = "Putin";
 const char *USER_NAME = "LaVerne";
 
@@ -131,7 +131,7 @@ double baseline_rapidjson(const char *filename) {
 
 int main() {
   const char *filename = path_for_data("tweets.json");
-  double a = baseline(filename, TEXT);
+  double a = baseline(filename, NULL);
   double b = baseline_rapidjson(filename);
 
   printf("Speedup: %f\n", b / a);
