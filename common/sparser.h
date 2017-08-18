@@ -17,12 +17,21 @@ typedef int (*sparser_searchfunc_t)(__m256i, const char *);
 typedef bool (*sparser_callback_t)(const char *input);
 
 typedef struct sparser_stats_ {
+  // Number of times the search query matched.
   long total_matches;
+  // Number of records sparser passed.
   long sparser_passed;
+  // Number of records the callback passed by returning true.
   long callback_passed;
+  // Total number of bytes we had to walk forward to see a new record,
+  // when a match was found.
   long bytes_seeked_forward;
+  // Total number of bytes we had to walk backward to see a new record,
+  // when a match was found.
   long bytes_seeked_backward;
+  // Fraction that sparser passed that the callback also passed
   double fraction_passed_correct;
+  // Fraction of false positives.
   double fraction_passed_incorrect;
 } sparser_stats_t;
 
@@ -37,8 +46,6 @@ int search_epi8(__m256i reg, const char *base) {
   int count = 0;
   __m256i val = _mm256_loadu_si256((__m256i const *)(base));
   unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(reg, val));
-
-  // TODO popcnt better here, since we're not returning positions?
   while (mask) {
     int index = ffs(mask) - 1;
     mask &= ~(1 << index);
@@ -174,7 +181,6 @@ sparser_stats_t *sparser_search_single(char *input, long length,
 
       if (callback(input + record_start)) {
         stats.callback_passed++;
-        // TODO do something here.
       }
       i = record_end + 1 - VECSZ;
     }
