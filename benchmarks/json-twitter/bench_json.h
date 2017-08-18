@@ -12,6 +12,7 @@ typedef sparser_callback_t parser_t;
  * @param filename the data to check
  * @param query a search query. If this is NULL, TEXT is used. At most four
  * bytes from this query will be used.
+ * @param callback the callback which invokes the full parser.
  *
  * @return the running time.
  */
@@ -44,7 +45,11 @@ double bench_sparser(const char *filename, const char *query,
   return parse_time;
 }
 
-/// JSON Parser version.
+/* Times splitting the input by newline and calling the full parser on each line.
+ *
+ * @param filename
+ * @param callback the function which performs the parse.
+ */
 double bench_rapidjson(const char *filename, parser_t callback) {
   char *data, *line;
   size_t bytes = read_all(filename, &data);
