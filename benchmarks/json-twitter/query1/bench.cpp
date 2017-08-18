@@ -13,61 +13,13 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 
-#include "common.h"
-#include "sparser.h"
+#include "bench_json.h"
 
 using namespace rapidjson;
 
 // The query strings.
 const char *TEXT = "Putin";
 const char *USER_NAME = "LaVerne";
-
-// Callback - parses using RapidJSON and returns true if passed *all*
-// predicates.
-bool rapidjson_parse(const char *line);
-
-/** Uses sparser and RapidJSON to count the number of records matching the
- * predicate.
- *
- * @param filename the data to check
- * @param query a search query. If this is NULL, TEXT is used. At most four
- * bytes from this query will be used.
- *
- * @return the running time.
- */
-double baseline(const char *filename, const char *query) {
-  // Read in the data into a buffer.
-  char *raw = NULL;
-  long length = read_all(filename, &raw);
-
-  bench_timer_t s = time_start();
-
-  int query_length;
-  if (!query) {
-    query = TEXT;
-    query_length = 4;
-  } else {
-    query_length = strlen(query);
-    if (query_length > 4) {
-      query_length = 4;
-    }
-  }
-
-  sparser_stats_t *stats =
-      sparser_search_single(raw, length, query, 4, rapidjson_parse);
-
-  assert(stats);
-
-  double parse_time = time_stop(s);
-
-  printf("%s\n", sparser_format_stats(stats));
-  printf("Runtime: %f seconds\n", parse_time);
-
-  free(raw);
-  free(stats);
-
-  return parse_time;
-}
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.
@@ -107,32 +59,10 @@ bool rapidjson_parse(const char *line) {
   return true;
 }
 
-/// JSON Parser version.
-double baseline_rapidjson(const char *filename) {
-  char *data, *line;
-  size_t bytes = read_all(filename, &data);
-  int doc_index = 1;
-  int matching = 0;
-
-  bench_timer_t s = time_start();
-
-  while ((line = strsep(&data, "\n")) != NULL) {
-    if (rapidjson_parse(line)) {
-      matching++;
-    }
-    doc_index++;
-  }
-
-  double elapsed = time_stop(s);
-  printf("Passing Elements: %d of %d records (%.3f seconds)\n", matching,
-         doc_index, elapsed);
-  return elapsed;
-}
-
 int main() {
   const char *filename = path_for_data("tweets.json");
-  double a = baseline(filename, NULL);
-  double b = baseline_rapidjson(filename);
+  double a = bench_sparser(filename, TEXT, rapidjson_parse);
+  double b = bench_rapidjson(filename, rapidjson_parse);
 
   printf("Speedup: %f\n", b / a);
 

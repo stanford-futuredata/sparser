@@ -13,8 +13,7 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 
-#include "common.h"
-#include "sparser.h"
+#include "bench_json.h"
 
 using namespace rapidjson;
 
@@ -23,45 +22,6 @@ const char *ENTITIES_HASHTAG_TEXT = "maga";
 
 // For printing debug information.
 static char print_buffer[4096];
-
-// Callback
-bool rapidjson_parse(const char *line);
-
-// Applies sparser + RapidJSON for a full parse if sparser returns a positive
-// signal.
-double baseline(const char *filename, const char *query) {
-  // Read in the data into a buffer.
-  char *raw = NULL;
-  long length = read_all(filename, &raw);
-
-  bench_timer_t s = time_start();
-
-  int query_length;
-  if (!query) {
-    query = ENTITIES_HASHTAG_TEXT;
-    query_length = 4;
-  } else {
-    query_length = strlen(query);
-    if (query_length > 4) {
-      query_length = 4;
-    }
-  }
-
-  sparser_stats_t *stats =
-      sparser_search_single(raw, length, query, 4, rapidjson_parse);
-
-  assert(stats);
-
-  double parse_time = time_stop(s);
-
-  printf("%s\n", sparser_format_stats(stats));
-  printf("Runtime: %f seconds\n", parse_time);
-
-  free(raw);
-  free(stats);
-
-  return parse_time;
-}
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.
@@ -110,33 +70,10 @@ bool rapidjson_parse(const char *line) {
   return false;
 }
 
-/// JSON Parser version.
-double baseline_rapidjson(const char *filename) {
-  char *data, *line;
-  size_t bytes = read_all(filename, &data);
-  int doc_index = 1;
-  int matching = 0;
-
-  bench_timer_t s = time_start();
-
-  while ((line = strsep(&data, "\n")) != NULL) {
-    if (rapidjson_parse(line)) {
-      matching++;
-    }
-    doc_index++;
-  }
-
-  double elapsed = time_stop(s);
-
-  printf("Passing Elements: %d of %d records (%.3f seconds)\n", matching,
-         doc_index, elapsed);
-  return elapsed;
-}
-
 int main() {
-  const char *filename = path_for_data("tweets.json");
-  double a = baseline(filename, NULL);
-  double b = baseline_rapidjson(filename);
+  const char *filename = path_for_data("tweets-large.json");
+  double a = bench_sparser(filename, ENTITIES_HASHTAG_TEXT, rapidjson_parse);
+  double b = bench_rapidjson(filename, rapidjson_parse);
 
   printf("Speedup: %f\n", b / a);
 
