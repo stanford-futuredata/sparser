@@ -6,6 +6,7 @@ small.csv
 *.swp
 *.bin
 *.txt
+*.pyc
 .DS_Store
 lineitem.tbl
 airplanes_big.csv
