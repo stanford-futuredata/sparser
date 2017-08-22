@@ -4,6 +4,8 @@ small.csv
 *.s
 *.o
 *.swp
+*.bin
+*.txt
 .DS_Store
 lineitem.tbl
 airplanes_big.csv
@@ -14,3 +16,5 @@ bench
 out
 avro-c-1.8.2/build
 common/avro
+.ycm_extra_conf.py
+.clang-format
