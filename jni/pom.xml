@@ -1,0 +1,19 @@
+<project>
+  <properties>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
+  </properties>
+  <groupId>edu.stanford.futuredata</groupId>
+  <artifactId>sparser</artifactId>
+  <modelVersion>4.0.0</modelVersion>
+  <name>Sparser</name>
+  <packaging>jar</packaging>
+  <version>1.0</version>
+  <dependencies>
+    <dependency> <!-- Spark dependency -->
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-sql_2.11</artifactId>
+      <version>2.2.0</version>
+    </dependency>
+  </dependencies>
+</project>
