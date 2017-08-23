@@ -1,10 +1,10 @@
 ## Contributions
 
-1. Cascading search technique to reduce complex, expensive-to-evaluate predicates into simpler ones with false positives
+1. Cascading search technique to reduce complex, expensive-to-evaluate predicates into simpler ones with false positives. Search technique applies a number of "fuzzy" filters (e.g., comparing substrings, encoded ints, etc.).
 
-2. Query scheduler which adaptively tunes the search and schedules filters and projections dynamically, while picking filters to apply for deserialization, etc. Schedule is driven by a probability model which estimates the costs of runnisng filters.
+2. Query scheduler which adaptively tunes the search and schedules filters and projections dynamically, while picking filters to apply for deserialization, etc. Schedule is driven by a probability model which estimates the costs of running filters.
 
-3. Evaluation of the system on two popular (and different) data formats (JSON -. an unstructured text-based format, and Parquet, a binary, structured columnar format), showing speedups of up to **Nx** for JSON and **Nx** on Parquet for loading data, and speedups of up to **Nx** when integrated with a distributed system (Spark)
+3. Evaluation of the system on different data formats (JSON - an unstructured text-based format, CSV, a structured text-based format, and Parquet, a binary, structured columnar format), showing speedups of up to **Nx** for JSON and **Nx** on Parquet for loading data, and speedups of up to **Nx** when integrated with a distributed system (Spark)
 
 
 ## Evaluation Outline

@@ -1,6 +1,8 @@
 run
 data.csv
 small.csv
+*.class
+*.so
 *.s
 *.o
 *.swp
