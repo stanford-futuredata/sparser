@@ -50,7 +50,7 @@ class Statistics:
 
     @property
     def cost_index(self):
-        return self.cost + self.false_positives / (self.success + self.false_positives) * FULL_PARSE_COST
+        return self.cost + self.false_positives * FULL_PARSE_COST
 
     def __eq__(self, other):
         return self.cost_index == other.cost_index
