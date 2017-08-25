@@ -55,7 +55,7 @@ int main() {
 
   sparser_query_t squery;
   memset(&squery, 0, sizeof(squery));
-  //assert(sparser_add_query(&squery, "Russ") == 0);
+  // assert(sparser_add_query(&squery, "Russ") == 0);
   assert(sparser_add_query(&squery, "Puti") == 0);
 
   double a = bench_sparser(filename, &squery, rapidjson_parse);

@@ -24,8 +24,7 @@ double bench_sparser(const char *filename, sparser_query_t *query,
   long length = read_all(filename, &raw);
 
   bench_timer_t s = time_start();
-  sparser_stats_t *stats =
-      sparser_search(raw, length, query, callback);
+  sparser_stats_t *stats = sparser_search(raw, length, query, callback);
   assert(stats);
   double parse_time = time_stop(s);
 
@@ -38,7 +37,8 @@ double bench_sparser(const char *filename, sparser_query_t *query,
   return parse_time;
 }
 
-/* Times splitting the input by newline and calling the full parser on each line.
+/* Times splitting the input by newline and calling the full parser on each
+ * line.
  *
  * @param filename
  * @param callback the function which performs the parse.

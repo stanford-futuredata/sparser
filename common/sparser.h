@@ -144,8 +144,8 @@ int sparser_add_query(sparser_query_t *query, const char *string) {
  * @return statistics about the run.
  * */
 sparser_stats_t *sparser_search(char *input, long length,
-                                       sparser_query_t *query,
-                                       sparser_callback_t callback) {
+                                sparser_query_t *query,
+                                sparser_callback_t callback) {
 
   sparser_searchfunc_t searchfuncs[SPARSER_MAX_QUERY_COUNT];
   __m256i reg[SPARSER_MAX_QUERY_COUNT];
@@ -157,25 +157,25 @@ sparser_stats_t *sparser_search(char *input, long length,
     char *string = query->queries[i];
     printf("Set string %s (index=%d, len=%zu)\n", string, i, query->lens[i]);
     switch (query->lens[i]) {
-      case 1: {
-                searchfuncs[i] = search_epi8;
-                uint8_t x = *((uint8_t *)string);
-                reg[i] = _mm256_set1_epi8(x);
-                break;
-              }
-      case 2: {
-                searchfuncs[i] = search_epi16;
-                uint16_t x = *((uint16_t *)string);
-                reg[i] = _mm256_set1_epi16(x);
-                break;
-              }
-      case 4: {
-                searchfuncs[i] = search_epi32;
-                uint32_t x = *((uint32_t *)string);
-                reg[i] = _mm256_set1_epi32(x);
-                break;
-              }
-      default: { return NULL; }
+    case 1: {
+      searchfuncs[i] = search_epi8;
+      uint8_t x = *((uint8_t *)string);
+      reg[i] = _mm256_set1_epi8(x);
+      break;
+    }
+    case 2: {
+      searchfuncs[i] = search_epi16;
+      uint16_t x = *((uint16_t *)string);
+      reg[i] = _mm256_set1_epi16(x);
+      break;
+    }
+    case 4: {
+      searchfuncs[i] = search_epi32;
+      uint32_t x = *((uint32_t *)string);
+      reg[i] = _mm256_set1_epi32(x);
+      break;
+    }
+    default: { return NULL; }
     }
   }
 
@@ -222,7 +222,7 @@ sparser_stats_t *sparser_search(char *input, long length,
           // record that this query matched.
           matchmask |= (1 << j);
           // no need to check remaining shifts.
-          
+
           // Debug
           /*
           char a = input[i + k + VECSZ];
@@ -243,7 +243,8 @@ sparser_stats_t *sparser_search(char *input, long length,
 
       // update start.
       long start = i;
-      for (; start > 0 && input[start] != '\n'; start--);
+      for (; start > 0 && input[start] != '\n'; start--)
+        ;
 
       // Pass the current line to a full parser.
       char a = input[end];
@@ -282,8 +283,8 @@ Callback Passed Records: %ld\n\
 Bytes Seeked Forward: %ld\n\
 Bytes Seeked Backward: %ld\n\
 Fraction Passed Correctly: %f\n\
-Fraction False Positives: %f", stats->total_matches,
-           stats->sparser_passed, stats->callback_passed,
+Fraction False Positives: %f",
+           stats->total_matches, stats->sparser_passed, stats->callback_passed,
            stats->bytes_seeked_forward, stats->bytes_seeked_backward,
            stats->fraction_passed_correct, stats->fraction_passed_incorrect);
   return buf;
