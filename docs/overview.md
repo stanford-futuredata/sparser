@@ -61,28 +61,34 @@ def best_substring(predicate):
 
 ```
 
-To check for combinations, we do the following:
+#### Checking for Combinations
 
-1. When checking each substring, create a bit vector for each of the `p` predicate. The number of bits needed is the number of bits which *fail* the verifcation
-in a given sample.
+(Terminology)
+* query string - the string we query for using a vector (usually 1-4 bytes long)
+* predicate - the full predicate (e.g., "Donald Trump")
+* verification - some step that checks whether the predicate actually passes (e.g., a full JSON parser)
+
+
+To check for combinations of query strings, we do the following:
+
+1. When checking each query string, create a bit vector for each of the `p` predicates. The number of bits needed is `l`, or the number of bits which *fail* the verification in a given sample.
 
 2. If a search string passes a failed record `i`, set bit `i` to 1.
 
-3. We now have `p` bit vectors of length `l` (number of failed records in the sample). Pairwise for each combination, do:
+3. We now have `p` bit vectors of length `l`. Pairwise for each combination, do:
 
    ```
-   rate = popcnt(pA & pB)
-   cost = len(predicate A) + len(predicate B)
+   rate = popcnt(p_A & p_B)
+   cost = len(query string A) + len(query string B)
    ```
 
-`rate` is the approximate false positive rate with `pA` and `pB`; the cost is the cost of running the two predicates.
+`rate` is the approximate false positive rate with `p_A` and `p_B`; the cost is the cost of running the two predicates.
 
-4. Use some scoring function `score(rate, cost)` (it can just be the  product of the above two, for example) to give the combination a score.
+4. Use some scoring function `score(rate, cost)` (it can just be the product of the above two, for example) to give the combination a score.
 
 5. Pick `min(score)` as the filter - this is the filter which (according to the scoring function) filters out the most data for least cost.
 
-The method operates over multiple batches at once using bitwise operations (e.g., a 64-bit integer can account for 64 samples at once - we can also use
-vectors).
+The method operates over multiple batches at once using bitwise operations (e.g., a 64-bit integer can account for 64 samples at once - we can also use vectors to check more records at once). We can also check only the top-N query strings pairwise if there are many combinations (top-N defined by how much data the query string filters out by itself).
 
 ## Format-Independent Techniques
 
