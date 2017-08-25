@@ -9,23 +9,6 @@
 
 ## Evaluation Outline
 
-### Questions the evaluation answers:
-
-1. How does the system perform on parsing/data loading workloads? (microbenchmarks)
-
-* Loading throughput, Zakir Queries, Twitter Queries (for Parquet and JSON)
-* CSV for TPC-H?
-* Vary selectivity for Twitter Data (1-100%) -> Retrive 1 field to full object
-* Vary selectivity for Github Data (1-100%) -> Retrieve 1 field to full object (Github fields are ordered)
-
-2. How much does the system speed up distributed frameworks such as Spark? (integration into distributed framework)
-
-* End to end throughput, Zakir queries 1-4, TPC-H (all?) 
-
-3. How much does each filter and technique help (lesion study)
-
----
-
 ### Graphs
 
 #### Page One Motivation Plots

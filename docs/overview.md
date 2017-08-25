@@ -1,7 +1,3 @@
-# Current Workflow
-
-Input Data in on-Disk Format (with Predicates Pushed Down) -> Parsed Data -> Filter Remaining -> Process
-
 # Filters
 
 The filters attempt to filter data based on a predicate quickly. This is
@@ -27,13 +23,66 @@ tweet.text contains 'united' &&
 tweet.hashtags contains 'B747'
 ```
 
-## Filtering Types
+## Supported Filtering Types
 
-* `==` for strings
-* `>`, `<` for numeric values
-* substrings
-* ranges (dates, numbers, prefixes)
-* `&&` and `||` to combine predicates (across columns)
+* `==` for 1, 2, 4, and 8-wide integers.
+* `==` for strings.
+* substrings in strings
+* `&&` and `||` to combine filters (across columns)
+
+#### Still Need to Figure Out, But want to Support
+
+* `>` and `<` for numeric values
+* Encoded integers (e.g., zigzag encoded ints)
+
+## Filtering Techniques
+
+* 1, 2, 4, and 8 byte match with vectors
+* key/value neighborhood search: `if (found field name) -> check next value in neighborhood, skipping whitespace`
+
+## Search Algorithm
+
+```python
+for each batch:
+  if batch_number % SAMPLE_RATE == 0:
+    # Use the batch to update model
+    for each predicate:
+      best_substrings.append(best_substring(predicate))
+
+    # Sorts by signal strength, i.e., Match : Record Passed ratio.
+    sort(best_substrings)
+
+    # Check combinations here - want to find correlations between signals
+    best_combo = check_combos(best_substrings)
+    return best_combo
+
+def best_substring(predicate):
+  search using substrings of predicate and return best one
+
+```
+
+To check for combinations, we do the following:
+
+1. When checking each substring, create a bit vector for each of the `p` predicate. The number of bits needed is the number of bits which *fail* the verifcation
+in a given sample.
+
+2. If a search string passes a failed record `i`, set bit `i` to 1.
+
+3. We now have `p` bit vectors of length `l` (number of failed records in the sample). Pairwise for each combination, do:
+
+   ```
+   rate = popcnt(pA & pB)
+   cost = len(predicate A) + len(predicate B)
+   ```
+
+`rate` is the approximate false positive rate with `pA` and `pB`; the cost is the cost of running the two predicates.
+
+4. Use some scoring function `score(rate, cost)` (it can just be the  product of the above two, for example) to give the combination a score.
+
+5. Pick `min(score)` as the filter - this is the filter which (according to the scoring function) filters out the most data for least cost.
+
+The method operates over multiple batches at once using bitwise operations (e.g., a 64-bit integer can account for 64 samples at once - we can also use
+vectors).
 
 ## Format-Independent Techniques
 
@@ -74,19 +123,3 @@ Main Bottlenecks:
 
 * Need to consider different byte array encodings (e.g., dictionary encoding).
 * Check lengths before checking full string if available (e.g., in Parquet)
-
-### Avro (Row-based Binary)
-
-* Skipping to relevant fields directly
-* Early abort (pushing predicates into parser)
-* Something with nesting?
-
-# Story
-
-* fast algorithms for processing data (machine learning, joins, etc.)
-* but lots of time goes into preparing data for processing
-* loading and filtering
-* Network and Disk speeds: approaching 40Gbps line rates
-* Fastest parsers reach maybe 1GBps on modern hardware
-* many of these parsers look at data unnecessarily: expensive filters, etc.
-* sparser: system to load data at near line-rate
