@@ -110,7 +110,14 @@ int search_epi32(__m256i reg, const char *base) {
   return count;
 }
 
-// add query and clip input
+/* Adds a search term to the query. The search term is clipped at either 1, 2, or
+ * 4 bytes.
+ *
+ * @param query the query
+ * @param string the search string, clipped to 1, 2, or 4 bytes.
+ *
+ * @return 0 if successful, nonzero otherwise.
+ */
 int sparser_add_query(sparser_query_t *query, const char *string) {
   if (query->count >= SPARSER_MAX_QUERY_COUNT) {
     return -1;
@@ -130,16 +137,33 @@ int sparser_add_query(sparser_query_t *query, const char *string) {
   return 0;
 }
 
-/* Performs the sparser search given a single search query and a buffer.
+/** Returns a search query given a sample input and a set of predicates. The returned search query
+ * attempts to jointly minimize the search time and false positive rate.
+ *
+ * @param sample the sample to test.
+ * @param length the length of the sample.
+ * @param predicates a set of full predicates.
+ * @param count the number of predicates to test.
+ * @param callback the callback, which specifies whether a query passes.
+ *
+ * @return a search query, or NULL if an error occurred. The returned query should be returned with free().
+ */
+sparser_query_t * sparser_calibrate(char *sample, long length,
+                                    char **predicates, int count,
+                                    sparser_callback_t callback) {
+  return NULL;
+}
+
+/* Performs the sparser search given a search query and a buffer.
  *
  * This performs a simple sparser search given the query and input buffer. It
  * only searches for one occurance of the query string in each record. Records
  * are assumed to be delimited by newline.
  *
  * @param input the buffer to search
- * @param query the query to look for
  * @param length the size of the input buffer, in bytes.
- * @param query_length the size of the query string, in bytes.
+ * @param query the query to look for
+ * @param callback the callback if sparser passes the query.
  *
  * @return statistics about the run.
  * */
