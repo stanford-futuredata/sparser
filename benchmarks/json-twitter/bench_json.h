@@ -25,13 +25,33 @@ double bench_sparser(const char *filename, sparser_query_t *query,
   char *raw = NULL;
   long length = read_all(filename, &raw);
 
+  char *predicates[] = { NULL, NULL, NULL, };
+  char *first, *second, *third;
+
+  asprintf(&first, "Putin");
+  asprintf(&second, "Russia");
+  asprintf(&third, "2017");
+
+  predicates[0] = first;
+  predicates[1] = second;
+  predicates[2] = third;
+
   bench_timer_t s = time_start();
+  sparser_calibrate(raw, length, predicates, 3, callback);
+  double parse_time = time_stop(s);
+  printf("Calibration Runtime: %f seconds\n", parse_time);
+
+  free(first);
+  free(second);
+  free(third);
+
+  s = time_start();
   sparser_stats_t *stats = sparser_search(raw, length, query, callback);
   assert(stats);
-  double parse_time = time_stop(s);
+  parse_time = time_stop(s);
 
   printf("%s\n", sparser_format_stats(stats));
-  printf("Runtime: %f seconds\n", parse_time);
+  printf("Parsing Runtime: %f seconds\n", parse_time);
 
   free(raw);
   free(stats);

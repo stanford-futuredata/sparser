@@ -30,7 +30,7 @@ bool rapidjson_parse(const char *line) {
   if (d.HasParseError()) {
     fprintf(stderr, "\nError(offset %u): %s\n", (unsigned)d.GetErrorOffset(),
             GetParseError_En(d.GetParseError()));
-    fprintf(stderr, "Error line: %s", line);
+    //fprintf(stderr, "Error line: %s", line);
     return false;
   }
 
