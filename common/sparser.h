@@ -254,7 +254,7 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   free(pred_lengths);
   free(false_positives);
 
-  return NULL;
+  return squery;
 }
 
 /* Performs the sparser search given a search query and a buffer.

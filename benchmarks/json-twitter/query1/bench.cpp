@@ -19,7 +19,7 @@
 using namespace rapidjson;
 
 // The query strings.
-const char *TEXT = "Putin";
+const char *TEXT = "Donald Trump";
 const char *TEXT2 = "Russia";
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
@@ -53,13 +53,19 @@ bool rapidjson_parse(const char *line) {
 int main() {
   const char *filename = path_for_data("tweets.json");
 
-  sparser_query_t squery;
-  memset(&squery, 0, sizeof(squery));
-  // assert(sparser_add_query(&squery, "Russ") == 0);
-  assert(sparser_add_query(&squery, "Puti") == 0);
+  char *predicates[] = { NULL, NULL, NULL, };
+  char *first, *second;
+  asprintf(&first, "%s", TEXT);
+  asprintf(&second, "%s", TEXT2);
 
-  double a = bench_sparser(filename, &squery, rapidjson_parse);
+  predicates[0] = first;
+  predicates[1] = second;
+
+  double a = bench_sparser(filename, predicates, 2, rapidjson_parse);
   double b = bench_rapidjson(filename, rapidjson_parse);
+
+  free(first);
+  free(second);
 
   bench_read(filename);
 
