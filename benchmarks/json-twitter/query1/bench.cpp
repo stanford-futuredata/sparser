@@ -61,6 +61,8 @@ int main() {
   double a = bench_sparser(filename, &squery, rapidjson_parse);
   double b = bench_rapidjson(filename, rapidjson_parse);
 
+  bench_read(filename);
+
   printf("Speedup: %f\n", b / a);
 
   return 0;

@@ -4,6 +4,8 @@
 #include "common.h"
 #include "sparser.h"
 
+#include <immintrin.h>
+
 #include <assert.h>
 
 typedef sparser_callback_t parser_t;
@@ -63,6 +65,34 @@ double bench_rapidjson(const char *filename, parser_t callback) {
   double elapsed = time_stop(s);
   printf("Passing Elements: %d of %d records (%.3f seconds)\n", matching,
          doc_index, elapsed);
+
+  free(data);
+
+  return elapsed;
+}
+
+double bench_read(const char *filename) {
+  char *data;
+  long bytes = read_all(filename, &data);
+
+  bench_timer_t s = time_start();
+
+  __m256i sum = _mm256_setzero_si256();
+  for (long i = 0; i < bytes; i += 32) {
+    __m256i x = _mm256_loadu_si256((__m256i *)(data + i));
+    sum = _mm256_add_epi32(x, sum);
+  }
+
+  double elapsed = time_stop(s);
+
+  int out[32];
+  _mm256_storeu_si256((__m256i *)out, sum);
+  for (int i = 1; i < 32; i++) {
+    out[0] += out[i];
+  }
+
+  printf("Read Benchmark Result: %d (%f seconds)\n", out[0], elapsed);
+  free(data);
   return elapsed;
 }
 
