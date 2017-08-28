@@ -152,54 +152,80 @@ int sparser_add_query(sparser_query_t *query, const char *string) {
 sparser_query_t *sparser_calibrate(char *sample, long length,
                                     char **predicates, int count,
                                     sparser_callback_t callback) {
+
   // Maximum number of samples to try.
   const int MAX_SAMPLES = 100;
-  // Store the lengths of each predicate.
-  size_t *pred_lengths = (size_t*)malloc(sizeof(size_t) * count);
+  // Maximum number of substrings to try.
+  const int MAX_SUBSTRINGS = 16;
+
+  // So the bitvector fits...
+  assert(sizeof(unsigned) * 8 >= MAX_SUBSTRINGS);
+
   // Stores false positive counts for each predicate.
-  int *false_positives = (int *)malloc(sizeof(int) * count);
+  int false_positives[MAX_SUBSTRINGS];
+  memset(false_positives, 0, sizeof(false_positives));
+
   // Counts number of records.
   long records = 0;
 
-  memset(false_positives, 0, sizeof(int) * count);
+  // Used to construct and store substrings to try for each predicate. These are the possible
+  // return values.
+  char substr_buf[8192];
+  long buf_offset = 0;
+  int num_substrings = 0;
+  char **predicate_substrings = (char **)malloc(sizeof(char *) * MAX_SUBSTRINGS);
+  memset(predicate_substrings, 0, sizeof(char *) * MAX_SUBSTRINGS);
+
+  // Create a buffer of all the substring combinations we want to try.
   for (int i = 0; i < count; i++) {
-    pred_lengths[i] = strlen(predicates[i]);
+    char *substring = predicates[i];
+    size_t len = strlen(substring);
+
+    int shifts = 0;
+    int substring_length;
+
+    // Use the biggest possible size, up to 4 bytes.
+    if (len >= 4) {
+      substring_length = 4;
+      shifts = len - substring_length + 1;
+    } else if (len >= 2) {
+      substring_length = 2;
+      shifts = len - substring_length + 1;
+    } else if (len >= 1) {
+      substring_length = 1;
+      shifts = len - substring_length + 1;
+    } else {
+      fprintf(stderr, "%s: empty predicate\n", __func__);
+      return NULL;
+    }
+
+    for (int j = 0; j < shifts; j++) {
+      if (num_substrings >= MAX_SUBSTRINGS) {
+        break;
+      }
+      strncpy(substr_buf + buf_offset, substring + j, substring_length);
+      substr_buf[buf_offset + substring_length] = '\0';
+      predicate_substrings[num_substrings] = substr_buf + buf_offset;
+      buf_offset += substring_length + 1;
+      num_substrings++;
+    }
   }
 
-  // Do this without vectorization first, and just find attempt to find the best predicate
-  // to search for (as opposed to the best predicate and substring of the predicate). 
+  // Now search for each substring in up to MAX_SAMPLES records.
   char *line;
   while (records < MAX_SAMPLES && (line = strsep(&sample, "\n")) != NULL) {
+
     unsigned found = 0x0;
-    for (int i = 0; i < count; i++) {
-      size_t pred_len = pred_lengths[i];
-      char *predicate = predicates[i];
+    for (int i = 0; i < num_substrings; i++) {
+      char *predicate = predicate_substrings[i];
 
-      size_t end_pos;
-      char prev;
-
-      // looks for the longest possible substring we can fit in a register.
-      if (pred_len >= 4) {
-        end_pos = 4;
-      } else if (pred_len >= 2) {
-        end_pos = 2;
-      } else if (pred_len >= 1) {
-        end_pos = 1;
-      } else {
-        fprintf(stderr, "%s: empty predicate\n", __func__);
-        return NULL;
-      }
-
-      prev = predicate[end_pos];
-      predicate[end_pos] = '\0';
       if (strstr(line, predicate)) {
         found |= (0x1 << i);
         //printf("%s: found occurance of string %s\n", __func__, predicate);
       }
-      predicate[end_pos] = prev;
     }
 
-    unsigned allset = (0x1 << count) - 1u;
+    unsigned allset = (0x1 << num_substrings) - 1u;
     // If some of the predicates predicates passed OR all passed and the callback failed, record
     // the false positives.
     if (allset != found || !callback(line)) {
@@ -222,37 +248,19 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
 
   long min = LONG_MAX;
   long idx = -1;
-  for (int i = 0; i < count; i++) {
+  for (int i = 0; i < num_substrings; i++) {
     if (false_positives[i] < min) {
       idx = i;
       min = false_positives[i];
     }
-    printf("\t%s\t%d\n", predicates[i], false_positives[i]);
+    printf("%s\t%d\n", predicate_substrings[i], false_positives[i]);
   }
 
-  size_t pred_len = pred_lengths[idx];
-  char *predicate = predicates[idx];
-  long end_pos = pred_len;
-  if (pred_len >= 4) {
-    end_pos = 4;
-  } else if (pred_len >= 2) {
-    end_pos = 2;
-  } else if (pred_len >= 1) {
-    end_pos = 1;
-  }
-
-  printf("%s Best Predicate: %s\n", __func__, predicate);
-
-  char buf[32];
-  memset(buf, 0, sizeof(buf));
-  strncpy(buf, predicate, end_pos);
+  printf("%s Best Predicate: %s\n", __func__, predicate_substrings[idx]);
 
   sparser_query_t *squery = (sparser_query_t *)malloc(sizeof(sparser_query_t));
   memset(squery, 0, sizeof(sparser_query_t));
-  sparser_add_query(squery, buf);
-
-  free(pred_lengths);
-  free(false_positives);
+  sparser_add_query(squery, predicate_substrings[idx]);
 
   return squery;
 }
