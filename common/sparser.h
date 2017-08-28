@@ -381,6 +381,8 @@ sparser_stats_t *sparser_search(char *input, long length,
       for (; start > 0 && input[start] != '\n'; start--)
         ;
 
+      stats.bytes_seeked_backward += (i - start);
+
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
