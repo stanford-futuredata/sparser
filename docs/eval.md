@@ -1,29 +1,33 @@
-## Contributions
+# Evaluation
 
-1. Cascading search technique to reduce complex, expensive-to-evaluate predicates into simpler ones with false positives. Search technique applies a number of "fuzzy" filters (e.g., comparing substrings, encoded ints, etc.).
+The evaluation should answer the following questions:
 
-2. Query scheduler which adaptively tunes the search and schedules filters and projections dynamically, while picking filters to apply for deserialization, etc. Schedule is driven by a probability model which estimates the costs of running filters.
+1. What kinds of environments does Sparser work well in?
+2. How does Sparser compare with existing string matching algorithms (e.g., `strstr` or `grep` implemented with Boyer-Moore or Aho-Corasick) and optimized parsers such as Mison and RapidJSON?
+3. Does Sparser's predicate and projection scheduling affect performance?
+4. Does Sparser improve performance in real systems?
 
-3. Evaluation of the system on different data formats (JSON - an unstructured text-based format, CSV, a structured text-based format, and Parquet, a binary, structured columnar format), showing speedups of up to **Nx** for JSON and **Nx** on Parquet for loading data, and speedups of up to **Nx** when integrated with a distributed system (Spark)
+### Motivation Plots
 
+These plots answer question (1) - what kinds of environments does Sparser's core data parallel algorithm work well in?
 
-## Evaluation Outline
-
-### Appetizer/Motivation Plots
-
-1. Clustered bar chart showing breakdown of runtime for queries in Spark on JSON (convinces reader that parsing takes a long time)
-2. Clustered bar chart showing breakdown of runtime for regex rule filtering in Snort (convinces reader that parsing takes a long time in this application as well). This and the previous one should be side-by-side, doesn't need to take up too much space.
+1. Clustered bar chart showing breakdown of runtime for queries in Spark on JSON (convinces reader that parsing+filtering takes a long time)
+2. Clustered bar chart showing breakdown of runtime for rule filtering in Snort (convinces reader that filtering takes a long time in this application as well). This and the previous one should be side-by-side, doesn't need to take up too much space.
 3. Show sample queries common in JSON datasets, and show average selectivity of these predicates. (This could be moved to beginning of eval section.) An assumption in Sparser is that 1) data analysts want to filter their data with predicates when starting a particular analysis, and 2) these predicates are often fairly selective. If those are both true, then Sparser will dominate compared to Mison, since Mison only cares about projecting things out. If not, that's still okay, because Sparser can still schedule that projections come first—can't lose!
 3. "Donald Trump" vs. "ld T" (convinces reader that data parallelism gives you speedup and substrings are good indicators of queries)
-4. Equivalent substring example for Snort, again show side-by-side with previous one.
 
-### Sparser Performance
+## Sparser Performance
 
-1. Zakir Query 1-4 - Sparser vs. RapidJSON, Mison, Regex Search + RapidJSON
+This section answers question (2) - how does Sparser compare to fast parsers and string matching algorithms.
+
+1. Zakir Query 1-4 - Sparser vs. RapidJSON, Mison, `ag` (Boyer-Moore) Search + RapidJSON
  * x-axis is query, y-axis is GB/s
- * Clustered bar chart for Sparser, to show the breakdown in runtime: scheduler + approx filtering + actual parsing.
+ * Stacked bar chart for Sparser, to show the breakdown in runtime: scheduler + approx filtering + actual parsing.
+ * Bar for RapidJSON ("best" JSON parser) on each record, followed by filtering
+ * Bar for Mison leveled colon map creation (lower bound for Mison)
+ * Stacked bar chart for `ag` + RapidJSON: Show advantages of data parallel algorithms with fuzzy search compared to state of the art string search algorithms. Argument here is that we want to leverage the hardware instead of doing byte-wise operations
  * Shows performance compared to a state-of-the-art JSON
- * Can also compare GB/s to Mison (no source code available)
+ * Can also compare GB/s to Mison leveled colon map creation (no full parsing)
 
 2. Twitter JSON Data - Sparser performance
  * Firas: I would do the same as above. Figure 10 from Mison isn't very fair, IMO. Of course, if you have a single filter, then the more selective it is, the better it's going to do. But the Mison folks never evaluated their system on a query with more than 1 filter! This is where Sparser will really shine.
@@ -37,32 +41,38 @@
 
 ### Scheduler Performance
 
+This answers question 3.
+
 #### Substring selection
 
-* Zakir queries 1 - 4, Twitter queries 1 - 8, TPC-H CSV: Runtime for choosing different filters
+5. Zakir queries 1 - 4, Twitter queries 1 - 8, TPC-H CSV: Runtime for choosing different filters
 
  * Table organized as follows:
 
-    | Query Filters || Ideal Substring/FP rate/Runtime | Worst Substring/FP rate/Runtime | Sparser Substring/FP rate/Runtime |
+   Query Filters | Ideal Substring/FP rate/Runtime | Worst Substring/FP rate/Runtime | Sparser Substring/FP rate/Runtime
+   --- | --- | --- | ---
 
  *  Shows effects of choosing filters matters, and that picking the correct filter matters
 
 #### Scheduling between filters and projections
 
-* Zakir queries 1-4, Twitter queries 1 - 8, TPC-H CSV: Scheduling projections and filters
+6. Zakir queries 1-4, Twitter queries 1 - 8, TPC-H CSV: Scheduling projections and filters
   * Table organized as follows:
-  | Query Filters | Query Projections | All Filters First Runtime | All Predicates First Runtime | Sparser Scheduler Order + Runtime |
+  
+  Query Filters | Query Projections | All Filters First Runtime | All Predicates First Runtime | Sparser Scheduler Order + Runtime
+  --- | --- | --- | --- | ---
+
   * Shows that scheduling these gives better performance in most cases
 
 #### Handling Multiple Filters and Multiple Selectivities
 
-  1. Bar chart: x-axis: # of filters, y-axis: GB/sec
+7. Bar chart: x-axis: # of filters, y-axis: GB/sec
     * Twitter query 1 (or whatever query has the most filters)
     * Sample a few filters, each with a different selectivity, but make the aggregate selectivity constant (e.g., 10%)
     * \# of projections should be held constant throughout
     * Mison has poor support for multiple filters, because it always focuses on projections first. Here, we'll show that, not only do we beat Mison on a single filter, we dominate on multiple filters.
 
-  2. Line chart: x-axis: # of projected fields, y-axis: GB/sec
+8. Line chart: x-axis: # of projected fields, y-axis: GB/sec
     * Each line has different selectivity but same \# of filters
     * Here, we vary selectivity but keep \# of fields constant.
     (If we set \# of fields to be 1, then we are recreating Fig. 10 from the Mison paper.)
@@ -70,18 +80,16 @@
 
 ### Spark Integration
 
-7. Zakir queries 1 - 4, Twitter queries 1 - 8, TPC-H: Spark vs. Sparser+Spark
+9. Zakir queries 1 - 4, Twitter queries 1 - 8, TPC-H: Spark vs. Sparser+Spark
 
   * Clustered bar chart with end-to-end job completion time
   * Breakdown of parse vs. processing
   * Show for JSON and CSV
+  
+10. Snort `blacklist.rules` ruleset - Perform string matching for some of these rules
+  * Throughput in Gbps with and without Sparser - Sparser tosses out data quickly.
 
-
-### Queries
-
-Datasets: Github, Twitter, Yelp, Zakir (JSON and Parquet)
-
-Queries:
+## Queries
 
 ```
 Zakir Data
@@ -104,41 +112,3 @@ Query 4.
 SELECT Location.*
 WHERE P443.HTTPS.TLS.Chain[].parsed.issuer.common_name[] == "Let's Encrypt"
 ```
-
-Parsed fields and selectivity experiments can go on this dataset.
-* Vary selectivity from 1 - 100%
-* Vary number of fields retrieved from 1 to all
-```
-JSON Data
-
-Query 1.
-
-Query 2.
-
-Query 3.
-
-Query 4.
-```
-
-* Vary selectivity from 1 - 100%
-* Vary number of fields retrieved from 1 to all
-```
-Github Data
-
-Query 1.
-
-Query 2.
-
-Query 3.
-```
-
-Compare against:
-
-* Mison technique
-
-Lesion study
-
-* Probability model turned off (just pick rarest letters or something, or the first field)
-* Each deserialization technique turned off
-* Only fuzzy search without projection
-* Only projection without fuzzy search
