@@ -151,7 +151,7 @@ int sparser_add_query(sparser_query_t *query, const char *string) {
  * @return a search query, or NULL if an error occurred. The returned query should be returned with free().
  */
 sparser_query_t *sparser_calibrate(char *sample, long length,
-                                    char **predicates, int count,
+                                    const char **predicates, int count,
                                     sparser_callback_t callback) {
 
   // Maximum number of samples to try.
@@ -179,7 +179,7 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
 
   // Create a buffer of all the substring combinations we want to try.
   for (int i = 0; i < count; i++) {
-    char *substring = predicates[i];
+    const char *substring = predicates[i];
     size_t len = strlen(substring);
 
     int shifts = 0;
