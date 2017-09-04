@@ -15,7 +15,7 @@ const int VECSZ = 32;
 // Max size of a single search string.
 const int SPARSER_MAX_QUERY_LENGTH = 4 + 1;
 // Max number of search strings in a single query.
-const int SPARSER_MAX_QUERY_COUNT = 2;
+const int SPARSER_MAX_QUERY_COUNT = 32;
 
 // Defines a sparser query.
 typedef struct sparser_query_ {
