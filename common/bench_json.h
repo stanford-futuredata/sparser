@@ -20,7 +20,7 @@ typedef sparser_callback_t parser_t;
  *
  * @return the running time.
  */
-double bench_sparser(const char *filename, char **predicates,
+double bench_sparser(const char *filename, const char **predicates,
                       int num_predicates, parser_t callback) {
 
   // Read in the data into a buffer.
