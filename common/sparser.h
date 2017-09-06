@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <limits.h>
+#include <assert.h>
 
 // Checks if bit i is set in n.
 #define SET(n, i) (n & (0x1 << i))
@@ -412,6 +413,106 @@ sparser_stats_t *sparser_search(char *input, long length,
   return ret;
 }
 
+
+sparser_stats_t *sparser_search1x4(char *input, long length,
+                                sparser_query_t *query,
+                                sparser_callback_t callback) {
+
+  assert(query->count == 1);
+  assert(query->lens[0] >= 4);
+
+  sparser_stats_t stats;
+  memset(&stats, 0, sizeof(stats));
+
+    uint32_t x = *((uint32_t *)query->queries[0]);
+  __m256i q1 = _mm256_set1_epi32(x);
+
+  // Bitmask designating which filters matched.
+  // Bit i is set if if the ith filter matched for the current record.
+  unsigned matchmask = 0;
+
+  char *endptr = strchr(input, '\n');
+  long end;
+  if (endptr) {
+    end = endptr - input;
+  } else {
+    end = length;
+  }
+
+  for (long i = 0; i < length; i += VECSZ) {
+    if (i > end) {
+      char *endptr = strchr(input + i, '\n');
+      if (endptr) {
+        end = endptr - input;
+      } else {
+        end = length;
+      }
+      matchmask = 0;
+    }
+
+    if (!SET(matchmask, 0)) {
+        const char *base = input + i;
+        __m256i val = _mm256_loadu_si256((__m256i const *)(base));
+        unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(val, q1));
+
+        __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
+        mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val2, q1));
+
+        __m256i val3 = _mm256_loadu_si256((__m256i const *)(base + 2));
+        mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val3, q1));
+
+        __m256i val4 = _mm256_loadu_si256((__m256i const *)(base + 3));
+        mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val4, q1));
+        mask &= 0x11111111;
+
+        unsigned matched = _mm_popcnt_u32(mask);
+        if (matched > 0) {
+        stats.total_matches += matched;
+        matchmask |= 0x1;
+        }
+    }
+
+    unsigned allset = ((1u << query->count) - 1u);
+    // check if all the filters matched by checking if all the bits
+    // necessary were set in matchmask.
+    if ((matchmask & allset) == allset) {
+      stats.sparser_passed++;
+
+      // update start.
+      long start = i;
+      for (; start > 0 && input[start] != '\n'; start--)
+        ;
+
+      stats.bytes_seeked_backward += (i - start);
+
+      // Pass the current line to a full parser.
+      char a = input[end];
+      input[end] = '\0';
+      if (callback(input + start)) {
+        stats.callback_passed++;
+      }
+      input[end] = a;
+
+      // Reset record level state.
+      matchmask = 0;
+
+      // Done with this record - move on to the next one.
+      i = end + 1 - VECSZ;
+    }
+  }
+
+  if (stats.sparser_passed > 0) {
+    stats.fraction_passed_correct =
+        (double)stats.callback_passed / (double)stats.sparser_passed;
+    stats.fraction_passed_incorrect = 1.0 - stats.fraction_passed_correct;
+  }
+
+  sparser_stats_t *ret = (sparser_stats_t *)malloc(sizeof(sparser_stats_t));
+  memcpy(ret, &stats, sizeof(stats));
+
+  return ret;
+}
+
 static char *sparser_format_stats(sparser_stats_t *stats) {
   static char buf[8192];
 
@@ -429,3 +530,5 @@ Fraction False Positives: %f",
 }
 
 #endif
+
+

@@ -72,7 +72,7 @@ int main() {
   predicates[0] = first;
   predicates[1] = second;
 
-  double a = bench_sparser(filename, (const char **)predicates, 2, rapidjson_parse);
+  double a = bench_sparser(filename, (const char **)predicates, 2, mison_parse_wrapper);
 
   //double b = bench_rapidjson(filename, rapidjson_parse);
 
