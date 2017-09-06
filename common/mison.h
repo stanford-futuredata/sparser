@@ -7,9 +7,12 @@
 // Structural characters
 #define COLON       ':'
 #define RIGHT_BRACE '}'
+#define RIGHT_BRACKET ']'
 #define LEFT_BRACE  '{'
+#define LEFT_BRACKET  '['
 #define BACKSLASH   '\\'
 #define QUOTE       '"'
+#define COMMA       ','
 
 // AVX256 vector size in Bytes
 #define VS          32
@@ -18,8 +21,11 @@ struct character_bitmaps {
   uint64_t *colon_bm;
   uint64_t *rbrace_bm;
   uint64_t *lbrace_bm;
+  uint64_t *lbracket_bm;
+  uint64_t *rbracket_bm;
   uint64_t *backslash_bm;
   uint64_t *quotes_bm;
+  uint64_t *comma_bm;
 
   // Size of the bitmap, in *bits*.
   size_t length;
@@ -80,6 +86,9 @@ build_character_bitmaps(const char *record, const size_t length) {
   uint32_t *lbrace_bm = (uint32_t *)calloc(bm_count, bm_size);
   uint32_t *backslash_bm = (uint32_t *)calloc(bm_count, bm_size);
   uint32_t *quotes_bm = (uint32_t *)calloc(bm_count, bm_size);
+  uint32_t *comma_bm = (uint32_t *)calloc(bm_count, bm_size);
+  uint32_t *rbracket_bm = (uint32_t *)calloc(bm_count, bm_size);
+  uint32_t *lbracket_bm = (uint32_t *)calloc(bm_count, bm_size);
   
   // Comparators
   const __m256i colons = _mm256_set1_epi8(COLON);
@@ -87,6 +96,9 @@ build_character_bitmaps(const char *record, const size_t length) {
   const __m256i lbrace = _mm256_set1_epi8(LEFT_BRACE);
   const __m256i backslash = _mm256_set1_epi8(BACKSLASH);
   const __m256i quotes = _mm256_set1_epi8(QUOTE);
+  const __m256i rbracket = _mm256_set1_epi8(RIGHT_BRACKET);
+  const __m256i lbracket = _mm256_set1_epi8(LEFT_BRACKET);
+  const __m256i comma = _mm256_set1_epi8(COMMA);
 
   size_t bm_index = 0;
   for (size_t i = 0; i < length; i += VS) {
@@ -107,6 +119,18 @@ build_character_bitmaps(const char *record, const size_t length) {
     mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(data, quotes));
     quotes_bm[bm_index] = mask;
 
+    mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(data, quotes));
+    quotes_bm[bm_index] = mask;
+
+    mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(data, rbracket));
+    rbracket_bm[bm_index] = mask;
+
+    mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(data, lbracket));
+    lbracket_bm[bm_index] = mask;
+
+    mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(data, comma));
+    comma_bm[bm_index] = mask;
+
     bm_index++;
   }
   // TODO fringing...
@@ -117,6 +141,9 @@ build_character_bitmaps(const char *record, const size_t length) {
   b->lbrace_bm = (uint64_t *)lbrace_bm;
   b->backslash_bm = (uint64_t *)backslash_bm;
   b->quotes_bm = (uint64_t *)quotes_bm;
+  b->rbracket_bm = (uint64_t *)rbracket_bm;
+  b->lbracket_bm = (uint64_t *)lbracket_bm;
+  b->comma_bm = (uint64_t *)comma_bm;
   b->length = length;
   b->words = bm_count / 2;
 
@@ -133,6 +160,15 @@ build_character_bitmaps(const char *record, const size_t length) {
   mison_dbg_print_mask(b->backslash_bm[0]);
   fprintf(stderr, "\"\n");
   mison_dbg_print_mask(b->quotes_bm[0]);
+
+  fprintf(stderr, "]\n");
+  mison_dbg_print_mask(b->rbracket_bm[0]);
+  fprintf(stderr, "[\n");
+  mison_dbg_print_mask(b->lbracket_bm[0]);
+
+  fprintf(stderr, ",\n");
+  mison_dbg_print_mask(b->comma_bm[0]);
+
 #endif
 
   return b;
@@ -295,6 +331,79 @@ build_leveled_colon_bitmaps(struct character_bitmaps *b, uint64_t l) {
   return lcb;
 }
 
+// Step 4.
+uint64_t **
+build_leveled_comma_bitmaps(struct character_bitmaps *b, uint64_t l) {
+  uint64_t **lcb = (uint64_t **)malloc(sizeof(uint64_t **) * l);
+
+  // Copy colon bitmap to leveled colon bitmap.
+  for (int i = 0; i < l; i++) {
+    lcb[i] = (uint64_t *)calloc(b->words, sizeof(uint64_t));
+    memcpy(lcb[i], b->comma_bm, b->words * sizeof(uint64_t));
+  } 
+
+#if DEBUG
+  fprintf(stderr, "Finished memcpy of comma bitmaps.\n");
+#endif
+
+  std::stack<size_t> stack1;
+  std::stack<uint64_t> stack2;
+
+  for (uint64_t i = 0; i < b->words; i++) {
+    uint64_t m_left = b->lbracket_bm[i];
+    uint64_t m_right = b->rbracket_bm[i];
+
+    // Iterate over all right braces
+    while(m_right) {
+      uint64_t m_rightbit = E(m_right);
+      uint64_t m_leftbit = E(m_left);
+      while (m_leftbit != 0 && (m_rightbit == 0 || m_leftbit < m_rightbit)) {
+        stack1.push(i);
+        stack2.push(m_leftbit);
+        m_left = R(m_left);
+        m_leftbit = E(m_left);
+      }
+
+#if DEBUG
+      fprintf(stderr, "Stack size: %zu.\n", stack1.size());
+      fprintf(stderr, "m_rightbit: %llu.\n", m_rightbit);
+#endif
+
+      if (m_rightbit != 0 && stack1.size() > 0) {
+        uint64_t j = stack1.top();
+        m_leftbit = stack2.top();
+        stack1.pop();
+        stack2.pop();
+          if (stack1.size() > 0 && stack1.size() <= l) {
+            if (i == j) {
+              lcb[stack1.size() - 1][i] = lcb[stack1.size() - 1][i] & (~(m_rightbit - m_leftbit)); 
+            } else {
+              lcb[stack1.size() - 1][j] = lcb[stack1.size() - 1][j] & (m_leftbit - 1L);
+              lcb[stack1.size() - 1][i] = lcb[stack1.size() - 1][i] & ~(m_rightbit - 1L);
+              for (int k = j + 1; k < i; k++) {
+                lcb[stack1.size()][k] = 0x0;
+              }
+            }
+          }
+      }
+      m_right = R(m_right);
+
+#if DEBUG
+      fprintf(stderr, "m_right: %llu.\n", m_right);
+#endif
+    }
+  }
+
+#if DEBUG
+  for (int i = 0; i < l; i++) {
+    fprintf(stderr, "L%d bitmap\n", i);
+    mison_dbg_print_mask(lcb[i][0]);
+  }
+#endif
+
+  return lcb;
+}
+
 intptr_t mison_parse(const char *record, size_t length) {
 
 #if DEBUG
@@ -306,7 +415,8 @@ intptr_t mison_parse(const char *record, size_t length) {
   uint64_t *quote_bitmap = build_structural_quote_bitmap(b);
 
   build_string_mask_bitmap(quote_bitmap, b->words);
-  build_leveled_colon_bitmaps(b, 2);
+  intptr_t x = (intptr_t)build_leveled_colon_bitmaps(b, 6);
+  intptr_t y = (intptr_t)build_leveled_comma_bitmaps(b, 6);
 
-  return 0;
+  return x + y;
 }
