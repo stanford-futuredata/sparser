@@ -6,8 +6,8 @@
 
 // Structural characters
 #define COLON       ':'
-#define RIGHT_BRACE '{'
-#define LEFT_BRACE  '}'
+#define RIGHT_BRACE '}'
+#define LEFT_BRACE  '{'
 #define BACKSLASH   '\\'
 #define QUOTE       '"'
 
@@ -214,30 +214,38 @@ build_string_mask_bitmap(uint64_t *quote_bitmap, size_t words) {
     }
     result[i] = m_string;
   }
+
+#if DEBUG
+  fprintf(stderr, "String Bitmap\n");
+  mison_dbg_print_mask(result[0]);
+#endif
   return result;
 }
 
 // Step 4.
 uint64_t **
-build_leveled_colon_bitmaps(struct character_bitmaps *b, uint64_t nesting) {
-  const size_t bm_count = (b->length) / sizeof(uint64_t);
-  const size_t bm_size = sizeof(uint64_t);
+build_leveled_colon_bitmaps(struct character_bitmaps *b, uint64_t l) {
+  uint64_t **lcb = (uint64_t **)malloc(sizeof(uint64_t **) * l);
 
-  uint64_t **lcb = (uint64_t **)malloc(sizeof(uint64_t **) * nesting);
-  for (int i = 0; i < nesting; i++) {
-    lcb[i] = (uint64_t *)calloc(bm_count, bm_size);
-    memcpy(lcb[i], b->colon_bm, bm_count * bm_size);
+  // Copy colon bitmap to leveled colon bitmap.
+  for (int i = 0; i < l; i++) {
+    lcb[i] = (uint64_t *)calloc(b->words, sizeof(uint64_t));
+    memcpy(lcb[i], b->colon_bm, b->words * sizeof(uint64_t));
   } 
+
+#if DEBUG
+  fprintf(stderr, "Finished memcpy of colon bitmaps.\n");
+#endif
 
   std::stack<size_t> stack1;
   std::stack<uint64_t> stack2;
 
-  for (int i = 0; i < b->length / sizeof(uint64_t); i++) {
+  for (uint64_t i = 0; i < b->words; i++) {
     uint64_t m_left = b->lbrace_bm[i];
     uint64_t m_right = b->rbrace_bm[i];
 
     // Iterate over all right braces
-    while (m_right) {
+    while(m_right) {
       uint64_t m_rightbit = E(m_right);
       uint64_t m_leftbit = E(m_left);
       while (m_leftbit != 0 && (m_rightbit == 0 || m_leftbit < m_rightbit)) {
@@ -247,46 +255,58 @@ build_leveled_colon_bitmaps(struct character_bitmaps *b, uint64_t nesting) {
         m_leftbit = E(m_left);
       }
 
-      if (m_rightbit != 0) {
+#if DEBUG
+      fprintf(stderr, "Stack size: %zu.\n", stack1.size());
+      fprintf(stderr, "m_rightbit: %llu.\n", m_rightbit);
+#endif
+
+      if (m_rightbit != 0 && stack1.size() > 0) {
         uint64_t j = stack1.top();
         m_leftbit = stack2.top();
         stack1.pop();
         stack2.pop();
-          if (stack1.size() > 0 && stack1.size() <= nesting) {
+          if (stack1.size() > 0 && stack1.size() <= l) {
             if (i == j) {
-              lcb[stack1.size() - 1][i] = lcb[stack1.size() - 1][i] ^ (~(m_rightbit - m_leftbit)); 
+              lcb[stack1.size() - 1][i] = lcb[stack1.size() - 1][i] & (~(m_rightbit - m_leftbit)); 
             } else {
-              lcb[stack1.size() - 1][i] = lcb[stack1.size() - 1][i] & (m_leftbit - 1);
-              lcb[stack1.size() - 1][i] = lcb[stack1.size() - 1][i] & ~(m_rightbit - 1);
-              for (int k = j + 1; k < i - 1; k++) {
-                // TODO This seems weird
-                lcb[stack1.size()][i] = 0;
+              lcb[stack1.size() - 1][j] = lcb[stack1.size() - 1][j] & (m_leftbit - 1L);
+              lcb[stack1.size() - 1][i] = lcb[stack1.size() - 1][i] & ~(m_rightbit - 1L);
+              for (int k = j + 1; k < i; k++) {
+                lcb[stack1.size()][k] = 0x0;
               }
             }
           }
       }
       m_right = R(m_right);
+
+#if DEBUG
+      fprintf(stderr, "m_right: %llu.\n", m_right);
+#endif
     }
   }
+
+#if DEBUG
+  for (int i = 0; i < l; i++) {
+    fprintf(stderr, "L%d bitmap\n", i);
+    mison_dbg_print_mask(lcb[i][0]);
+  }
+#endif
 
   return lcb;
 }
 
 intptr_t mison_parse(const char *record, size_t length) {
 
-  //fprintf(stderr, "%s\n", record);
+#if DEBUG
+  fprintf(stderr, "Record: %s\n", record);
+  fprintf(stderr, "Record Length: %ld\n", length);
+#endif
 
   struct character_bitmaps *b = build_character_bitmaps(record, length);
-  //fprintf(stderr, "finished character bitmaps\n");
-
   uint64_t *quote_bitmap = build_structural_quote_bitmap(b);
-  //fprintf(stderr, "finished structural quote bitmaps\n");
 
-  uint64_t *string_bitmap = build_string_mask_bitmap(quote_bitmap, b->length);
-  //fprintf(stderr, "finished string mask bitmaps\n");
+  build_string_mask_bitmap(quote_bitmap, b->words);
+  build_leveled_colon_bitmaps(b, 2);
 
-  //uint64_t **index = build_leveled_colon_bitmaps(b, 1);
-  //fprintf(stderr, "finished leveled colon bitmaps\n");
-
-  return (intptr_t)b + (intptr_t)quote_bitmap;
+  return 0;
 }

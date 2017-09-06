@@ -107,6 +107,7 @@ double bench_mison(const char *filename, parser_t callback) {
     }
     elapsed += time_stop(s);
     doc_index++;
+    exit(1);
   }
 
   printf("Passing Elements: %d of %d records (%.3f seconds)\n", matching,
