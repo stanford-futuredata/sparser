@@ -15,6 +15,7 @@
 
 #include "bench_json.h"
 #include "sparser.h"
+#include "mison.h"
 
 using namespace rapidjson;
 
@@ -50,6 +51,16 @@ bool rapidjson_parse(const char *line) {
   return true;
 }
 
+bool mison_parse_wrapper(const char *line) {
+  size_t length = strlen(line);
+  if (length == 0) {
+    return false;
+  }
+
+  intptr_t x = mison_parse(line, length);
+  return (x != 0);
+}
+
 int main() {
   const char *filename = path_for_data("tweets.json");
 
@@ -61,8 +72,12 @@ int main() {
   predicates[0] = first;
   predicates[1] = second;
 
-  double a = bench_sparser(filename, predicates, 2, rapidjson_parse);
-  double b = bench_rapidjson(filename, rapidjson_parse);
+  double a = bench_sparser(filename, (const char **)predicates, 2, rapidjson_parse);
+
+  //double b = bench_rapidjson(filename, rapidjson_parse);
+
+  // bench_rapidjson actually works for any generic parser.
+  double b = bench_rapidjson(filename, mison_parse_wrapper);
 
   free(first);
   free(second);

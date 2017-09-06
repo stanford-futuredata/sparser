@@ -65,7 +65,8 @@ double bench_rapidjson(const char *filename, parser_t callback) {
 
   bench_timer_t s = time_start();
 
-  while ((line = strsep(&data, "\n")) != NULL) {
+  char *ptr = data;
+  while ((line = strsep(&ptr, "\n")) != NULL) {
     if (callback(line)) {
       matching++;
     }
@@ -73,6 +74,41 @@ double bench_rapidjson(const char *filename, parser_t callback) {
   }
 
   double elapsed = time_stop(s);
+  printf("Passing Elements: %d of %d records (%.3f seconds)\n", matching,
+         doc_index, elapsed);
+
+  free(ptr);
+
+  return elapsed;
+}
+
+/* Times splitting the input by newline and calling the full parser on each
+ * line. Uses the Mison Leveled Colon Bitmap technique, but doesn't implement
+ * pattern trees - this can be seen as a lower bound on parse time.
+ *
+ * @param filename
+ * @param callback the function which performs the parse.
+ *
+ * @return the running time.
+ */
+double bench_mison(const char *filename, parser_t callback) {
+  char *data, *line;
+  read_all(filename, &data);
+  int doc_index = 1;
+  int matching = 0;
+
+  double elapsed = 0;
+
+  char *ptr = data;
+  while ((line = strsep(&ptr, "\n")) != NULL) {
+    bench_timer_t s = time_start();
+    if (callback(line)) {
+      matching++;
+    }
+    elapsed += time_stop(s);
+    doc_index++;
+  }
+
   printf("Passing Elements: %d of %d records (%.3f seconds)\n", matching,
          doc_index, elapsed);
 
