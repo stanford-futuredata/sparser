@@ -21,7 +21,7 @@ using namespace rapidjson;
 
 // The query strings.
 const char *TEXT = "Donald Trump";
-const char *TEXT2 = "Russia";
+const char *TEXT2 = "Putin";
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.
@@ -72,12 +72,12 @@ int main() {
   predicates[0] = first;
   predicates[1] = second;
 
-  double a = bench_sparser(filename, (const char **)predicates, 2, mison_parse_wrapper);
+  double a = bench_sparser(filename, (const char **)predicates, 2, rapidjson_parse);
 
   //double b = bench_rapidjson(filename, rapidjson_parse);
 
   // bench_rapidjson actually works for any generic parser.
-  double b = bench_rapidjson(filename, mison_parse_wrapper);
+  double b = bench_rapidjson(filename, rapidjson_parse);
 
   free(first);
   free(second);

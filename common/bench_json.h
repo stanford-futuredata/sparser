@@ -35,7 +35,7 @@ double bench_sparser(const char *filename, const char **predicates,
   printf("Calibration Runtime: %f seconds\n", parse_time);
 
   s = time_start();
-  sparser_stats_t *stats = sparser_search1x4(raw, length, query, callback);
+  sparser_stats_t *stats = sparser_search(raw, length, query, callback);
   assert(stats);
   parse_time += time_stop(s);
 
