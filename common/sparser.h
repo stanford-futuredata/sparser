@@ -31,7 +31,7 @@ typedef struct sparser_query_ {
 typedef int (*sparser_searchfunc_t)(__m256i, const char *);
 
 // The callback fro the single parse function.
-typedef bool (*sparser_callback_t)(const char *input);
+typedef int (*sparser_callback_t)(const char *input);
 
 typedef struct sparser_stats_ {
   // Number of times the search query matched.
@@ -255,10 +255,14 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
       idx = i;
       min = false_positives[i];
     }
-    printf("%s\t%d\n", predicate_substrings[i], false_positives[i]);
+#if DEBUG
+    fprintf(stderr, "%s\t%d\n", predicate_substrings[i], false_positives[i]);
+#endif
   }
 
-  printf("%s Best Predicate: %s\n", __func__, predicate_substrings[idx]);
+#if DEBUG
+  fprintf("%s Best Predicate: %s\n", __func__, predicate_substrings[idx]);
+#endif
 
   sparser_query_t *squery = (sparser_query_t *)malloc(sizeof(sparser_query_t));
   memset(squery, 0, sizeof(sparser_query_t));
@@ -292,7 +296,9 @@ sparser_stats_t *sparser_search(char *input, long length,
 
   for (int i = 0; i < query->count; i++) {
     char *string = query->queries[i];
-    printf("Set string %s (index=%d, len=%zu)\n", string, i, query->lens[i]);
+#if DEBUG
+    fprintf(stderr, "Set string %s (index=%d, len=%zu)\n", string, i, query->lens[i]);
+#endif
     switch (query->lens[i]) {
     case 1: {
       searchfuncs[i] = search_epi8;
