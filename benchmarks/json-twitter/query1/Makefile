@@ -1,11 +1,15 @@
 CC=clang++
-CFLAGS=-std=c++11 -O3 -march=native -Wall -Wno-unused-function
+CFLAGS=-std=c++11 -march=native -Wall -Wno-unused-function
 INCLUDES=-I.. -I../../../common -I ../../../common/rapidjson/include
 
-.PHONY: all asm clean
+.PHONY: all debug asm clean
 
 all:
-	$(CC) $(CFLAGS) $(INCLUDES) bench.cpp -o bench
+	$(CC) $(CFLAGS) -O3 $(INCLUDES) bench.cpp -o bench
+
+
+debug:
+	$(CC) $(CFLAGS) -O0 -g -DDEBUG $(INCLUDES) bench.cpp -o bench
 
 asm:
 	$(CC) $(CFLAGS) $(INCLUDES) bench.cpp -S
