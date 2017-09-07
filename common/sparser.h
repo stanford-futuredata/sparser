@@ -33,7 +33,7 @@ typedef struct sparser_query_ {
 typedef int (*sparser_searchfunc_t)(__m256i, const char *);
 
 // The callback fro the single parse function.
-typedef bool (*sparser_callback_t)(const char *input);
+typedef int (*sparser_callback_t)(const char *input);
 
 typedef struct sparser_stats_ {
   // Number of times the search query matched.
@@ -292,7 +292,6 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
       idx = i;
       min = false_positives[i];
     }
-    fprintf(stderr, "%s\t%d\n", predicate_substrings[i], false_positives[i]);
   }
 
   // Now, check combinations - this ANDs the masks of each of the predicates together.
@@ -313,9 +312,15 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
     if (joint_rate < min && joint_rate < min2) {
       idx2 = i;
     }
+
+#if DEBUG
+    fprintf(stderr, "%s\t%d\n", predicate_substrings[i], false_positives[i]);
+#endif
   }
 
-  fprintf(stderr, "%s Added Predicate: %s\n", __func__, predicate_substrings[idx]);
+#if DEBUG
+  fprintf("%s Best Predicate: %s\n", __func__, predicate_substrings[idx]);
+#endif
 
   sparser_query_t *squery = (sparser_query_t *)malloc(sizeof(sparser_query_t));
   memset(squery, 0, sizeof(sparser_query_t));
@@ -344,7 +349,6 @@ sparser_stats_t *sparser_search1x2(char *input, long length,
 
     uint16_t x = *((uint16_t *)query->queries[0]);
   __m256i q1 = _mm256_set1_epi16(x);
-
   // Bitmask designating which filters matched.
   // Bit i is set if if the ith filter matched for the current record.
   unsigned matchmask = 0;
