@@ -1,9 +1,9 @@
-#include "SparserSpark.h"
+#include "edu_stanford_sparser_SparserNative.h"
 #include <jni.h>
 #include <stdlib.h>
 #include <iostream>
-#include "common.h"
 #include "bench_json.h"
+#include "common.h"
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/stringbuffer.h"
@@ -14,7 +14,7 @@ using namespace rapidjson;
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.
-bool parse_putin_russia(const char *line) {
+int parse_putin_russia(const char *line) {
     Document d;
     d.Parse(line);
     if (d.HasParseError()) {
@@ -45,28 +45,33 @@ bool parse_putin_russia(const char *line) {
 // 1. Read HDFS file instead of local file
 // 2. Save projected fields instead of row indices
 // 3. Parse UnsafeRow into a DataFrame
-JNIEXPORT void JNICALL Java_SparserSpark_parse(JNIEnv *env, jobject obj,
-                                               jstring filename_java,
-                                               jlong buffer_addr_java,
-                                               jlong capacity) {
+JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
+    JNIEnv *env, jobject obj, jstring filename_java, jlong buffer_addr_java,
+    jlong start_java, jlong length_java, jlong record_size, jlong max_records) {
+    bench_timer_t start = time_start();
     // Step 1: Convert the Java String (jstring) into C string (char*)
     char *filename_c = (char *)env->GetStringUTFChars(filename_java, NULL);
-    if (NULL == filename_c) return;
+    if (NULL == filename_c) return 0;
     printf("In C, the string is: %s\n", filename_c);
-    const char * predicates[] = {
-        "Putin",
-        "Russia",
+
+    const char *predicates[] = {
+        "Putin", "Russia",
     };
-    bench_sparser(filename_c, predicates,
-                          2, parse_putin_russia);
+    const double parse_time = bench_sparser_hdfs(filename_c, start_java, length_java, predicates, 2, parse_putin_russia);
     env->ReleaseStringUTFChars(filename_java, filename_c);  // release resources
 
     // Step 2: We pass the raw address as a Java long (jlong); just cast to int
-    // *
-    int *buf = (int *)buffer_addr_java;
-    for (long i = 0; i < capacity / sizeof(int); ++i) {
-        int *curr_row = buf + i;
-        *curr_row = rand() % 10;
-    }
+    char *buf = (char *)buffer_addr_java;
     printf("In C, the address is %p\n", buf);
+    long num_records_processed = 0;
+    for (long i = 0; i < max_records; ++i) {
+        int *curr_row = (int *) buf;
+        // for now, return indices
+        *curr_row = i;
+        ++num_records_processed;
+        buf += record_size;
+    }
+    const double time = time_stop(start);
+    printf("total time in C++: %f\n", time);
+    return num_records_processed;
 }

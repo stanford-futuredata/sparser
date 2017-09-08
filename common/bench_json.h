@@ -20,6 +20,51 @@ typedef sparser_callback_t parser_t;
  *
  * @return the running time.
  */
+double bench_sparser_hdfs(const char *filename, const unsigned long start,
+                      const unsigned long hdfs_length, const char **predicates,
+                      int num_predicates, parser_t callback) {
+
+  // Read in the data into a buffer.
+  bench_timer_t t = time_start();
+  char *raw = NULL;
+  const unsigned long length = read_all_hdfs(filename, &raw, start, hdfs_length);
+  assert(length == hdfs_length + 1);
+  double read_hdfs_time = time_stop(t);
+  printf("Read HDFS time: %f\n", read_hdfs_time);
+
+  bench_timer_t s = time_start();
+  sparser_query_t *query = sparser_calibrate(raw, length, predicates, num_predicates, callback);
+  assert(query);
+  double parse_time = time_stop(s);
+
+  printf("Calibration Runtime: %f seconds\n", parse_time);
+
+  s = time_start();
+  sparser_stats_t *stats = sparser_search(raw, length, query, callback);
+  assert(stats);
+  parse_time += time_stop(s);
+
+  printf("%s\n", sparser_format_stats(stats));
+  printf("Total Runtime: %f seconds\n", parse_time);
+
+  free(query);
+  free(stats);
+  free(raw);
+
+  return parse_time;
+}
+
+
+/** Uses sparser and RapidJSON to count the number of records matching the
+ * search query.
+ *
+ * @param filename the data to check
+ * @param the predicate strings.
+ * @param The number of predicate strings passed.
+ * @param callback the callback which invokes the full parser.
+ *
+ * @return the running time.
+ */
 double bench_sparser(const char *filename, const char **predicates,
                       int num_predicates, parser_t callback) {
 
