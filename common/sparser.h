@@ -543,7 +543,7 @@ sparser_stats_t *sparser_search2x2(char *input, long length,
   memset(&stats, 0, sizeof(stats));
 
   uint16_t x = *((uint16_t *)query->queries[0]);
-  __m256i q1 = _mm256_set1_epi32(x);
+  __m256i q1 = _mm256_set1_epi16(x);
 
   x = *((uint16_t *)query->queries[1]);
   __m256i q2 = _mm256_set1_epi16(x);
