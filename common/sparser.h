@@ -672,6 +672,8 @@ sparser_stats_t *sparser_search2x4(char *input, long length,
     end = length;
   }
 
+  const unsigned allset = ((1u << query->count) - 1u);
+
   for (long i = 0; i < length; i += VECSZ) {
     if (i > end) {
       char *endptr = strchr(input + i, '\n');
@@ -683,43 +685,57 @@ sparser_stats_t *sparser_search2x4(char *input, long length,
       matchmask = 0;
     }
 
-    if (!IS_SET(matchmask, 0) || !IS_SET(matchmask, 1)) {
+    if (matchmask != allset) {
       const char *base = input + i;
       __m256i val = _mm256_loadu_si256((__m256i const *)(base));
       unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(val, q1));
+      //__m256 vmask =_mm256_cmpeq_epi32(val, q1);
 
       __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
       mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val2, q1));
+      //vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val2, q1));
 
       __m256i val3 = _mm256_loadu_si256((__m256i const *)(base + 2));
       mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val3, q1));
+      //vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val3, q1));
 
       __m256i val4 = _mm256_loadu_si256((__m256i const *)(base + 3));
       mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val4, q1));
+      //vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val4, q1));
+
+      //unsigned mask = _mm256_movemask_epi8(vmask);
       mask &= 0x11111111;
 
-      unsigned matched = _mm_popcnt_u32(mask);
-      if (matched > 0) {
+      if (mask > 0) {
+        unsigned matched = _mm_popcnt_u32(mask);
         stats.total_matches += matched;
         matchmask |= 0x1;
       }
 
       if (!IS_SET(matchmask, 1)) {
+
+
         mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(val, q2));
         mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val2, q2));
         mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val3, q2));
         mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val4, q2));
+        /*
+        vmask = _mm256_cmpeq_epi32(val, q2);
+        vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val2, q2));
+        vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val3, q2));
+        vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val4, q2));
+        mask = _mm256_movemask_epi8(vmask);
+        */
         mask &= 0x11111111;
 
-        matched = _mm_popcnt_u32(mask);
-        if (matched > 0) {
+        if (mask) {
+          unsigned matched = _mm_popcnt_u32(mask);
           stats.total_matches += matched;
           matchmask |= (0x1 << 1);
         }
       }
     }
 
-    unsigned allset = ((1u << query->count) - 1u);
     // check if all the filters matched by checking if all the bits
     // necessary were set in matchmask.
     if ((matchmask & allset) == allset) {
