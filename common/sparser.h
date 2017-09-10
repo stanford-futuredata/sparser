@@ -292,6 +292,9 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
       idx = i;
       min = false_positives[i];
     }
+#if DEBUG
+    fprintf(stderr, "%s\t%d\n", predicate_substrings[i], false_positives[i]);
+#endif
   }
 
   // Now, check combinations - this ANDs the masks of each of the predicates together.
@@ -318,9 +321,6 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
 #endif
   }
 
-#if DEBUG
-  fprintf("%s Best Predicate: %s\n", __func__, predicate_substrings[idx]);
-#endif
 
   sparser_query_t *squery = (sparser_query_t *)malloc(sizeof(sparser_query_t));
   memset(squery, 0, sizeof(sparser_query_t));
