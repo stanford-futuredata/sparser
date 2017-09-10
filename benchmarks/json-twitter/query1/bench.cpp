@@ -25,7 +25,7 @@ const char *TEXT2 = "Putin";
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.
-bool rapidjson_parse(const char *line) {
+int rapidjson_parse(const char *line) {
   Document d;
   d.Parse(line);
   if (d.HasParseError()) {

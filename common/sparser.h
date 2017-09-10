@@ -325,6 +325,7 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   sparser_query_t *squery = (sparser_query_t *)malloc(sizeof(sparser_query_t));
   memset(squery, 0, sizeof(sparser_query_t));
   sparser_add_query(squery, predicate_substrings[idx]);
+  fprintf(stderr, "%s Added Predicate: %s\n", __func__, predicate_substrings[idx]);
   if (idx2 > -1) {
     sparser_add_query(squery, predicate_substrings[idx2]);
     fprintf(stderr, "%s Added Predicate: %s\n", __func__, predicate_substrings[idx2]);
