@@ -5,27 +5,42 @@
 
 #include <string.h>
 
-#include <arpa/inet.h>
-#include <immintrin.h>
-
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 
-#include "bench_json.h"
+#include <bench_json.h>
+
+#include <json_projection.h>
 
 using namespace rapidjson;
 
 const char *CREATED_AT = "2017";
-const char *ENTITIES_HASHTAG_TEXT = "maga";
+const char *ENTITIES_HASHTAG_TEXT = "Trump";
 
-// For printing debug information.
-static char print_buffer[4096];
+int test_projection(const char *line) {
+  json_query_t query = json_query_new();
+  json_query_add_projection(query, "user.followers_count", JSON_TYPE_INT);
+  json_query_add_projection(query, "user.id", JSON_TYPE_INT);
+  json_query_add_projection(query, "user.name", JSON_TYPE_STRING);
+  json_query_add_string_filter(query, "user.name", "smith");
+
+  // Currently just prints stuff and returns NULL
+  json_query_rapidjson_execution_engine(query, line);
+  printf("\n");
+
+
+  // For debugging.
+  //json_query_print(query);
+  
+  return 0;
+}
+
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.
-bool rapidjson_parse(const char *line) {
+int rapidjson_parse(const char *line) {
   Document d;
   d.Parse(line);
   if (d.HasParseError()) {
@@ -71,11 +86,9 @@ bool rapidjson_parse(const char *line) {
 }
 
 int main() {
-  const char *filename = path_for_data("tweets-large.json");
-  double a = bench_sparser(filename, ENTITIES_HASHTAG_TEXT, rapidjson_parse);
-  double b = bench_rapidjson(filename, rapidjson_parse);
-
-  printf("Speedup: %f\n", b / a);
+  const char *filename = path_for_data("tweets-small.json");
+  //double b = bench_rapidjson(filename, rapidjson_parse);
+  double a = bench_rapidjson(filename, test_projection);
 
   return 0;
 }
