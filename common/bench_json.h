@@ -114,7 +114,7 @@ double bench_rapidjson(const char *filename, parser_t callback) {
 
   char *ptr = data;
   while ((line = strsep(&ptr, "\n")) != NULL) {
-    if (callback(line)) {
+    if (callback(line, NULL)) {
       matching++;
     }
     doc_index++;
@@ -149,7 +149,7 @@ double bench_mison(const char *filename, parser_t callback) {
   char *ptr = data;
   while ((line = strsep(&ptr, "\n")) != NULL) {
     bench_timer_t s = time_start();
-    if (callback(line)) {
+    if (callback(line, NULL)) {
       matching++;
     }
     elapsed += time_stop(s);

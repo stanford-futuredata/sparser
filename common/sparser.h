@@ -38,7 +38,7 @@ typedef struct sparser_query_ {
 typedef int (*sparser_searchfunc_t)(__m256i, const char *);
 
 // The callback fro the single parse function.
-typedef int (*sparser_callback_t)(const char *input);
+typedef int (*sparser_callback_t)(const char *input, void *);
 
 typedef struct sparser_stats_ {
   // Number of times the search query matched.
@@ -295,7 +295,7 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
       bench_timer_t start1 = time_start();
 #endif
       unsigned long start = rdtsc();
-      int passed = callback(line);
+      int passed = callback(line, NULL);
       unsigned long end = rdtsc();
 #ifdef CALIBRATE_TIMING
       callback_elapsed += time_stop(start1);
@@ -491,7 +491,7 @@ sparser_stats_t *sparser_search2(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start)) {
+      if (callback(input + start, NULL)) {
         stats.callback_passed++;
       }
       input[end] = a;
@@ -589,7 +589,7 @@ sparser_stats_t *sparser_search4(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start)) {
+      if (callback(input + start, NULL)) {
         stats.callback_passed++;
       }
       input[end] = a;
@@ -705,7 +705,7 @@ sparser_stats_t *sparser_search2_2(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start)) {
+      if (callback(input + start, NULL)) {
         stats.callback_passed++;
       }
       input[end] = a;
@@ -830,7 +830,7 @@ sparser_stats_t *sparser_search2_4(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start)) {
+      if (callback(input + start, NULL)) {
         stats.callback_passed++;
       }
       input[end] = a;
@@ -972,7 +972,7 @@ sparser_stats_t *sparser_search4_4(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start)) {
+      if (callback(input + start, NULL)) {
         stats.callback_passed++;
       }
       input[end] = a;
@@ -1151,7 +1151,7 @@ sparser_stats_t *sparser_search(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start)) {
+      if (callback(input + start, NULL)) {
         stats.callback_passed++;
       }
       input[end] = a;

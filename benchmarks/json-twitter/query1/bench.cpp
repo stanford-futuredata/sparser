@@ -25,7 +25,7 @@ const char *TEXT2 = "Donald Trump";
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.
-int rapidjson_parse(const char *line) {
+int rapidjson_parse(const char *line, void * _) {
   Document d;
   d.Parse(line);
   if (d.HasParseError()) {
@@ -51,14 +51,14 @@ int rapidjson_parse(const char *line) {
   return true;
 }
 
-int mison_parse_wrapper(const char *line) {
+int mison_parse_wrapper(const char *line, void * _) {
   size_t length = strlen(line);
   if (length == 0) {
     return false;
   }
 
   intptr_t x = mison_parse(line, length);
-  return (x != 0);
+  return (x == 0);
 }
 
 int main() {
