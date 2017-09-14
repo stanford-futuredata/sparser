@@ -108,20 +108,29 @@ class SparserSearchCodeGen(object):
         is_set_template = "!IS_SET(matchmask, {token})"
         ifcheck = "||".join([is_set_template.format(token=i) for i in xrange(self.tokens)])
 
+
+        load_str_template = "__m256i val{offset} = _mm256_loadu_si256((__m256i const *)(base + {offset}));\n"
+
+        mask_template_first = "unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val2, q0));\n"
+        mask_template = "mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val2, q0));\n"
+
+        load = ""
+        for i in xrange(max(self.tokenlengths)):
+            load += load_str_template.format(offset=i)
+
+        checkfirst = ""
+        checkfirst += mask_template_first.format(bitlength=length_to_bits(self.tokenlengths[0]))
+        for i in xrange(1, self.tokenlengths[0]):
+            checkfirst += mask_template.format(bitlength=length_to_bits(self.tokenlengths[0]))
+
+
         template = """
         if ({ifcheck}) {{
             const char *base = input + i;
-            __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-            unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val, q0));
+            {load}
 
-            __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val2, q0));
+            {checkfirst}
 
-            __m256i val3 = _mm256_loadu_si256((__m256i const *)(base + 2));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val3, q0));
-
-            __m256i val4 = _mm256_loadu_si256((__m256i const *)(base + 3));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val4, q0));
             mask &= {maskvalue};
 
             unsigned matched = _mm_popcnt_u32(mask);
@@ -131,19 +140,24 @@ class SparserSearchCodeGen(object):
             }}
             """
         return template.format(ifcheck=ifcheck,
+                load=load,
+                checkfirst=checkfirst,
                 bitlength=length_to_bits(self.tokenlengths[0]),
                 maskvalue=maskvalues[self.tokenlengths[0]])
 
     def generate_loop_remaining_checks(self):
+        if len(self.tokens) == 1:
+            return "}"
 
-        # TODO shifts is not right
+        first_check = "mask = _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val, q{token}));"
+        first_check = first_check.format(token=self.tokens[1])
 
         template = """
           if (!IS_SET(matchmask, {token})) {{
             mask = _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val, q{token}));
             mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val2, q{token}));
             mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val3, q{token}));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val4, q2{token}));
+            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val4, q{token}));
             mask &= {maskvalue};
 
             matched = _mm_popcnt_u32(mask);
