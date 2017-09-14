@@ -160,7 +160,7 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   // Maximum number of samples to try.
   const int MAX_SAMPLES = 64;
   // Maximum number of substrings to try.
-  const int MAX_SUBSTRINGS = 16;
+  const int MAX_SUBSTRINGS = 64;
 
   // So the bitvector fits...
   assert(sizeof(uint64_t) * 8 >= MAX_SUBSTRINGS);
@@ -186,7 +186,7 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   // return values.
   char substr_buf[8192];
   long buf_offset = 0;
-  int num_substrings = 0;
+  unsigned long num_substrings = 0;
   char **predicate_substrings = (char **)malloc(sizeof(char *) * MAX_SUBSTRINGS);
   memset(predicate_substrings, 0, sizeof(char *) * MAX_SUBSTRINGS);
 
@@ -211,19 +211,28 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
       // TODO leak!
       return NULL;
     }
-    shifts = len - substring_length + 1;
+    //shifts = len - substring_length + 1;
 
-    // Add the shifts for the substrings into the predicate_substrings array.
-    for (int j = 0; j < shifts; j++) {
-      if (num_substrings >= MAX_SUBSTRINGS || buf_offset + substring_length >= sizeof(substr_buf)) {
-        break;
+    for (int k = 2; k <= substring_length; k++) {
+
+      //  test only 1, 2, 4
+      if (k == 3) continue;
+      int substring_length = k;
+      int shifts = len - substring_length + 1;
+
+      // Add the shifts for the substrings into the predicate_substrings array.
+      for (int j = 0; j < shifts; j++) {
+        if (num_substrings >= MAX_SUBSTRINGS || buf_offset + substring_length >= sizeof(substr_buf)) {
+          break;
+        }
+        strncpy(substr_buf + buf_offset, substring + j, substring_length);
+        substr_buf[buf_offset + substring_length] = '\0';
+        predicate_substrings[num_substrings] = substr_buf + buf_offset;
+        printf("%s\n", predicate_substrings[num_substrings]);
+        substring_source[num_substrings] = i;
+        buf_offset += substring_length + 1;
+        num_substrings++;
       }
-      strncpy(substr_buf + buf_offset, substring + j, substring_length);
-      substr_buf[buf_offset + substring_length] = '\0';
-      predicate_substrings[num_substrings] = substr_buf + buf_offset;
-      substring_source[num_substrings] = i;
-      buf_offset += substring_length + 1;
-      num_substrings++;
     }
   }
 
@@ -243,10 +252,6 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
     sample = newline + 1;
     remaining_length -= (sample - line);
 
-#if DEBUG
-    fprintf(stderr, "%s Record - %s\n", __func__, line);
-#endif
-    // `found` is a bitset where position `i` is set if the ith predicate passed this record.
     unsigned long found = 0x0L;
     for (int i = 0; i < num_substrings; i++) {
       char *predicate = predicate_substrings[i];
@@ -300,15 +305,12 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   double min = LONG_MAX;
   long idx = -1;
   for (int i = 0; i < num_substrings; i++) {
-    // TODO replace 4 with filter cost.
-    double cost = 8 * 4 + ((double)false_positives[i] / (double)MAX_SAMPLES) * parse_cost;
+    double cost = 8 * strlen(predicate_substrings[i]) + ((double)false_positives[i] / (double)MAX_SAMPLES) * parse_cost;
     if (cost < min) {
       idx = i;
       min = cost;
     }
-#if DEBUG
     fprintf(stderr, "%s\t%d\n", predicate_substrings[i], false_positives[i]);
-#endif
   }
 
   // Now, check combinations - this ANDs the masks of each of the predicates together.
@@ -319,6 +321,7 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   const double bitlength = (double)records;
   for (int i = 0; i < num_substrings; i++) {
     if (i == idx || substring_source[i] == substring_source[idx]) {
+      fprintf(stderr, "Skipping %s and %s\n", predicate_substrings[i], predicate_substrings[idx]);
       continue;
     }
 
@@ -327,9 +330,7 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
 
     // The percentage of samples that have false positives.
     double rate = ((double)joint_rate) / bitlength;
-
-    // TODO Assuming 4-wide registers here...
-    double cost = 8 * (4 + 4) + (rate * (double)parse_cost);
+    double cost = 8 * (strlen(predicate_substrings[i]) + strlen(predicate_substrings[idx])) + (rate * (double)parse_cost);
 
     bitmap_free(&joint);
 
