@@ -739,7 +739,7 @@ sparser_stats_t *sparser_search2_4(char *input, long length,
                                 sparser_callback_t callback,
                                 void * callback_ctx) {
   assert(query->count == 2);
-  assert((query->lens[0] >= 2 && query->lens[1] >= 4) || (query->lens[1] >= 4 && query->lens[0] >= 2));
+  assert((query->lens[0] >= 2 && query->lens[1] >= 4) || (query->lens[0] >= 4 && query->lens[1] >= 2));
 
   sparser_stats_t stats;
   memset(&stats, 0, sizeof(stats));
