@@ -41,10 +41,7 @@ int parse_putin_russia(const char *line) {
     return true;
 }
 
-// TODO:
-// 1. Read HDFS file instead of local file
 // 2. Save projected fields instead of row indices
-// 3. Parse UnsafeRow into a DataFrame
 JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
     JNIEnv *env, jobject obj, jstring filename_java, jlong buffer_addr_java,
     jlong start_java, jlong length_java, jlong record_size, jlong max_records) {
@@ -57,21 +54,21 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
     const char *predicates[] = {
         "Putin", "Russia",
     };
-    const double parse_time = bench_sparser_hdfs(filename_c, start_java, length_java, predicates, 2, parse_putin_russia);
-    env->ReleaseStringUTFChars(filename_java, filename_c);  // release resources
+    const long num_records_parsed = bench_sparser_hdfs(filename_c, start_java, length_java, predicates,
+        2, parse_putin_russia);
+    assert(num_records_parsed < max_records);
+    env->ReleaseStringUTFChars(filename_java, filename_c); // release resources
 
     // Step 2: We pass the raw address as a Java long (jlong); just cast to int
     char *buf = (char *)buffer_addr_java;
     printf("In C, the address is %p\n", buf);
-    long num_records_processed = 0;
-    for (long i = 0; i < max_records; ++i) {
+    for (long i = 0; i < num_records_parsed; ++i) {
         int *curr_row = (int *) buf;
         // for now, return indices
         *curr_row = i;
-        ++num_records_processed;
         buf += record_size;
     }
     const double time = time_stop(start);
     printf("total time in C++: %f\n", time);
-    return num_records_processed;
+    return num_records_parsed;
 }

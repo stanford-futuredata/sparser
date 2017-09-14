@@ -19,9 +19,9 @@ typedef sparser_callback_t parser_t;
  * @param The number of predicate strings passed.
  * @param callback the callback which invokes the full parser.
  *
- * @return the running time.
+ * @return number of records parsed
  */
-double bench_sparser_hdfs(const char *filename, const unsigned long start,
+long bench_sparser_hdfs(const char *filename, const unsigned long start,
                       const unsigned long hdfs_length, const char **predicates,
                       int num_predicates, parser_t callback, void *callback_ctx) {
 
@@ -49,10 +49,11 @@ double bench_sparser_hdfs(const char *filename, const unsigned long start,
   printf("Total Runtime: %f seconds\n", parse_time);
 
   free(query);
+  const long num_records_passed = stats->callback_passed;
   free(stats);
   free(raw);
 
-  return parse_time;
+  return num_records_passed;
 }
 #endif
 
