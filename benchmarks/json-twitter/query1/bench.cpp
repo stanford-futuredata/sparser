@@ -20,8 +20,8 @@
 using namespace rapidjson;
 
 // The query strings.
-const char *TEXT = "Donald Trump";
-const char *TEXT2 = "Putin";
+const char *TEXT = "Russia";
+const char *TEXT2 = "Donald Trump";
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.

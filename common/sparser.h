@@ -9,6 +9,7 @@
 #include <limits.h>
 #include <assert.h>
 
+#include "common.h"
 #include "bitmap.h"
 #include "rdtsc.h"
 
@@ -178,6 +179,8 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
 
   // Store the substring source (i.e., which predicate it is derived from).
   int substring_source[MAX_SUBSTRINGS];
+  // Store the length of the substring.
+  size_t substring_lengths[MAX_SUBSTRINGS];
 
   // Counts number of records processed thus far.
   long records = 0;
@@ -190,30 +193,31 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   char **predicate_substrings = (char **)malloc(sizeof(char *) * MAX_SUBSTRINGS);
   memset(predicate_substrings, 0, sizeof(char *) * MAX_SUBSTRINGS);
 
+  double total_elapsed = 0.0;
+  bench_timer_t start = time_start();
+
   // Create a buffer of all the substring combinations we want to try.
   // TODO do something smarter here, e.g., using the letter frequency to decide.
   for (int i = 0; i < count; i++) {
     const char *substring = predicates[i];
     size_t len = strlen(substring);
-
-    int shifts = 0;
-    int substring_length;
+    int max_substring_length;
 
     // Use the biggest possible size, up to 4 bytes.
     if (len >= 4) {
-      substring_length = 4;
+      max_substring_length = 4;
     } else if (len >= 2) {
-      substring_length = 2;
+      max_substring_length = 2;
     } else if (len >= 1) {
-      substring_length = 1;
+      max_substring_length = 1;
     } else {
       fprintf(stderr, "%s: empty predicate\n", __func__);
       // TODO leak!
       return NULL;
     }
-    //shifts = len - substring_length + 1;
+    //shifts = len - max_substring_length + 1;
 
-    for (int k = 2; k <= substring_length; k++) {
+    for (int k = 2; k <= max_substring_length; k++) {
 
       //  test only 1, 2, 4
       if (k == 3) continue;
@@ -230,15 +234,21 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
         predicate_substrings[num_substrings] = substr_buf + buf_offset;
         printf("%s\n", predicate_substrings[num_substrings]);
         substring_source[num_substrings] = i;
+        substring_lengths[num_substrings] = substring_length;
         buf_offset += substring_length + 1;
         num_substrings++;
       }
     }
   }
 
+  double candidategen_elapsed = time_stop(start);
+  total_elapsed += candidategen_elapsed;
+  fprintf(stderr, "%s Candidate Generation Time - %f\n", __func__, candidategen_elapsed);
+
+  start = time_start();
+
   // The mask representing all predicates passed a record.
   const uint64_t allset = (0x1L << num_substrings) - 1L;
-
   unsigned long parse_cost = 0;
 
   // Now search for each substring in up to MAX_SAMPLES records.
@@ -299,60 +309,73 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
     }
   }
 
+
+  double sample_elapsed = time_stop(start);
+  total_elapsed += sample_elapsed;
+  fprintf(stderr, "%s Sample Colection Time - %f\n", __func__, sample_elapsed);
+
   fprintf(stderr, "%s Averge Parse Time - %ld\n", __func__, parse_cost);
 
-  // Find the strings with the smallest false positives cost.
-  double min = LONG_MAX;
-  long idx = -1;
-  for (int i = 0; i < num_substrings; i++) {
-    double cost = 8 * strlen(predicate_substrings[i]) + ((double)false_positives[i] / (double)MAX_SAMPLES) * parse_cost;
-    if (cost < min) {
-      idx = i;
-      min = cost;
-    }
-    fprintf(stderr, "%s\t%d\n", predicate_substrings[i], false_positives[i]);
-  }
+  start = time_start();
 
-  // Now, check combinations - this ANDs the masks of each of the predicates together.
+  // TODO how to generalize this to N filters?
+  // Now, check combinations of two filters - this ANDs the masks of each of the predicates together.
   // Each 1 represents a false positive in the joint predicate, so we want to *minimize* the
   // number of 1s.
+  long idx1 = -1;
   long idx2 = -1;
-  double min2 = LONG_MAX;
+  double min = LONG_MAX;
   const double bitlength = (double)records;
+  bitmap_t joint = bitmap_new(MAX_SAMPLES);
   for (int i = 0; i < num_substrings; i++) {
-    if (i == idx || substring_source[i] == substring_source[idx]) {
-      fprintf(stderr, "Skipping %s and %s\n", predicate_substrings[i], predicate_substrings[idx]);
-      continue;
-    }
+    for (int j = 0; j < num_substrings; j++) {
+      // Don't compare substrings sourced from the same value. Check i == j to check single substrings.
+      if (i != j && substring_source[i] == substring_source[j]) {
+        //fprintf(stderr, "Skipping %s and %s\n", predicate_substrings[i], predicate_substrings[j]);
+        continue;
+      }
 
-    bitmap_t joint = bitmap_and(&false_positives_mask[i], &false_positives_mask[idx]);
-    uint64_t joint_rate = bitmap_count(&joint);
+      bitmap_and(&joint, &false_positives_mask[i], &false_positives_mask[j]);
+      uint64_t joint_rate = bitmap_count(&joint);
 
-    // The percentage of samples that have false positives.
-    double rate = ((double)joint_rate) / bitlength;
-    double cost = 8 * (strlen(predicate_substrings[i]) + strlen(predicate_substrings[idx])) + (rate * (double)parse_cost);
+      double filter_cost = substring_lengths[i];
+      if (i != j) {
+        filter_cost += substring_lengths[j];
+      }
+      // Rough number of instructions per filter length unit.
+      filter_cost *= 8.0;
 
-    bitmap_free(&joint);
+      // The percentage of samples that have false positives.
+      double rate = ((double)joint_rate) / bitlength;
+      double cost = filter_cost + (rate * (double)parse_cost);
 
-    fprintf(stderr, "Joint rate of %s and %s: %llu %f (best=%f)\n", predicate_substrings[i], predicate_substrings[idx], joint_rate, cost, min);
+      //fprintf(stderr, "Joint rate of %s and %s: %llu (cost=%f ,best=%f)\n", predicate_substrings[i], predicate_substrings[j], joint_rate, cost, min);
 
-    // Does the joint query improve performance?
-    if (cost < min && cost < min2) {
-      idx2 = i;
-      min2 = cost;
-    }
+      // Does the joint query improve performance?
+      if (cost < min) {
+        idx1 = i;
+        idx2 = j;
+        min = cost;
+      }
 
 #if DEBUG
-    fprintf(stderr, "%s\t%d\n", predicate_substrings[i], false_positives[i]);
+      fprintf(stderr, "%s\t%d\n", predicate_substrings[i], false_positives[i]);
 #endif
+    }
   }
 
+  double combine_elapsed = time_stop(start);
+  fprintf(stderr, "%s Filter Combination Time - %f\n", __func__, combine_elapsed);
+
+  bitmap_free(&joint);
+
+  assert(idx1 >= 0 && idx2 >= 0);
 
   sparser_query_t *squery = (sparser_query_t *)malloc(sizeof(sparser_query_t));
   memset(squery, 0, sizeof(sparser_query_t));
-  sparser_add_query(squery, predicate_substrings[idx]);
-  fprintf(stderr, "%s Added Predicate: %s\n", __func__, predicate_substrings[idx]);
-  if (idx2 > -1) {
+  sparser_add_query(squery, predicate_substrings[idx1]);
+  fprintf(stderr, "%s Added Predicate: %s\n", __func__, predicate_substrings[idx1]);
+  if (idx1 != idx2) {
     sparser_add_query(squery, predicate_substrings[idx2]);
     fprintf(stderr, "%s Added Predicate: %s\n", __func__, predicate_substrings[idx2]);
   }
@@ -361,6 +384,8 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
     bitmap_free(&false_positives_mask[i]);
   }
   free(predicate_substrings);
+
+  fprintf(stderr, "%s Calibration Total Elapsed - %f\n", __func__, total_elapsed);
 
   return squery;
 }

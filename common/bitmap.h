@@ -60,17 +60,15 @@ void bitmap_unset(bitmap_t *bm, unsigned long index) {
 }
 
 /** Return a new bitmap which the bitwise & of `bm1` and `bm2`. */
-bitmap_t bitmap_and(bitmap_t *bm1, const bitmap_t *bm2) {
+void bitmap_and(bitmap_t *result, bitmap_t *bm1, const bitmap_t *bm2) {
   assert(bm1->capacity == bm2->capacity);
+  assert(result->capacity == bm1->capacity);
 
-  bitmap_t m = bitmap_new(bm1->capacity); 
-
+  result->count = 0;
   for (int i = 0; i < bm1->words; i++) {
-    m.bits[i] = bm1->bits[i] & bm2->bits[i];
-    m.count += _mm_popcnt_u64(m.bits[i]);
+    result->bits[i] = bm1->bits[i] & bm2->bits[i];
+    result->count += _mm_popcnt_u64(result->bits[i]);
   }
-
-  return m;
 }
 
 unsigned long bitmap_capacity(bitmap_t *bm) {
