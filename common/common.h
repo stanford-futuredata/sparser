@@ -2,7 +2,9 @@
 #define _COMMON_H_
 
 #include <assert.h>
+#ifdef USE_HDFS
 #include <hdfs/hdfs.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,6 +30,7 @@ static char *path_for_data(const char *datafile) {
     return buf;
 }
 
+#ifdef USE_HDFS
 /**
  * Reads the entire _local_ block of a file from HDFS. There isn't an explicit
  * API for reading only the local block, but we can get the start offset and the
@@ -84,6 +87,7 @@ long read_all_hdfs(const char *filename_uri, char **buf, long start,
 
     return length + 1;
 }
+#endif
 
 /** Reads the entire file filename into memory. */
 long read_all(const char *filename, char **buf) {

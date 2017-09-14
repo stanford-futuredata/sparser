@@ -10,6 +10,7 @@
 
 typedef sparser_callback_t parser_t;
 
+#ifdef USE_HDFS
 /** Uses sparser and RapidJSON to count the number of records matching the
  * search query.
  *
@@ -53,6 +54,7 @@ double bench_sparser_hdfs(const char *filename, const unsigned long start,
 
   return parse_time;
 }
+#endif
 
 
 /** Uses sparser and RapidJSON to count the number of records matching the

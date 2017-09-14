@@ -734,17 +734,26 @@ sparser_stats_t *sparser_search2_4(char *input, long length,
                                 sparser_query_t *query,
                                 sparser_callback_t callback) {
   assert(query->count == 2);
-  assert(query->lens[0] >= 2);
-  assert(query->lens[1] >= 4);
+  assert((query->lens[0] >= 2 && query->lens[1] >= 4) || (query->lens[1] >= 4 && query->lens[0] >= 2));
 
   sparser_stats_t stats;
   memset(&stats, 0, sizeof(stats));
 
-  uint16_t x = *((uint16_t *)query->queries[0]);
-  __m256i q1 = _mm256_set1_epi16(x);
+  uint16_t x;
+  uint32_t y;
+  __m256 q1, q2;
 
-  uint32_t y = *((uint32_t *)query->queries[1]);
-  __m256i q2 = _mm256_set1_epi32(y);
+  if (query->lens[0] >= 2 && query->lens[1] >= 4) {
+    x = *((uint16_t *)query->queries[0]);
+    y = *((uint32_t *)query->queries[1]);
+    q1 = _mm256_set1_epi16(x);
+    q2 = _mm256_set1_epi32(y);
+  } else {
+    x = *((uint16_t *)query->queries[1]);
+    y = *((uint32_t *)query->queries[0]);
+    q1 = _mm256_set1_epi16(x);
+    q2 = _mm256_set1_epi32(y);
+  }
 
   // Bitmask designating which filters matched.
   // Bit i is set if if the ith filter matched for the current record.
@@ -1029,7 +1038,9 @@ sparser_stats_t *sparser_search(char *input, long length,
   } else if (query->count == 1 && query->lens[0] == 2) {
     fprintf(stderr, "Calling specialization 2\n");
     return sparser_search2(input, length, query, callback);
-  } else if (query->count == 2 && query->lens[0] == 2 && query->lens[1] == 4) {
+  } else if (query->count == 2 &&
+      ((query->lens[0] == 2 && query->lens[1] == 4) ||
+       (query->lens[1] == 2 && query->lens[0] == 4))) {
     fprintf(stderr, "Calling specialization 2_4\n");
     return sparser_search2_4(input, length, query, callback);
   }
