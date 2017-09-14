@@ -37,7 +37,8 @@ typedef struct sparser_query_ {
 /// the base address for the search token.
 typedef int (*sparser_searchfunc_t)(__m256i, const char *);
 
-// The callback fro the single parse function.
+// The callback fro the single parse function. The callback MUST be able to handle
+// NULL data (i.e., it should check for NULL and  still return true or false appropriately).
 typedef int (*sparser_callback_t)(const char *input, void *);
 
 typedef struct sparser_stats_ {
@@ -421,7 +422,8 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
 
 sparser_stats_t *sparser_search2(char *input, long length,
                                 sparser_query_t *query,
-                                sparser_callback_t callback) {
+                                sparser_callback_t callback,
+                                void *callback_ctx) {
   assert(query->count == 1);
   assert(query->lens[0] >= 2);
 
@@ -491,7 +493,7 @@ sparser_stats_t *sparser_search2(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start, NULL)) {
+      if (callback(input + start, callback_ctx)) {
         stats.callback_passed++;
       }
       input[end] = a;
@@ -518,7 +520,8 @@ sparser_stats_t *sparser_search2(char *input, long length,
 
 sparser_stats_t *sparser_search4(char *input, long length,
                                 sparser_query_t *query,
-                                sparser_callback_t callback) {
+                                sparser_callback_t callback,
+                                void *callback_ctx) {
   assert(query->count == 1);
   assert(query->lens[0] >= 4);
 
@@ -589,7 +592,7 @@ sparser_stats_t *sparser_search4(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start, NULL)) {
+      if (callback(input + start, callback_ctx)) {
         stats.callback_passed++;
       }
       input[end] = a;
@@ -616,7 +619,8 @@ sparser_stats_t *sparser_search4(char *input, long length,
 
 sparser_stats_t *sparser_search2_2(char *input, long length,
                                 sparser_query_t *query,
-                                sparser_callback_t callback) {
+                                sparser_callback_t callback,
+                                void *callback_ctx) {
   assert(query->count == 2);
   assert(query->lens[0] >= 2);
   assert(query->lens[1] >= 2);
@@ -705,7 +709,7 @@ sparser_stats_t *sparser_search2_2(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start, NULL)) {
+      if (callback(input + start, callback_ctx)) {
         stats.callback_passed++;
       }
       input[end] = a;
@@ -732,7 +736,8 @@ sparser_stats_t *sparser_search2_2(char *input, long length,
 
 sparser_stats_t *sparser_search2_4(char *input, long length,
                                 sparser_query_t *query,
-                                sparser_callback_t callback) {
+                                sparser_callback_t callback,
+                                void * callback_ctx) {
   assert(query->count == 2);
   assert((query->lens[0] >= 2 && query->lens[1] >= 4) || (query->lens[1] >= 4 && query->lens[0] >= 2));
 
@@ -830,7 +835,7 @@ sparser_stats_t *sparser_search2_4(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start, NULL)) {
+      if (callback(input + start, callback_ctx)) {
         stats.callback_passed++;
       }
       input[end] = a;
@@ -858,7 +863,8 @@ sparser_stats_t *sparser_search2_4(char *input, long length,
 
 sparser_stats_t *sparser_search4_4(char *input, long length,
                                 sparser_query_t *query,
-                                sparser_callback_t callback) {
+                                sparser_callback_t callback,
+                                void *callback_ctx) {
   assert(query->count == 2);
   assert(query->lens[0] >= 4);
   assert(query->lens[1] >= 4);
@@ -980,7 +986,7 @@ sparser_stats_t *sparser_search4_4(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start, NULL)) {
+      if (callback(input + start, callback_ctx)) {
         stats.callback_passed++;
       }
       input[end] = a;
@@ -1031,26 +1037,27 @@ sparser_stats_t *sparser_search4_4(char *input, long length,
  * */
 sparser_stats_t *sparser_search(char *input, long length,
                                 sparser_query_t *query,
-                                sparser_callback_t callback) {
+                                sparser_callback_t callback,
+                                void *callback_ctx) {
 
   // Call into specializations if possible - it's much faster.
   if (query->count == 1 && query->lens[0] == 4) {
     fprintf(stderr, "Calling specialization 4\n");
-    return sparser_search4(input, length, query, callback);
+    return sparser_search4(input, length, query, callback, callback_ctx);
   } else if (query->count == 2 && query->lens[0] == 4 && query->lens[1] == 4) {
     fprintf(stderr, "Calling specialization 4_4\n");
-    return sparser_search4_4(input, length, query, callback);
+    return sparser_search4_4(input, length, query, callback, callback_ctx);
   } else if (query->count == 2 && query->lens[0] == 2 && query->lens[1] == 2) {
     fprintf(stderr, "Calling specialization 2_2\n");
-    return sparser_search2_2(input, length, query, callback);
+    return sparser_search2_2(input, length, query, callback, callback_ctx);
   } else if (query->count == 1 && query->lens[0] == 2) {
     fprintf(stderr, "Calling specialization 2\n");
-    return sparser_search2(input, length, query, callback);
+    return sparser_search2(input, length, query, callback, callback_ctx);
   } else if (query->count == 2 &&
       ((query->lens[0] == 2 && query->lens[1] == 4) ||
        (query->lens[1] == 2 && query->lens[0] == 4))) {
     fprintf(stderr, "Calling specialization 2_4\n");
-    return sparser_search2_4(input, length, query, callback);
+    return sparser_search2_4(input, length, query, callback, callback_ctx);
   }
 
   fprintf(stderr, "WARN: Calling general VFC-based runtime\n");
@@ -1159,7 +1166,7 @@ sparser_stats_t *sparser_search(char *input, long length,
       // Pass the current line to a full parser.
       char a = input[end];
       input[end] = '\0';
-      if (callback(input + start, NULL)) {
+      if (callback(input + start, callback_ctx)) {
         stats.callback_passed++;
       }
       input[end] = a;

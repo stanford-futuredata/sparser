@@ -23,7 +23,7 @@ typedef sparser_callback_t parser_t;
  */
 double bench_sparser_hdfs(const char *filename, const unsigned long start,
                       const unsigned long hdfs_length, const char **predicates,
-                      int num_predicates, parser_t callback) {
+                      int num_predicates, parser_t callback, void *callback_ctx) {
 
   // Read in the data into a buffer.
   bench_timer_t t = time_start();
@@ -41,7 +41,7 @@ double bench_sparser_hdfs(const char *filename, const unsigned long start,
   printf("Calibration Runtime: %f seconds\n", parse_time);
 
   s = time_start();
-  sparser_stats_t *stats = sparser_search(raw, length, query, callback);
+  sparser_stats_t *stats = sparser_search(raw, length, query, callback, callback_ctx);
   assert(stats);
   parse_time += time_stop(s);
 
@@ -68,7 +68,7 @@ double bench_sparser_hdfs(const char *filename, const unsigned long start,
  * @return the running time.
  */
 double bench_sparser(const char *filename, const char **predicates,
-                      int num_predicates, parser_t callback) {
+                      int num_predicates, parser_t callback, void *callback_ctx) {
 
   // Read in the data into a buffer.
   char *raw = NULL;
@@ -82,7 +82,7 @@ double bench_sparser(const char *filename, const char **predicates,
   printf("Calibration Runtime: %f seconds\n", parse_time);
 
   s = time_start();
-  sparser_stats_t *stats = sparser_search(raw, length, query, callback);
+  sparser_stats_t *stats = sparser_search(raw, length, query, callback, callback_ctx);
   assert(stats);
   parse_time += time_stop(s);
 
@@ -104,7 +104,7 @@ double bench_sparser(const char *filename, const char **predicates,
  *
  * @return the running time.
  */
-double bench_rapidjson(const char *filename, parser_t callback) {
+double bench_rapidjson(const char *filename, parser_t callback, void *callback_ctx) {
   char *data, *line;
   read_all(filename, &data);
   int doc_index = 1;
@@ -114,7 +114,7 @@ double bench_rapidjson(const char *filename, parser_t callback) {
 
   char *ptr = data;
   while ((line = strsep(&ptr, "\n")) != NULL) {
-    if (callback(line, NULL)) {
+    if (callback(line, callback_ctx)) {
       matching++;
     }
     doc_index++;
@@ -138,7 +138,7 @@ double bench_rapidjson(const char *filename, parser_t callback) {
  *
  * @return the running time.
  */
-double bench_mison(const char *filename, parser_t callback) {
+double bench_mison(const char *filename, parser_t callback, void *callback_ctx) {
   char *data, *line;
   read_all(filename, &data);
   int doc_index = 1;
@@ -149,7 +149,7 @@ double bench_mison(const char *filename, parser_t callback) {
   char *ptr = data;
   while ((line = strsep(&ptr, "\n")) != NULL) {
     bench_timer_t s = time_start();
-    if (callback(line, NULL)) {
+    if (callback(line, callback_ctx)) {
       matching++;
     }
     elapsed += time_stop(s);

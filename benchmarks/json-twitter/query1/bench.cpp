@@ -23,9 +23,20 @@ using namespace rapidjson;
 const char *TEXT = "Putin";
 const char *TEXT2 = "Donald Trump";
 
+// Data passed to parser callback in this query.
+struct parser_data {
+  // Number of ids recorded so far.
+  long count;
+  // Amount of space allocated in IDs
+  long capacity;
+  // Buffer for writing the data. @Firas, in Spark, this should be set to the pointer
+  // of unsafe rows.
+  int64_t *ids;
+};
+
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.
-int rapidjson_parse(const char *line, void * _) {
+int rapidjson_parse(const char *line, void *thunk) {
   Document d;
   d.Parse(line);
   if (d.HasParseError()) {
@@ -48,6 +59,24 @@ int rapidjson_parse(const char *line, void * _) {
     return false;
   }
 
+  itr = d.FindMember("id");
+  if (itr == d.MemberEnd()) {
+    // The field wasn't found.
+    return false;
+  }
+
+  // Must handle this!!
+  if (!thunk) return true;
+
+  // XXX The assumption here is that thunk has allocated enough memory
+  // for each ID!!!
+  struct parser_data *pd = (struct parser_data *)thunk;
+
+  // We messed up -- just abort.
+  assert (pd->count < pd->capacity); 
+
+  pd->ids[pd->count] = itr->value.GetInt64();
+  pd->count++;
   return true;
 }
 
@@ -72,15 +101,33 @@ int main() {
   predicates[0] = first;
   predicates[1] = second;
 
-  double a = bench_sparser(filename, (const char **)predicates, 2, rapidjson_parse);
+  struct parser_data pd;
+  memset(&pd, 0, sizeof(pd));
+  pd.capacity = 100000;
+  pd.ids = (int64_t *)malloc(sizeof(int64_t) * pd.capacity);
+
+  double a = bench_sparser(filename, (const char **)predicates, 2, rapidjson_parse, &pd);
+
+  printf("IDs from sparser\n");
+  for (int i = 0; i < pd.count; i++) {
+    printf("%lld\n", pd.ids[i]);
+  }
+  pd.count = 0;
 
   //double b = bench_rapidjson(filename, rapidjson_parse);
 
   // bench_rapidjson actually works for any generic parser.
-  double b = bench_rapidjson(filename, rapidjson_parse);
+  double b = bench_rapidjson(filename, rapidjson_parse, &pd);
+
+  printf("IDs from RapidJSON\n");
+  for (int i = 0; i < pd.count; i++) {
+    printf("%lld\n", pd.ids[i]);
+  }
 
   free(first);
   free(second);
+
+  free(pd.ids);
 
   bench_read(filename);
 
