@@ -73,6 +73,10 @@ bitmap_t bitmap_and(bitmap_t *bm1, const bitmap_t *bm2) {
   return m;
 }
 
+unsigned long bitmap_capacity(bitmap_t *bm) {
+  return bm->capacity;
+}
+
 unsigned long bitmap_count(bitmap_t *bm) {
   return bm->count;
 }

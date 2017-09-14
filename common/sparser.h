@@ -10,6 +10,7 @@
 #include <assert.h>
 
 #include "bitmap.h"
+#include "rdtsc.h"
 
 // Checks if bit i is set in n.
 #define IS_SET(n, i) (n & (0x1L << i))
@@ -229,6 +230,8 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   // The mask representing all predicates passed a record.
   const uint64_t allset = (0x1L << num_substrings) - 1L;
 
+  unsigned long parse_cost = 0;
+
   // Now search for each substring in up to MAX_SAMPLES records.
   char *line, *newline;
   size_t remaining_length = length;
@@ -260,11 +263,18 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
 
     // If any of the predicates failed OR all passed and the callback failed, we have a false
     // positive from someone. Record the false positives.
-    if (allset != found || !callback(line)) {
-      while (found) {
-        int index = ffs(found) - 1;
-        false_positives[index]++;
-        found &= ~(0x1L << index);
+    if (allset != found) {
+      unsigned long start = rdtsc();
+      int passed = callback(line);
+      unsigned long end = rdtsc();
+      // TODO Take an average or something.
+      parse_cost = end - start;
+      if (!passed) {
+        while (found) {
+          int index = ffs(found) - 1;
+          false_positives[index]++;
+          found &= ~(0x1L << index);
+        }
       }
     } else {
       // It was an actual match, so don't record it as a false positive.
@@ -284,13 +294,17 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
     }
   }
 
-  // Find the strings with the smallest false positives.
-  long min = LONG_MAX;
+  fprintf(stderr, "%s Averge Parse Time - %ld\n", __func__, parse_cost);
+
+  // Find the strings with the smallest false positives cost.
+  double min = LONG_MAX;
   long idx = -1;
   for (int i = 0; i < num_substrings; i++) {
-    if (false_positives[i] < min) {
+    // TODO replace 4 with filter cost.
+    double cost = 8 * 4 + ((double)false_positives[i] / (double)MAX_SAMPLES) * parse_cost;
+    if (cost < min) {
       idx = i;
-      min = false_positives[i];
+      min = cost;
     }
 #if DEBUG
     fprintf(stderr, "%s\t%d\n", predicate_substrings[i], false_positives[i]);
@@ -298,8 +312,11 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   }
 
   // Now, check combinations - this ANDs the masks of each of the predicates together.
+  // Each 1 represents a false positive in the joint predicate, so we want to *minimize* the
+  // number of 1s.
   long idx2 = -1;
-  long min2 = LONG_MAX;
+  double min2 = LONG_MAX;
+  const double bitlength = (double)records;
   for (int i = 0; i < num_substrings; i++) {
     if (i == idx || substring_source[i] == substring_source[idx]) {
       continue;
@@ -307,13 +324,21 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
 
     bitmap_t joint = bitmap_and(&false_positives_mask[i], &false_positives_mask[idx]);
     uint64_t joint_rate = bitmap_count(&joint);
+
+    // The percentage of samples that have false positives.
+    double rate = ((double)joint_rate) / bitlength;
+
+    // TODO Assuming 4-wide registers here...
+    double cost = 8 * (4 + 4) + (rate * (double)parse_cost);
+
     bitmap_free(&joint);
 
-    fprintf(stderr, "Joint rate of %s and %s: %llu (best=%ld)\n", predicate_substrings[i], predicate_substrings[idx], joint_rate, min);
+    fprintf(stderr, "Joint rate of %s and %s: %llu %f (best=%f)\n", predicate_substrings[i], predicate_substrings[idx], joint_rate, cost, min);
 
     // Does the joint query improve performance?
-    if (joint_rate < min && joint_rate < min2) {
+    if (cost < min && cost < min2) {
       idx2 = i;
+      min2 = cost;
     }
 
 #if DEBUG
@@ -679,6 +704,11 @@ sparser_stats_t *sparser_search2x4(char *input, long length,
 
   const unsigned allset = ((1u << query->count) - 1u);
 
+#ifdef MEASURE_CYCLES
+  long measure_count = 0;
+  long measure_sum = 0;
+#endif
+
   for (long i = 0; i < length; i += VECSZ) {
     if (i > end) {
       char *endptr = strchr(input + i, '\n');
@@ -689,6 +719,10 @@ sparser_stats_t *sparser_search2x4(char *input, long length,
       }
       matchmask = 0;
     }
+
+#ifdef MEASURE_CYCLES
+    long start = rdtsc();
+#endif
 
     if (matchmask != allset) {
       const char *base = input + i;
@@ -767,6 +801,17 @@ sparser_stats_t *sparser_search2x4(char *input, long length,
       // Done with this record - move on to the next one.
       i = end + 1 - VECSZ;
     }
+
+#ifdef MEASURE_CYCLES
+    long end = rdtsc();
+    measure_sum += end - start;
+    measure_count++;
+    if (measure_count > 1000000) {
+      fprintf(stderr, "%s: %ld cycles/iter\n", __func__, measure_sum / measure_count);
+      measure_count = 0;
+      measure_sum = 0;
+    }
+#endif
   }
 
   if (stats.sparser_passed > 0) {
