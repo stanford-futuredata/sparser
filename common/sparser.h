@@ -959,13 +959,21 @@ sparser_stats_t *sparser_search4_4(char *input, long length,
 
     // check if all the filters matched by checking if all the bits
     // necessary were set in matchmask.
-    if ((matchmask & allset) == allset) {
+    if (matchmask == allset) {
       stats.sparser_passed++;
 
-      // update start.
+      // update start. Using vectors here seems to only make a marginal performance difference.
       long start = i;
-      for (; start > 0 && input[start] != '\n'; start--)
-        ;
+      __m256i nl = _mm256_set1_epi8('\n');
+      for (; start >= 32; start -= 32) {
+        __m256i tmp = _mm256_loadu_si256((__m256i *)(input + start - 32));
+        if (_mm256_movemask_epi8(_mm256_cmpeq_epi8(tmp, nl))) {
+          start -= 32;
+          break;
+        }
+      }
+      while (input[start] != '\n') start++;
+      assert(input[start] == '\n');
 
       stats.bytes_seeked_backward += (i - start);
 
