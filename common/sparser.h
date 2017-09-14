@@ -16,6 +16,9 @@
 // Checks if bit i is set in n.
 #define IS_SET(n, i) (n & (0x1L << i))
 
+// Uncomment to show timing information for calibration phase.
+#define CALIBRATE_TIMING
+
 // Size of the register we use.
 const int VECSZ = 32;
 // Max size of a single search string.
@@ -163,9 +166,6 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   // Maximum number of substrings to try.
   const int MAX_SUBSTRINGS = 64;
 
-  // So the bitvector fits...
-  assert(sizeof(uint64_t) * 8 >= MAX_SUBSTRINGS);
-
   // Stores false positive counts for each predicate.
   int false_positives[MAX_SUBSTRINGS];
   memset(false_positives, 0, sizeof(false_positives));
@@ -193,11 +193,14 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   char **predicate_substrings = (char **)malloc(sizeof(char *) * MAX_SUBSTRINGS);
   memset(predicate_substrings, 0, sizeof(char *) * MAX_SUBSTRINGS);
 
+#ifdef CALIBRATE_TIMING
   double total_elapsed = 0.0;
   bench_timer_t start = time_start();
+#endif
 
   // Create a buffer of all the substring combinations we want to try.
-  // TODO do something smarter here, e.g., using the letter frequency to decide.
+  // TODO do something smarter here, e.g., using the letter frequency to decide (?).
+  fprintf(stderr, "Candidates:\n");
   for (int i = 0; i < count; i++) {
     const char *substring = predicates[i];
     size_t len = strlen(substring);
@@ -232,7 +235,7 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
         strncpy(substr_buf + buf_offset, substring + j, substring_length);
         substr_buf[buf_offset + substring_length] = '\0';
         predicate_substrings[num_substrings] = substr_buf + buf_offset;
-        printf("%s\n", predicate_substrings[num_substrings]);
+        fprintf(stderr, "%ld. %s\n", num_substrings+1, predicate_substrings[num_substrings]);
         substring_source[num_substrings] = i;
         substring_lengths[num_substrings] = substring_length;
         buf_offset += substring_length + 1;
@@ -241,15 +244,21 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
     }
   }
 
+#ifdef CALIBRATE_TIMING
   double candidategen_elapsed = time_stop(start);
   total_elapsed += candidategen_elapsed;
   fprintf(stderr, "%s Candidate Generation Time - %f\n", __func__, candidategen_elapsed);
-
   start = time_start();
-
+#endif
+ 
   // The mask representing all predicates passed a record.
   const uint64_t allset = (0x1L << num_substrings) - 1L;
   unsigned long parse_cost = 0;
+
+#ifdef CALIBRATE_TIMING
+  double strstr_elapsed = 0;
+  double callback_elapsed = 0;
+#endif
 
   // Now search for each substring in up to MAX_SAMPLES records.
   char *line, *newline;
@@ -265,23 +274,32 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
     unsigned long found = 0x0L;
     for (int i = 0; i < num_substrings; i++) {
       char *predicate = predicate_substrings[i];
+#ifdef CALIBRATE_TIMING
+      bench_timer_t start1 = time_start();
+#endif
+      // TODO accelerate this -- it's slow!
       if (strstr(line, predicate)) {
         // Set this record to found for this substring.
         bitmap_set(&false_positives_mask[i], records);
         found |= (0x1L << i);
-
-#if DEBUG
-        fprintf(stderr, "%s Found - %s\n", __func__, predicate);
-#endif
       }
+#ifdef CALIBRATE_TIMING
+      strstr_elapsed += time_stop(start1);
+#endif
     }
 
     // If any of the predicates failed OR all passed and the callback failed, we have a false
     // positive from someone. Record the false positives.
     if (allset != found) {
+#ifdef CALIBRATE_TIMING
+      bench_timer_t start1 = time_start();
+#endif
       unsigned long start = rdtsc();
       int passed = callback(line);
       unsigned long end = rdtsc();
+#ifdef CALIBRATE_TIMING
+      callback_elapsed += time_stop(start1);
+#endif
       // TODO Take an average or something.
       parse_cost = end - start;
       if (!passed) {
@@ -310,13 +328,20 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   }
 
 
+#ifdef CALIBRATE_TIMING
   double sample_elapsed = time_stop(start);
   total_elapsed += sample_elapsed;
   fprintf(stderr, "%s Sample Colection Time - %f\n", __func__, sample_elapsed);
+  fprintf(stderr, "\t(strstr Time - %f)\n", strstr_elapsed);
+  fprintf(stderr, "\t(callback Time - %f)\n", callback_elapsed);
+  fprintf(stderr, "\t(summed Time - %f)\n", strstr_elapsed + callback_elapsed);
+#endif
 
   fprintf(stderr, "%s Averge Parse Time - %ld\n", __func__, parse_cost);
 
+#ifdef CALIBRATE_TIMING
   start = time_start();
+#endif
 
   // TODO how to generalize this to N filters?
   // Now, check combinations of two filters - this ANDs the masks of each of the predicates together.
@@ -364,8 +389,10 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
     }
   }
 
+#ifdef CALIBRATE_TIMING
   double combine_elapsed = time_stop(start);
   fprintf(stderr, "%s Filter Combination Time - %f\n", __func__, combine_elapsed);
+#endif
 
   bitmap_free(&joint);
 
@@ -385,12 +412,14 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
   }
   free(predicate_substrings);
 
+#ifdef CALIBRATE_TIMING
   fprintf(stderr, "%s Calibration Total Elapsed - %f\n", __func__, total_elapsed);
+#endif
 
   return squery;
 }
 
-sparser_stats_t *sparser_search1x2(char *input, long length,
+sparser_stats_t *sparser_search2(char *input, long length,
                                 sparser_query_t *query,
                                 sparser_callback_t callback) {
   assert(query->count == 1);
@@ -487,7 +516,7 @@ sparser_stats_t *sparser_search1x2(char *input, long length,
   return ret;
 }
 
-sparser_stats_t *sparser_search1x4(char *input, long length,
+sparser_stats_t *sparser_search4(char *input, long length,
                                 sparser_query_t *query,
                                 sparser_callback_t callback) {
   assert(query->count == 1);
@@ -585,11 +614,12 @@ sparser_stats_t *sparser_search1x4(char *input, long length,
   return ret;
 }
 
-sparser_stats_t *sparser_search2x2(char *input, long length,
+sparser_stats_t *sparser_search2_2(char *input, long length,
                                 sparser_query_t *query,
                                 sparser_callback_t callback) {
   assert(query->count == 2);
   assert(query->lens[0] >= 2);
+  assert(query->lens[1] >= 2);
 
   sparser_stats_t stats;
   memset(&stats, 0, sizeof(stats));
@@ -700,12 +730,129 @@ sparser_stats_t *sparser_search2x2(char *input, long length,
   return ret;
 }
 
+sparser_stats_t *sparser_search2_4(char *input, long length,
+                                sparser_query_t *query,
+                                sparser_callback_t callback) {
+  assert(query->count == 2);
+  assert(query->lens[0] >= 2);
+  assert(query->lens[1] >= 4);
 
-sparser_stats_t *sparser_search2x4(char *input, long length,
+  sparser_stats_t stats;
+  memset(&stats, 0, sizeof(stats));
+
+  uint16_t x = *((uint16_t *)query->queries[0]);
+  __m256i q1 = _mm256_set1_epi16(x);
+
+  uint32_t y = *((uint32_t *)query->queries[1]);
+  __m256i q2 = _mm256_set1_epi32(y);
+
+  // Bitmask designating which filters matched.
+  // Bit i is set if if the ith filter matched for the current record.
+  unsigned matchmask = 0;
+
+  char *endptr = strchr(input, '\n');
+  long end;
+  if (endptr) {
+    end = endptr - input;
+  } else {
+    end = length;
+  }
+
+  for (long i = 0; i < length; i += VECSZ) {
+    if (i > end) {
+      char *endptr = strchr(input + i, '\n');
+      if (endptr) {
+        end = endptr - input;
+      } else {
+        end = length;
+      }
+      matchmask = 0;
+    }
+
+    if (!IS_SET(matchmask, 0) || !IS_SET(matchmask, 1)) {
+      const char *base = input + i;
+      __m256i val = _mm256_loadu_si256((__m256i const *)(base));
+      unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(val, q1));
+
+      __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
+      mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val2, q1));
+
+      __m256i val3 = _mm256_loadu_si256((__m256i const *)(base + 2));
+      mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val3, q1));
+
+      __m256i val4 = _mm256_loadu_si256((__m256i const *)(base + 3));
+      mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val4, q1));
+      mask &= 0x55555555;
+
+      unsigned matched = _mm_popcnt_u32(mask);
+      if (matched > 0) {
+        stats.total_matches += matched;
+        matchmask |= 0x1;
+      }
+
+      if (!IS_SET(matchmask, 1)) {
+        mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(val, q2));
+        mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val2, q2));
+        mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val3, q2));
+        mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val4, q2));
+        mask &= 0x11111111;
+
+        matched = _mm_popcnt_u32(mask);
+        if (matched > 0) {
+          stats.total_matches += matched;
+          matchmask |= (0x1 << 1);
+        }
+      }
+    }
+
+    unsigned allset = ((1u << query->count) - 1u);
+    // check if all the filters matched by checking if all the bits
+    // necessary were set in matchmask.
+    if ((matchmask & allset) == allset) {
+      stats.sparser_passed++;
+
+      // update start.
+      long start = i;
+      for (; start > 0 && input[start] != '\n'; start--)
+        ;
+
+      stats.bytes_seeked_backward += (i - start);
+
+      // Pass the current line to a full parser.
+      char a = input[end];
+      input[end] = '\0';
+      if (callback(input + start)) {
+        stats.callback_passed++;
+      }
+      input[end] = a;
+
+      // Reset record level state.
+      matchmask = 0;
+
+      // Done with this record - move on to the next one.
+      i = end + 1 - VECSZ;
+    }
+  }
+
+  if (stats.sparser_passed > 0) {
+    stats.fraction_passed_correct =
+        (double)stats.callback_passed / (double)stats.sparser_passed;
+    stats.fraction_passed_incorrect = 1.0 - stats.fraction_passed_correct;
+  }
+
+  sparser_stats_t *ret = (sparser_stats_t *)malloc(sizeof(sparser_stats_t));
+  memcpy(ret, &stats, sizeof(stats));
+
+  return ret;
+}
+
+
+sparser_stats_t *sparser_search4_4(char *input, long length,
                                 sparser_query_t *query,
                                 sparser_callback_t callback) {
   assert(query->count == 2);
   assert(query->lens[0] >= 4);
+  assert(query->lens[1] >= 4);
 
   sparser_stats_t stats;
   memset(&stats, 0, sizeof(stats));
@@ -871,17 +1018,20 @@ sparser_stats_t *sparser_search(char *input, long length,
 
   // Call into specializations if possible - it's much faster.
   if (query->count == 1 && query->lens[0] == 4) {
-    fprintf(stderr, "Calling specialization 1x4\n");
-    return sparser_search1x4(input, length, query, callback);
+    fprintf(stderr, "Calling specialization 4\n");
+    return sparser_search4(input, length, query, callback);
   } else if (query->count == 2 && query->lens[0] == 4 && query->lens[1] == 4) {
-    fprintf(stderr, "Calling specialization 2x4\n");
-    return sparser_search2x4(input, length, query, callback);
+    fprintf(stderr, "Calling specialization 4_4\n");
+    return sparser_search4_4(input, length, query, callback);
   } else if (query->count == 2 && query->lens[0] == 2 && query->lens[1] == 2) {
-    fprintf(stderr, "Calling specialization 2x2\n");
-    return sparser_search2x2(input, length, query, callback);
+    fprintf(stderr, "Calling specialization 2_2\n");
+    return sparser_search2_2(input, length, query, callback);
   } else if (query->count == 1 && query->lens[0] == 2) {
-    fprintf(stderr, "Calling specialization 1x2\n");
-    return sparser_search2x2(input, length, query, callback);
+    fprintf(stderr, "Calling specialization 2\n");
+    return sparser_search2(input, length, query, callback);
+  } else if (query->count == 2 && query->lens[0] == 2 && query->lens[1] == 4) {
+    fprintf(stderr, "Calling specialization 2_4\n");
+    return sparser_search2_4(input, length, query, callback);
   }
 
   fprintf(stderr, "WARN: Calling general VFC-based runtime\n");
