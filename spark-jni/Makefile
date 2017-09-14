@@ -1,9 +1,11 @@
 UNAME := $(shell uname -s)
 
 CC=clang++
-CFLAGS=-c -fPIC -march=native
+CFLAGS=-c -fPIC -march=native -Wall
 LDFLAGS=-shared -Wl
+LIBRARIES=-L../common/libhdfs/lib -lhdfs3
 INCLUDES=-I$(JAVA_HOME)/include \
+	 -I../common/libhdfs/include \
 	 -I../common/rapidjson/include \
 	 -I../common
 
@@ -20,16 +22,16 @@ endif
 
 all:	$(TARGET)
 
-$(TARGET): SparserSpark.o
-	$(CC) $(INCLUDES) -o $(TARGET) $(LDFLAGS) SparserSpark.o
+$(TARGET): edu_stanford_sparser_SparserNative.o
+	$(CC) $(INCLUDES) -o $(TARGET) $(LIBRARIES) $(LDFLAGS) edu_stanford_sparser_SparserNative.o
 
-SparserSpark.o: SparserSpark.cpp
-	$(CC) $(CFLAGS) $(INCLUDES) SparserSpark.cpp
+edu_stanford_sparser_SparserNative.o: edu_stanford_sparser_SparserNative.cpp
+	$(CC) $(CFLAGS) $(INCLUDES) edu_stanford_sparser_SparserNative.cpp
 
-SparserSpark.cpp: target/classes/SparserSpark.class
-	javah -cp target/classes SparserSpark
+edu_stanford_sparser_SparserNative.cpp: target/classes/edu/stanford/sparser/SparserNative.class
+	javah -cp target/classes edu.stanford.sparser.SparserNative
 
-target/classes/SparserSpark.class:
+target/classes/edu/stanford/sparser/SparserNative.class:
 	mvn package
 
 clean:

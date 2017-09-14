@@ -1,6 +1,6 @@
 run
-data.csv
-small.csv
+*.csv
+*.log
 *.class
 *.so
 *.dylib
