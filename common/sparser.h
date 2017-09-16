@@ -564,7 +564,6 @@ sparser_stats_t *sparser_search4_binary(char *input, long length,
   __m256i q1 = _mm256_set1_epi32(x);
 
   for (long i = 0; i < length - VECSZ; i += VECSZ) {
-
     const char *base = input + i;
     __m256i val = _mm256_loadu_si256((__m256i const *)(base));
     unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(val, q1)) & 0x11111111;
@@ -588,10 +587,7 @@ sparser_stats_t *sparser_search4_binary(char *input, long length,
         // This is the IP address - it should match the input.
         struct in_addr a;
         a.s_addr = addr;
-      
-        printf("at mask value 0x%x -> 0x%x\n", mask, addr);
 
-        // TODO what does this return?
         callback(input + offset, callback_ctx);
 
         mask &= ~(1 << match_index);
