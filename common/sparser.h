@@ -549,6 +549,55 @@ sparser_stats_t *sparser_search2(char *input, long length,
 }
 
 // TODO fold this into the others...
+sparser_stats_t *sparser_search2_binary(char *input, long length,
+    sparser_query_t *query,
+    sparser_callback_t callback,
+    void *callback_ctx) {
+
+  assert(query->count == 1);
+  assert(query->lens[0] >= 2);
+
+  sparser_stats_t stats;
+  memset(&stats, 0, sizeof(stats));
+
+  uint16_t x = *((uint16_t *)query->queries[0]);
+  __m256i q1 = _mm256_set1_epi16(x);
+
+  for (long i = 0; i < length - VECSZ; i += VECSZ) {
+    const char *base = input + i;
+    __m256i val = _mm256_loadu_si256((__m256i const *)(base));
+    unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(val, q1)) & 0xaaaaaaaa;
+    __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
+    mask |= (_mm256_movemask_epi8(_mm256_cmpeq_epi16(val2, q1)) & 0x55555555);
+
+    // These designate positions where matches occurred.
+    if (mask > 0) {
+      stats.sparser_passed++;
+      while(mask) {
+        unsigned match_index = ffs(mask) - 1;
+        // This is the site of the match.
+        unsigned long offset = i + match_index;
+        if (callback(input + offset, callback_ctx)) {
+          stats.callback_passed++;
+        }
+        mask &= ~(1 << match_index);
+      }
+    }
+  }
+
+  if (stats.sparser_passed > 0) {
+    stats.fraction_passed_correct =
+      (double)stats.callback_passed / (double)stats.sparser_passed;
+    stats.fraction_passed_incorrect = 1.0 - stats.fraction_passed_correct;
+  }
+
+  sparser_stats_t *ret = (sparser_stats_t *)malloc(sizeof(sparser_stats_t));
+  memcpy(ret, &stats, sizeof(stats));
+
+  return ret;
+}
+
+// TODO fold this into the others...
 sparser_stats_t *sparser_search4_binary(char *input, long length,
     sparser_query_t *query,
     sparser_callback_t callback,
@@ -582,14 +631,9 @@ sparser_stats_t *sparser_search4_binary(char *input, long length,
         unsigned match_index = ffs(mask) - 1;
         // This is the site of the match.
         unsigned long offset = i + match_index;
-
-        uint32_t addr = *((uint32_t *)(input + offset));
-        // This is the IP address - it should match the input.
-        struct in_addr a;
-        a.s_addr = addr;
-
-        callback(input + offset, callback_ctx);
-
+        if (callback(input + offset, callback_ctx)) {
+          stats.callback_passed++;
+        }
         mask &= ~(1 << match_index);
       }
     }

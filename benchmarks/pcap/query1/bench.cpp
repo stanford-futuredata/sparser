@@ -2,21 +2,24 @@
 #include <stdlib.h>
 
 #include <time.h>
-
+#include <errno.h>
 #include <string.h>
 
 #include <arpa/inet.h>
-
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
-
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <netinet/if_ether.h>
 
 #include <immintrin.h>
 
 #include "sparser.h"
 
-const char *ip_address = "204.246.169.252";
+char ip_address[256];
+
+const char *lookfor = "gzip";
 
 // Taken from pcap.
 typedef struct pcap_hdr_s {
@@ -42,8 +45,24 @@ typedef struct pcap_iterator {
   pcaprec_hdr_t *cur_packet;
 } pcap_iterator_t;
 
-// Performs a parse of the query using RapidJSON. Returns true if all the
-// predicates match.
+
+// Returns true if the HTTP packet payload contains the `lookfor` string.
+int packet_contains(pcaprec_hdr_t *pkt) {
+  struct ip *iph = (struct ip *) ((intptr_t)pkt + sizeof(pcaprec_hdr_t) + sizeof(struct ether_header));
+  struct tcphdr *tcph = (struct tcphdr *) ((intptr_t)pkt + sizeof(pcaprec_hdr_t) + sizeof(struct ether_header) + sizeof(struct ip));
+  if (ntohs(tcph->th_sport) == 80 || ntohs(tcph->th_dport) == 80) {
+    const char *payload = (const char *)((intptr_t)tcph + tcph->th_off * 4);
+    if (strnstr(payload, lookfor, iph->ip_len - sizeof(struct ip) - tcph->th_off * 4)) {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
+  return 0;
+}
+
+// Callback for sparser.
 int verify_pcap(const char *line, void *thunk) {
   if (!thunk)
     return 0;
@@ -66,20 +85,20 @@ int verify_pcap(const char *line, void *thunk) {
   }
 
   itr->cur_packet = pkt;
+  return packet_contains(pkt);
 
-  // Now, verify the actual frame.
-	struct ip *iph = (struct ip *) ((intptr_t)pkt + sizeof(pcaprec_hdr_t) + sizeof(struct ether_header));
-  const in_addr_t addr = inet_addr(ip_address);
+}
 
-  if (iph->ip_src.s_addr == addr || iph->ip_dst.s_addr == addr) {
-    printf("%s -> ", inet_ntoa(iph->ip_src));
-    printf("%s\n", inet_ntoa(iph->ip_dst));
-    return 1;
-  } else {
-    return 0;
+void verify_pcap_loop(pcaprec_hdr_t *pkt, size_t length) {
+  long count= 0;
+  intptr_t base = (intptr_t)pkt;
+  while ((intptr_t)pkt - base < length) {
+    if (packet_contains(pkt)) {
+      count++;
+    }
+    pkt = (pcaprec_hdr_t *)(((intptr_t)pkt) + sizeof(pcaprec_hdr_t) + pkt->orig_len); 
   }
-
-  return 0;
+  printf("%s count - %ld\n", lookfor, count);
 }
 
 
@@ -95,15 +114,25 @@ void verify_pcap_raw(const char *raw) {
   }
 }
 
+int main(int argc, char **argv) {
 
-int main() {
+  if (argc <= 1) {
+    strncpy(ip_address, "0.0.0.0", sizeof(ip_address));
+  } else {
+    strncpy(ip_address, argv[1], sizeof(ip_address));
+  }
+
+  // This is the IP address we are looking for.
+  in_addr_t addr = inet_addr(ip_address);
+  if (addr == INADDR_NONE) {
+    fprintf(stderr, "Bad IP address %s", argv[1]);
+    exit(1);
+  }
+
   const char *filename = path_for_data("http.pcap");
   // Read in the data into a buffer.
   char *raw = NULL;
   long length = read_all(filename, &raw);
-
-  // This is the IP address we are looking for.
-  in_addr_t addr = inet_addr(ip_address);
 
   verify_pcap_raw(raw);
 
@@ -115,11 +144,11 @@ int main() {
 
   // Add the query
   sparser_query_t *query = (sparser_query_t *)calloc(sizeof(sparser_query_t), 1);
-  sparser_add_query_binary(query, (void *)&addr, sizeof(addr)); 
+  sparser_add_query_binary(query, lookfor, 2); 
 
   bench_timer_t s = time_start();
 
-  sparser_stats_t *stats = sparser_search4_binary(raw, length, query, verify_pcap, &itr);
+  sparser_stats_t *stats = sparser_search2_binary(raw, length, query, verify_pcap, &itr);
   assert(stats);
 
   double parse_time = time_stop(s);
@@ -127,6 +156,12 @@ int main() {
   printf("%s\n", sparser_format_stats(stats));
   printf("Total Runtime: %f seconds\n", parse_time);
   printf("Looking for byte string 0x%x\n", addr);
+
+  pcaprec_hdr_t *first = (pcaprec_hdr_t *)(raw + sizeof(pcap_hdr_t));
+  s = time_start();
+  verify_pcap_loop(first, length - sizeof(pcap_hdr_t));
+  parse_time = time_stop(s);
+  printf("Loop Runtime: %f seconds\n", parse_time);
 
   free(query);
   free(stats);
