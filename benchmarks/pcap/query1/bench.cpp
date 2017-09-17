@@ -20,7 +20,7 @@
 
 char ip_address[256];
 
-const char *lookfor = "google";
+const char *lookfor = "GET /";
 
 // Taken from pcap.
 typedef struct pcap_hdr_s {
@@ -58,7 +58,10 @@ int packet_contains(pcaprec_hdr_t *pkt) {
   struct tcphdr *tcph = (struct tcphdr *) ((intptr_t)pkt + sizeof(pcaprec_hdr_t) + sizeof(struct ether_header) + sizeof(struct ip));
   if (ntohs(tcph->th_sport) == 80 || ntohs(tcph->th_dport) == 80) {
     const char *payload = (const char *)((intptr_t)tcph + tcph->th_off * 4);
-    if (memmem(payload, iph->ip_len - sizeof(struct ip) - tcph->th_off * 4, lookfor, strlen(lookfor))) {
+    printf("%p\n", payload);
+    void *c;
+    if ((c = memmem(payload, iph->ip_len - sizeof(struct ip) - tcph->th_off * 4, lookfor, strlen(lookfor)))) {
+      //printf("%s\n", (char *)c);
       return 1;
     } else {
       return 0;
@@ -92,19 +95,24 @@ int verify_pcap(const char *line, void *thunk) {
 
   itr->cur_packet = pkt;
   return packet_contains(pkt);
-
 }
 
-void verify_pcap_loop(pcaprec_hdr_t *pkt, size_t length) {
+void verify_pcap_loop(pcaprec_hdr_t *pkt_in, long length) {
+
   long count= 0;
-  intptr_t base = (intptr_t)pkt;
-  while ((intptr_t)pkt - base < length) {
+  long total = 0;
+  intptr_t base = (intptr_t)pkt_in;
+
+  pcaprec_hdr_t *pkt = pkt_in;
+  while ((intptr_t)pkt - base < length - 1) {
     if (packet_contains(pkt)) {
       count++;
     }
-    pkt = (pcaprec_hdr_t *)(((intptr_t)pkt) + sizeof(pcaprec_hdr_t) + pkt->orig_len); 
+    total++;
+    pkt = (pcaprec_hdr_t *)(((intptr_t)pkt) + sizeof(pcaprec_hdr_t) + (intptr_t)pkt->orig_len); 
   }
   printf("%s count - %ld\n", lookfor, count);
+  printf("total count - %ld\n", total);
 }
 
 
@@ -135,7 +143,10 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  const char *filename = path_for_data("bigflows.pcap");
+  bench_timer_t s;
+  double parse_time;
+
+  const char *filename = path_for_data("http.pcap");
   // Read in the data into a buffer.
   char *raw = NULL;
   long length = read_all(filename, &raw);
@@ -145,6 +156,12 @@ int main(int argc, char **argv) {
   pcap_iterator_t itr;
   memset(&itr, 0, sizeof(itr));
 
+  pcaprec_hdr_t *first = (pcaprec_hdr_t *)(raw + sizeof(pcap_hdr_t));
+  s = time_start();
+  verify_pcap_loop(first, length - sizeof(pcap_hdr_t));
+  parse_time = time_stop(s);
+  printf("Loop Runtime: %f seconds\n", parse_time);
+
   // This is the base pointer into the file. Skip past the header.
   itr.cur_packet = (pcaprec_hdr_t *)(raw + sizeof(pcap_hdr_t));
 
@@ -152,22 +169,16 @@ int main(int argc, char **argv) {
   sparser_query_t *query = (sparser_query_t *)calloc(sizeof(sparser_query_t), 1);
   sparser_add_query_binary(query, lookfor, 4); 
 
-  bench_timer_t s = time_start();
+  s = time_start();
 
   sparser_stats_t *stats = sparser_search4_binary(raw, length, query, verify_pcap, &itr);
   assert(stats);
 
-  double parse_time = time_stop(s);
+  parse_time = time_stop(s);
 
   printf("%s\n", sparser_format_stats(stats));
   printf("Total Runtime: %f seconds\n", parse_time);
-  printf("Looking for byte string 0x%x\n", addr);
 
-  pcaprec_hdr_t *first = (pcaprec_hdr_t *)(raw + sizeof(pcap_hdr_t));
-  s = time_start();
-  verify_pcap_loop(first, length - sizeof(pcap_hdr_t));
-  parse_time = time_stop(s);
-  printf("Loop Runtime: %f seconds\n", parse_time);
 
   free(query);
   free(stats);
