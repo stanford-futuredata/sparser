@@ -20,7 +20,7 @@
 
 char ip_address[256];
 
-const char *lookfor = "GET /";
+const char *lookfor = "gzip";
 
 // Taken from pcap.
 typedef struct pcap_hdr_s {
@@ -59,7 +59,7 @@ int packet_contains(pcaprec_hdr_t *pkt) {
   if (ntohs(tcph->th_sport) == 80 || ntohs(tcph->th_dport) == 80) {
     const char *payload = (const char *)((intptr_t)tcph + tcph->th_off * 4);
     int64_t length = pkt->orig_len - ((intptr_t)payload - (intptr_t)pkt);
-    if ( memmem(payload, length, lookfor, 5)) {
+    if ( memmem(payload, length, lookfor, strlen(lookfor))) {
       //printf("%s\n", (char *)c);
       return 1;
     } else {
