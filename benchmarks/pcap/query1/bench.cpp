@@ -20,7 +20,7 @@
 
 char ip_address[256];
 
-const char *lookfor = "gzip";
+const char *lookfor = "google";
 
 // Taken from pcap.
 typedef struct pcap_hdr_s {
@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  const char *filename = path_for_data("http.pcap");
+  const char *filename = path_for_data("bigflows.pcap");
   // Read in the data into a buffer.
   char *raw = NULL;
   long length = read_all(filename, &raw);
@@ -150,11 +150,11 @@ int main(int argc, char **argv) {
 
   // Add the query
   sparser_query_t *query = (sparser_query_t *)calloc(sizeof(sparser_query_t), 1);
-  sparser_add_query_binary(query, lookfor, 2); 
+  sparser_add_query_binary(query, lookfor, 4); 
 
   bench_timer_t s = time_start();
 
-  sparser_stats_t *stats = sparser_search2_binary(raw, length, query, verify_pcap, &itr);
+  sparser_stats_t *stats = sparser_search4_binary(raw, length, query, verify_pcap, &itr);
   assert(stats);
 
   double parse_time = time_stop(s);
