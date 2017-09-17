@@ -566,9 +566,9 @@ sparser_stats_t *sparser_search2_binary(char *input, long length,
   for (long i = 0; i < length - VECSZ; i += VECSZ) {
     const char *base = input + i;
     __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-    unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(val, q1)) & 0xaaaaaaaa;
+    unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(val, q1)) & 0x55555555;
     __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
-    mask |= (_mm256_movemask_epi8(_mm256_cmpeq_epi16(val2, q1)) & 0x55555555);
+    mask |= (_mm256_movemask_epi8(_mm256_cmpeq_epi16(val2, q1)) & 0xAAAAAAAA);
 
     // These designate positions where matches occurred.
     if (mask > 0) {
