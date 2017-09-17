@@ -55,12 +55,11 @@ int packet_contains(pcaprec_hdr_t *pkt) {
     return 0;
   }
 
-  struct tcphdr *tcph = (struct tcphdr *) ((intptr_t)pkt + sizeof(pcaprec_hdr_t) + sizeof(struct ether_header) + sizeof(struct ip));
+  struct tcphdr *tcph = (struct tcphdr *) ((intptr_t)pkt + sizeof(pcaprec_hdr_t) + sizeof(struct ether_header) + (int64_t)iph->ip_hl * 4);
   if (ntohs(tcph->th_sport) == 80 || ntohs(tcph->th_dport) == 80) {
     const char *payload = (const char *)((intptr_t)tcph + tcph->th_off * 4);
-    printf("%p\n", payload);
-    void *c;
-    if ((c = memmem(payload, iph->ip_len - sizeof(struct ip) - tcph->th_off * 4, lookfor, strlen(lookfor)))) {
+    int64_t length = pkt->orig_len - ((intptr_t)payload - (intptr_t)pkt);
+    if ( memmem(payload, length, lookfor, 5)) {
       //printf("%s\n", (char *)c);
       return 1;
     } else {
@@ -156,11 +155,7 @@ int main(int argc, char **argv) {
   pcap_iterator_t itr;
   memset(&itr, 0, sizeof(itr));
 
-  pcaprec_hdr_t *first = (pcaprec_hdr_t *)(raw + sizeof(pcap_hdr_t));
-  s = time_start();
-  verify_pcap_loop(first, length - sizeof(pcap_hdr_t));
-  parse_time = time_stop(s);
-  printf("Loop Runtime: %f seconds\n", parse_time);
+
 
   // This is the base pointer into the file. Skip past the header.
   itr.cur_packet = (pcaprec_hdr_t *)(raw + sizeof(pcap_hdr_t));
@@ -179,6 +174,11 @@ int main(int argc, char **argv) {
   printf("%s\n", sparser_format_stats(stats));
   printf("Total Runtime: %f seconds\n", parse_time);
 
+  pcaprec_hdr_t *first = (pcaprec_hdr_t *)(raw + sizeof(pcap_hdr_t));
+  s = time_start();
+  verify_pcap_loop(first, length - sizeof(pcap_hdr_t));
+  parse_time = time_stop(s);
+  printf("Loop Runtime: %f seconds\n", parse_time);
 
   free(query);
   free(stats);
