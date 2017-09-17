@@ -3,6 +3,7 @@
 
 #include <time.h>
 #include <errno.h>
+
 #include <string.h>
 
 #include <arpa/inet.h>
@@ -49,10 +50,15 @@ typedef struct pcap_iterator {
 // Returns true if the HTTP packet payload contains the `lookfor` string.
 int packet_contains(pcaprec_hdr_t *pkt) {
   struct ip *iph = (struct ip *) ((intptr_t)pkt + sizeof(pcaprec_hdr_t) + sizeof(struct ether_header));
+
+  if (iph->ip_p != IPPROTO_TCP) {
+    return 0;
+  }
+
   struct tcphdr *tcph = (struct tcphdr *) ((intptr_t)pkt + sizeof(pcaprec_hdr_t) + sizeof(struct ether_header) + sizeof(struct ip));
   if (ntohs(tcph->th_sport) == 80 || ntohs(tcph->th_dport) == 80) {
     const char *payload = (const char *)((intptr_t)tcph + tcph->th_off * 4);
-    if (strnstr(payload, lookfor, iph->ip_len - sizeof(struct ip) - tcph->th_off * 4)) {
+    if (memmem(payload, iph->ip_len - sizeof(struct ip) - tcph->th_off * 4, lookfor, strlen(lookfor))) {
       return 1;
     } else {
       return 0;
