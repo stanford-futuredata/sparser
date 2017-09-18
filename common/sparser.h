@@ -272,8 +272,8 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
     sample = newline + 1;
     remaining_length -= (sample - line);
 
-    unsigned long found = 0x0L;
-    for (int i = 0; i < num_substrings; i++) {
+    uint64_t found = 0x0L;
+    for (uint64_t i = 0; i < num_substrings; i++) {
       char *predicate = predicate_substrings[i];
 #ifdef CALIBRATE_TIMING
       bench_timer_t start1 = time_start();
@@ -305,7 +305,7 @@ sparser_query_t *sparser_calibrate(char *sample, long length,
       parse_cost = end - start;
       if (!passed) {
         while (found) {
-          int index = ffs(found) - 1;
+          int index = ffsl(found) - 1;
           false_positives[index]++;
           found &= ~(0x1L << index);
         }
