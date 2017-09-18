@@ -16,6 +16,7 @@ typedef enum {
 
   JSON_TYPE_STRING,
   JSON_TYPE_INT,
+  JSON_TYPE_BOOL,
 
   JSON_TYPE_FLOAT,
   JSON_TYPE_ARRAY,
@@ -31,17 +32,25 @@ typedef enum {
 
 /** A callback for string filters.
  *
- * @param data user data
  * @param int64_t the JSON value found in the document
+ * @param data user data
+ *
  */
 typedef json_passed_t (*json_filter_string_callback_t)(const char *, void *);
 
 // A callback for integers.
 /*
- * @param data user data
  * @param int64_t the JSON value found in the document
+ * @param data user data
  */
 typedef json_passed_t (*json_filter_integer_callback_t)(int64_t, void *);
+
+// A callback for booleans.
+/*
+ * @param boolean the JSON value found in the document
+ * @param data user data
+ */
+typedef json_passed_t (*json_filter_boolean_callback_t)(bool, void *);
 
 typedef struct query_node_ query_node_t;
 
@@ -58,12 +67,14 @@ struct query_node_ {
   union {
     char *string;
     int64_t integer;
+    bool boolean;
   } filter_value;
 
   // The filter callback.
   union {
-    json_filter_string_callback_t string_callback;
-    json_filter_integer_callback_t integer_callback;
+    json_filter_string_callback_t   string_callback;
+    json_filter_integer_callback_t  integer_callback;
+    json_filter_boolean_callback_t  boolean_callback;
   } filter_callback;
 
   // Is this a filter?
@@ -143,6 +154,8 @@ json_node_print(query_node_t *node) {
         break;
       case JSON_TYPE_INT:
         printf("%lld", node->filter_value.integer);
+      case JSON_TYPE_BOOL:
+        printf("%s", node->filter_value.boolean ? "true" : "false");
       default:
         fprintf(stderr, "Invalid filter detected in print!\n");
         exit(1);
@@ -305,6 +318,48 @@ json_query_add_integer_filter(json_query_t query, const char *querystr, json_fil
   free(buf);
 }
 
+/** Add an boolean filter to the query. If the filter fails, the full query will return
+ * NULL.
+ *
+ * Example:
+ *
+ * user.entities.name, value="Firas"
+ *
+ * @param query
+ * @param querystr
+ * @param filter_value
+ * @param filter_ty
+ */
+void
+json_query_add_boolean_filter(json_query_t query, const char *querystr, json_filter_boolean_callback_t callback) {
+  // Make a mutable copy of the  query string.
+  size_t bytes = strlen(querystr) + 1;
+  char *buf = (char *)malloc(bytes);
+  memcpy(buf, querystr, bytes);
+
+  char *tmp = buf;
+  char *line;
+
+  query_node_t *cur = query;
+
+  // Keep descending down the tree for each field name, adding new nodes if necessary.
+  while ((line = strsep(&tmp, ".")) != NULL) {
+    query_node_t *n = json_node_child_with_field_name(cur, line);
+    if (!n) {
+      // is this the child?
+      json_type_t ty = tmp ? JSON_TYPE_OBJECT : JSON_TYPE_BOOL;
+      n = json_node_new(line, ty);
+      json_node_add_child(cur, n);
+    }
+    cur = n;
+  }
+
+  cur->filter_callback.boolean_callback = callback;
+  cur->filter = 1;
+
+  free(buf);
+}
+
 // ********************************** QUERY ENGINES ***********************************
 
 // Helper for the RapidJSON query engine.
@@ -314,6 +369,11 @@ _json_execution_helper(query_node_t *node, Value::ConstMemberIterator itr, void 
   if (node->type != JSON_TYPE_OBJECT) {
       json_passed_t passed = JSON_PASS;
       switch (node->type) {
+        case JSON_TYPE_BOOL:
+                               if (node->filter) {
+                                 passed = node->filter_callback.boolean_callback(itr->value.GetBool(), udata);
+                               }
+                               break;
         case JSON_TYPE_INT:
                                if (node->filter) {
                                  passed = node->filter_callback.integer_callback(itr->value.GetInt64(), udata);
