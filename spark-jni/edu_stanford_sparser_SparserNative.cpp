@@ -56,7 +56,7 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
     };
     const long num_records_parsed = bench_sparser_hdfs(filename_c, start_java, length_java, predicates,
         2, parse_putin_russia, (void *)buffer_addr_java);
-    assert(num_records_parsed < max_records);
+    assert(num_records_parsed <= max_records);
     env->ReleaseStringUTFChars(filename_java, filename_c); // release resources
 
     // Step 2: We pass the raw address as a Java long (jlong); just cast to int
