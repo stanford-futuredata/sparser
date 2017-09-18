@@ -8,6 +8,8 @@
 
 #include <assert.h>
 
+#include "json_projection.h"
+
 typedef sparser_callback_t parser_t;
 
 #ifdef USE_HDFS
@@ -131,37 +133,35 @@ double bench_rapidjson(const char *filename, parser_t callback, void *callback_c
 }
 
 /* Times splitting the input by newline and calling the full parser on each
- * line. Uses the Mison Leveled Colon Bitmap technique, but doesn't implement
- * pattern trees - this can be seen as a lower bound on parse time.
+ * line.
  *
  * @param filename
  * @param callback the function which performs the parse.
  *
  * @return the running time.
  */
-double bench_mison(const char *filename, parser_t callback, void *callback_ctx) {
+double bench_json_with_api(const char *filename, json_query_t query, json_query_engine_t engine, void *udata) {
+
   char *data, *line;
   read_all(filename, &data);
   int doc_index = 1;
   int matching = 0;
 
-  double elapsed = 0;
+  bench_timer_t s = time_start();
 
   char *ptr = data;
   while ((line = strsep(&ptr, "\n")) != NULL) {
-    bench_timer_t s = time_start();
-    if (callback(line, callback_ctx)) {
+    if (engine(query, line, udata) == JSON_PASS) {
       matching++;
     }
-    elapsed += time_stop(s);
     doc_index++;
-    exit(1);
   }
 
+  double elapsed = time_stop(s);
   printf("Passing Elements: %d of %d records (%.3f seconds)\n", matching,
          doc_index, elapsed);
 
-  free(data);
+  free(ptr);
 
   return elapsed;
 }

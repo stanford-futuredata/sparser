@@ -16,10 +16,32 @@ typedef enum {
 
   JSON_TYPE_STRING,
   JSON_TYPE_INT,
-  JSON_TYPE_FLOAT,
 
+  JSON_TYPE_FLOAT,
   JSON_TYPE_ARRAY,
 } json_type_t;
+
+typedef enum {
+  JSON_FAIL = 0,
+  JSON_PASS = 1,
+} json_passed_t;
+
+// **************************** CALLBACKS FOR FILTERS  ************************
+//
+
+/** A callback for string filters.
+ *
+ * @param data user data
+ * @param int64_t the JSON value found in the document
+ */
+typedef json_passed_t (*json_filter_string_callback_t)(const char *, void *);
+
+// A callback for integers.
+/*
+ * @param data user data
+ * @param int64_t the JSON value found in the document
+ */
+typedef json_passed_t (*json_filter_integer_callback_t)(int64_t, void *);
 
 typedef struct query_node_ query_node_t;
 
@@ -37,6 +59,13 @@ struct query_node_ {
     char *string;
     int64_t integer;
   } filter_value;
+
+  // The filter callback.
+  union {
+    json_filter_string_callback_t string_callback;
+    json_filter_integer_callback_t integer_callback;
+  } filter_callback;
+
   // Is this a filter?
   unsigned filter;
 
@@ -46,6 +75,15 @@ struct query_node_ {
 
 // A precompiled JSON query. This points to the root.
 typedef query_node_t* json_query_t;
+
+// Engine type. A query engine takes a query and a line and returns
+// either JSON_PASS or JSON_FAIL, depending on whether each filter matched.
+// The engine also visits all nodes registered as projections -- users can handle
+// these as necessary.
+//
+// TODO projection API not implemented -- just use filter for now and return true.
+typedef json_passed_t (*json_query_engine_t)(json_query_t, const char *, void *);
+
 
 // ********************************** NODES ***********************************
 
@@ -167,7 +205,6 @@ json_query_add_projection(json_query_t query, const char *querystr, json_type_t 
   char *line;
 
   query_node_t *cur = query;
-  query_node_t *next;
 
   // Keep descending down the tree for each field name, adding new nodes if necessary.
   while ((line = strsep(&tmp, ".")) != NULL) {
@@ -180,6 +217,7 @@ json_query_add_projection(json_query_t query, const char *querystr, json_type_t 
     cur = n;
   }
 
+  fprintf(stderr, "%s: (WARN) Projections not implemented in iterator yet!\n", __func__);
   free(buf);
 }
 
@@ -196,7 +234,7 @@ json_query_add_projection(json_query_t query, const char *querystr, json_type_t 
  * @param filter_ty
  */
 void
-json_query_add_string_filter(json_query_t query, const char *querystr, const char *filter_value) {
+json_query_add_string_filter(json_query_t query, const char *querystr, json_filter_string_callback_t callback) {
   // Make a mutable copy of the  query string.
   size_t bytes = strlen(querystr) + 1;
   char *buf = (char *)malloc(bytes);
@@ -206,7 +244,6 @@ json_query_add_string_filter(json_query_t query, const char *querystr, const cha
   char *line;
 
   query_node_t *cur = query;
-  query_node_t *next;
 
   // Keep descending down the tree for each field name, adding new nodes if necessary.
   while ((line = strsep(&tmp, ".")) != NULL) {
@@ -220,8 +257,7 @@ json_query_add_string_filter(json_query_t query, const char *querystr, const cha
     cur = n;
   }
 
-  // Set the filter value.
-  asprintf(&cur->filter_value.string, "%s", filter_value);
+  cur->filter_callback.string_callback = callback;
   cur->filter = 1;
 
   free(buf);
@@ -240,7 +276,7 @@ json_query_add_string_filter(json_query_t query, const char *querystr, const cha
  * @param filter_ty
  */
 void
-json_query_add_integer_filter(json_query_t query, const char *querystr, int64_t filter_value) {
+json_query_add_integer_filter(json_query_t query, const char *querystr, json_filter_integer_callback_t callback) {
   // Make a mutable copy of the  query string.
   size_t bytes = strlen(querystr) + 1;
   char *buf = (char *)malloc(bytes);
@@ -250,7 +286,6 @@ json_query_add_integer_filter(json_query_t query, const char *querystr, int64_t 
   char *line;
 
   query_node_t *cur = query;
-  query_node_t *next;
 
   // Keep descending down the tree for each field name, adding new nodes if necessary.
   while ((line = strsep(&tmp, ".")) != NULL) {
@@ -264,8 +299,7 @@ json_query_add_integer_filter(json_query_t query, const char *querystr, int64_t 
     cur = n;
   }
 
-  // Set the filter value.
-  cur->filter_value.integer = filter_value;
+  cur->filter_callback.integer_callback = callback;
   cur->filter = 1;
 
   free(buf);
@@ -274,37 +308,38 @@ json_query_add_integer_filter(json_query_t query, const char *querystr, int64_t 
 // ********************************** QUERY ENGINES ***********************************
 
 // Helper for the RapidJSON query engine.
-void *
-_json_execution_helper(query_node_t *node, Value::ConstMemberIterator itr) {
+json_passed_t
+_json_execution_helper(query_node_t *node, Value::ConstMemberIterator itr, void *udata) {
+
   if (node->type != JSON_TYPE_OBJECT) {
+      json_passed_t passed = JSON_PASS;
       switch (node->type) {
         case JSON_TYPE_INT:
-                               printf("%s=%lld", node->field_name, itr->value.GetInt64());
-                               if (node->filter && itr->value.GetInt64() != node->filter_value.integer) {
-                                printf(" (filter failed for %lld)", node->filter_value.integer);
+                               if (node->filter) {
+                                 passed = node->filter_callback.integer_callback(itr->value.GetInt64(), udata);
                                }
-                               printf("\n");
                                break;
         case JSON_TYPE_STRING:
-                               printf("%s=%s", node->field_name, itr->value.GetString());
-                               if (node->filter && strcmp(itr->value.GetString(), node->filter_value.string) != 0) {
-                                 printf(" (filter failed for %s)", node->filter_value.string);
+                               if (node->filter) {
+                                 passed = node->filter_callback.string_callback(itr->value.GetString(), udata);
                                }
-                               printf("\n");
-
                                break;
         case JSON_TYPE_FLOAT:
+                               fprintf(stderr, "Float unsupported\n");
+                               exit(1);
                                break;
         case JSON_TYPE_ARRAY:
                                fprintf(stderr, "Array unsupported\n");
+                               exit(1);
                                break;
         default:
                                fprintf(stderr, "Unexpected type\n");
+                               exit(1);
                                break;
       }
 
       // reached a leaf object - done!
-      return NULL;
+      return passed;
   }
 
   auto obj = itr->value.GetObject();
@@ -317,21 +352,21 @@ _json_execution_helper(query_node_t *node, Value::ConstMemberIterator itr) {
 #if DEBUG
       fprintf(stderr, "Error: Field %s not found\n", child->field_name);
 #endif
-      return NULL;
+      return JSON_FAIL;
     }
-    _json_execution_helper(child, itr2);
+    
+    if (_json_execution_helper(child, itr2, udata) == JSON_FAIL) {
+      return JSON_FAIL;
+    }
   }
-
-  return NULL;
-
+  return JSON_PASS;
 }
 
-// RapidJSON based query engine. TODO this should return something.
-void *
-json_query_rapidjson_execution_engine(json_query_t query, const char *line) {
+json_passed_t
+json_query_rapidjson_execution_engine(json_query_t query, const char *line, void *udata) {
 
   if (query->num_children == 0) {
-    return NULL;
+    return JSON_FAIL;
   }
 
   Document d;
@@ -342,7 +377,7 @@ json_query_rapidjson_execution_engine(json_query_t query, const char *line) {
     fprintf(stderr, "\nError(offset %u): %s\n", (unsigned)d.GetErrorOffset(),
         GetParseError_En(d.GetParseError()));
 #endif
-    return NULL;
+    return JSON_FAIL;
   }
 
   for (int i = 0; i < query->num_children; i++) {
@@ -353,13 +388,14 @@ json_query_rapidjson_execution_engine(json_query_t query, const char *line) {
 #if DEBUG
       fprintf(stderr, "Error: Field %s not found\n", child->field_name);
 #endif
-      return NULL;
+      return JSON_FAIL;
     }
 
-    _json_execution_helper(child, itr);
+    if (_json_execution_helper(child, itr, udata) == JSON_FAIL) {
+      return JSON_FAIL;
+    }
   }
-
-  return NULL;
+  return JSON_PASS;
 }
 
 #endif

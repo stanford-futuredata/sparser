@@ -21,7 +21,7 @@ using namespace rapidjson;
 
 // The query strings.
 const char *TEXT = "Putin";
-const char *TEXT2 = "Donald Trump";
+const char *TEXT2 = "Russia";
 
 // Data passed to parser callback in this query.
 struct parser_data {
@@ -91,7 +91,7 @@ int mison_parse_wrapper(const char *line, void * _) {
 }
 
 int main() {
-  const char *filename = path_for_data("tweets.json");
+  const char *filename = path_for_data("tweets-trump.json");
 
   char *predicates[] = { NULL, NULL, NULL, };
   char *first, *second;
@@ -110,7 +110,7 @@ int main() {
 
   printf("IDs from sparser\n");
   for (int i = 0; i < pd.count; i++) {
-    printf("%lld\n", pd.ids[i]);
+    //printf("%lld\n", pd.ids[i]);
   }
   pd.count = 0;
 
@@ -121,7 +121,7 @@ int main() {
 
   printf("IDs from RapidJSON\n");
   for (int i = 0; i < pd.count; i++) {
-    printf("%lld\n", pd.ids[i]);
+    //printf("%lld\n", pd.ids[i]);
   }
 
   free(first);
