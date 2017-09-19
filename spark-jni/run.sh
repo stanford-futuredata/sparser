@@ -17,6 +17,8 @@ else
 fi
 
 set -x
+  # --conf "spark.dynamicAllocation.enabled=false" \
+  # --num-executors 2 \
 
 $SPARK_HOME/bin/spark-submit --class edu.stanford.sparser.App \
   --master $MASTER target/sparser-1.0.jar \

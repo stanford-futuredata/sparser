@@ -1,7 +1,7 @@
 UNAME := $(shell uname -s)
 
 CC=clang++
-CFLAGS=-c -fPIC -march=native -O3 -Wall -DUSE_HDFS
+CFLAGS=-c -std=c++11 -fPIC -march=native -O3 -Wall -DUSE_HDFS
 LDFLAGS=-shared -Wl
 LIBRARIES=-L../common/libhdfs/lib -lhdfs3
 INCLUDES=-I$(JAVA_HOME)/include \
