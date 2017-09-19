@@ -68,6 +68,7 @@ long read_all_hdfs(const char *filename_uri, char **buf, long start,
     hostname[hostname_length] = '\0';
 
     // connect to NameNode
+    setenv("LIBHDFS3_CONF", "/etc/hadoop/conf/hdfs-site.xml", 1);
     struct hdfsBuilder *builder = hdfsNewBuilder();
     hdfsBuilderSetNameNode(builder, hostname);
     // TODO: don't hardcode HDFS port
