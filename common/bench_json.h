@@ -33,7 +33,7 @@ long bench_sparser_hdfs(const char *filename, const unsigned long start,
   const unsigned long length = read_all_hdfs(filename, &raw, start, hdfs_length);
   assert(length == hdfs_length + 1);
   double read_hdfs_time = time_stop(t);
-  printf("Read HDFS time: %f\n", read_hdfs_time);
+  printf("Read time: %f\n", read_hdfs_time);
 
   bench_timer_t s = time_start();
   sparser_query_t *query = sparser_calibrate(raw, length, predicates, num_predicates, callback);
@@ -74,8 +74,11 @@ double bench_sparser(const char *filename, const char **predicates,
                       int num_predicates, parser_t callback, void *callback_ctx) {
 
   // Read in the data into a buffer.
+  bench_timer_t t = time_start();
   char *raw = NULL;
   long length = read_all(filename, &raw);
+  double read_hdfs_time = time_stop(t);
+  printf("Read time: %f\n", read_hdfs_time);
 
   bench_timer_t s = time_start();
   sparser_query_t *query = sparser_calibrate(raw, length, predicates, num_predicates, callback);

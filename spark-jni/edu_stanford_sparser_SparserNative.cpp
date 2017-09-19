@@ -59,16 +59,7 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
     assert(num_records_parsed <= max_records);
     env->ReleaseStringUTFChars(filename_java, filename_c); // release resources
 
-    // Step 2: We pass the raw address as a Java long (jlong); just cast to int
-    // char *buf = (char *)buffer_addr_java;
-    // printf("In C, the address is %p\n", buf);
-    // for (long i = 0; i < num_records_parsed; ++i) {
-    //     int *curr_row = (int *) buf;
-    //     // for now, return indices
-    //     *curr_row = i;
-    //     buf += record_size;
-    // }
     const double time = time_stop(start);
-    printf("total time in C++: %f\n", time);
+    printf("Total Time in C++: %f\n", time);
     return num_records_parsed;
 }

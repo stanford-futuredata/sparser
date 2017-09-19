@@ -34,7 +34,7 @@ object App {
       val before = System.currentTimeMillis()
       timeParser()
       val timeMs = System.currentTimeMillis() - before
-      println(timeMs / 1000.0)
+      println("Total Job Time: " + timeMs / 1000.0)
       runtimes(i) = timeMs
       System.gc()
       spark.sparkContext.parallelize(0 until numWorkers,
