@@ -19,12 +19,14 @@ object App {
           val df = spark.read.format("edu.stanford.sparser").options(
             Map("filters" -> filterStrs, "projections" -> projectionStrs)).load(jsonFilename)
           println(df.count())
+          println("Num paritions: " + df.rdd.getNumPartitions)
         }
       } else {
         () => {
           val df = spark.read.format("json").load(jsonFilename)
           println(df.filter($"text".contains("Putin") &&
             $"text".contains("Russia")).count())
+          println("Num paritions: " + df.rdd.getNumPartitions)
         }
       }
     }
