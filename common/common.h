@@ -8,10 +8,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define USE_WALL_TIME
+
+#ifdef USE_WALL_TIME
+#include <sys/time.h>
+#else
 #include <time.h>
+#endif
 
 // Handle for timing.
+#ifdef USE_WALL_TIME
+typedef struct timeval bench_timer_t;
+#else
 typedef clock_t bench_timer_t;
+#endif
 
 /** Returns a formatted string suitable for benchmark parsing. */
 static char *benchmark_string(const char *name, double time) {
@@ -112,9 +123,12 @@ long read_all(const char *filename, char **buf) {
     return fsize + 1;
 }
 
+
+#ifdef USE_WALL_TIME
 /** Starts the clock for a benchmark. */
 bench_timer_t time_start() {
-    bench_timer_t t = clock();
+    bench_timer_t t;
+    gettimeofday(&t, NULL);
     return t;
 }
 
@@ -122,8 +136,25 @@ bench_timer_t time_start() {
  * Throws an error if time__start() was not called first.
  * */
 double time_stop(bench_timer_t start) {
-    clock_t _end = clock();
-    return ((double)(_end - start)) / CLOCKS_PER_SEC;
+    bench_timer_t end;
+    bench_timer_t diff;
+    gettimeofday(&end, NULL);
+    timersub(&end, &start, &diff);
+    return (double)diff.tv_sec + ((double)diff.tv_usec / 1000000.0);
 }
+
+#else
+bench_timer_t time_start() {
+    bench_timer_t t = clock();
+    return t;
+}
+
+double time_stop(bench_timer_t start) {
+  clock_t _end = clock();
+  return ((double)(_end - start)) / CLOCKS_PER_SEC;
+}
+#endif
+
+
 
 #endif
