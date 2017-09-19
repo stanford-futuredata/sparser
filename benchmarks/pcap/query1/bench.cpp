@@ -70,6 +70,22 @@ int packet_contains(pcaprec_hdr_t *pkt) {
   return 0;
 }
 
+
+// Returns true if the HTTP packet payload contains the `lookfor` string.
+int packet_contains_tcp(pcaprec_hdr_t *pkt) {
+  struct ip *iph = (struct ip *) ((intptr_t)pkt + sizeof(pcaprec_hdr_t) + sizeof(struct ether_header));
+
+  if (iph->ip_p != IPPROTO_TCP) {
+    return 0;
+  }
+
+  struct tcphdr *tcph = (struct tcphdr *) ((intptr_t)pkt + sizeof(pcaprec_hdr_t) + sizeof(struct ether_header) + (int64_t)iph->ip_hl * 4);
+  if (ntohs(tcph->th_sport) == 443 || ntohs(tcph->th_dport) == 443) {
+      return 1;
+  }
+  return 0;
+}
+
 // Callback for sparser.
 int verify_pcap(const char *line, void *thunk) {
   if (!thunk)
