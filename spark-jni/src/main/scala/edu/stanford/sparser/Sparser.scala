@@ -5,8 +5,8 @@ import java.nio.{ByteBuffer, ByteOrder}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow
 
-// TODO: change recordSize and maxRecords to match size of projected fields
-class Sparser(val recordSize: Long = 4, val maxRecords: Long = 2^16) {
+// TODO: change recordSize to match size of projected fields
+class Sparser(val recordSize: Long = 4, val maxRecords: Long = 16777216) {
 
   val spNative = new SparserNative()
   var rawAddress: Long = 0L
