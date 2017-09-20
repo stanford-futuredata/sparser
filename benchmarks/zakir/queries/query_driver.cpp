@@ -80,6 +80,7 @@ int main(int argc, char **argv) {
   long length;
 
   const char *filename = "/lfs/1/sparser/04-25-2016-truncated.json";
+  //const char *filename = "/lfs/1/sparser/zakir-small.json";
   length = read_all(filename, &raw);
 
 #if 0

@@ -411,7 +411,7 @@ intptr_t mison_parse(const char *record, size_t length) {
   fprintf(stderr, "Record Length: %ld\n", length);
 #endif
 
-  const int levels = 6;
+  const int levels = 50;
 
   struct character_bitmaps *b = build_character_bitmaps(record, length);
   uint64_t *quote_bitmap = build_structural_quote_bitmap(b);
