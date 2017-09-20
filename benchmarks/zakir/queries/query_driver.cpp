@@ -5,37 +5,6 @@
 
 #include "sparser.h"
 
-typedef json_query_t (*zakir_query_t)();
-typedef const char ** (*sparser_query_preds_t)(int *);
-
-#define ZAKIR_BENCH_SPARSER
-
-// All the queries we want to test.
-const zakir_query_t queries[] = {
-  zakir_query1,
-  zakir_query2,
-  zakir_query3,
-  zakir_query4,
-  zakir_query5,
-  zakir_query6,
-  zakir_query7,
-  zakir_query8,
-  NULL
-};
-
-// All the queries we want to test.
-const sparser_query_preds_t squeries[] = {
-  sparser_query1,
-  sparser_query2,
-  sparser_query3,
-  sparser_query4,
-  sparser_query5,
-  sparser_query6,
-  sparser_query7,
-  sparser_query8,
-  NULL
-};
-
 double bench_rapidjson_engine(char *data, long length, json_query_t query, int queryno) {
 
   bench_timer_t s = time_start();

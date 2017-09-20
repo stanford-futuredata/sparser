@@ -47,7 +47,11 @@ int parse(char *input, aircraft_t **buf) {
     size_t length = 0;
     aircraft_t *ret = (aircraft_t *)malloc(sizeof(aircraft_t) * capacity);
 
-    while ((line = strsep(&input, "\n")) != NULL) {
+    line = input;
+
+    while ((input = strchr(line, '\n')) != NULL) {
+
+        *input = '\0';
 
         if (length == capacity) {
             capacity *= 2;
@@ -56,7 +60,14 @@ int parse(char *input, aircraft_t **buf) {
 
         int column = 0;
         aircraft_t *a = ret + length;
-        while ((token = strsep(&line, ",")) != NULL) {
+
+        char *line_scan = line;
+        token = line_scan;
+
+        while ((line_scan = strchr(token, ',')) != NULL) {
+
+            *line_scan = '\0';
+
             switch (column) {
                 case AIRCRAFT_ID:
                     a->aircraft_id = atoi(token);
@@ -80,9 +91,15 @@ int parse(char *input, aircraft_t **buf) {
                     break;
             }
             column++;
+
+            *line_scan = ',';
+            token = line_scan + 1;
         }
 
         length++;
+
+        *input = '\n';
+        line = input + 1;
     }
 
     *buf = ret;

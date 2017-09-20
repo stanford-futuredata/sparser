@@ -71,6 +71,9 @@ double fast(const char *filename) {
     // Returns number of bytes in the buffer.
     long length = read_all(filename, &raw);
 
+    long capacity = (2 << 25);
+    aircraft_t *data = (aircraft_t *)malloc(sizeof(aircraft_t) * capacity);
+
     printf("%ld\n", length);
     bench_timer_t s = time_start();
 
@@ -144,11 +147,13 @@ double fast(const char *filename) {
                     switch (token_index) {
                         case AIRCRAFT_MODEL:
                             if (strncmp(model, token, len_model) != 0) {
+                              strncpy(data[count].aircraft_model, token, len_model);
                                 passing = 0;
                             }
                             break;
                         case AIRLINE:
                             if (strncmp(airline, token, len_airline) != 0) {
+                              strncpy(data[count].airline, token, len_airline);
                                 passing = 0;
                             }
                             break;
@@ -207,9 +212,8 @@ end_token_processing:
 }
 
 int main() {
-    //double a = baseline(path_for_data("airplanes_big.csv"));
+    double a = baseline(path_for_data("airplanes_big.csv"));
     double b = fast(path_for_data("airplanes_big.csv"));
-    double a = 0;
 
     printf("Speedup: %.3f\n", a / b);
 }
