@@ -11,7 +11,9 @@ object App {
     val projectionStrs: String = args(2)
     val jsonFilename: String = args(3) // File in HDFS
     val numTrials: Int = args(4).toInt
-    val runSparser: Boolean = args.length >= 6 && args(5).equalsIgnoreCase("--sparser")
+    val runSparser: Boolean = args(5).equalsIgnoreCase("--sparser")
+    val runSpark: Boolean = args(5).equalsIgnoreCase("--spark")
+    val runHDFSTest: Boolean = args(5).equalsIgnoreCase("--hdfs")
 
     val timeParser: () => Unit = {
       if (runSparser) {
@@ -19,15 +21,24 @@ object App {
           val df = spark.read.format("edu.stanford.sparser").options(
             Map("filters" -> filterStrs, "projections" -> projectionStrs)).load(jsonFilename)
           println(df.count())
-          println("Num paritions: " + df.rdd.getNumPartitions)
+          println("Num partitions: " + df.rdd.getNumPartitions)
         }
-      } else {
-        () => {
+      } else if (runSpark) {
+	() => {
           val df = spark.read.format("json").load(jsonFilename)
           println(df.filter($"text".contains("Putin") &&
-            $"text".contains("Russia")).count())
-          println("Num paritions: " + df.rdd.getNumPartitions)
+	    $"text".contains("Russia")).count())
+	  println(df.count())
+          println("Num partitions: " + df.rdd.getNumPartitions)
+	}
+      } else if (runHDFSTest) {
+        () => {
+	  val rdd = spark.sparkContext.textFile(jsonFilename)
+	  println(rdd.count())
+          println("Num partitions: " + rdd.getNumPartitions)
         }
+      } else {
+	throw new RuntimeException(args(5) + " is not a valid argument!")
       }
     }
 

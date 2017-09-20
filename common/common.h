@@ -10,7 +10,6 @@
 #include <string.h>
 
 #define USE_WALL_TIME
-
 #ifdef USE_WALL_TIME
 #include <sys/time.h>
 #else
@@ -20,8 +19,37 @@
 // Handle for timing.
 #ifdef USE_WALL_TIME
 typedef struct timeval bench_timer_t;
+
+/** Starts the clock for a benchmark. */
+bench_timer_t time_start() {
+    bench_timer_t t;
+    gettimeofday(&t, NULL);
+    return t;
+}
+
+/** Stops the clock and returns time elapsed in seconds.
+ * Throws an error if time__start() was not called first.
+ * */
+double time_stop(bench_timer_t start) {
+    bench_timer_t end;
+    bench_timer_t diff;
+    gettimeofday(&end, NULL);
+    timersub(&end, &start, &diff);
+    return (double)diff.tv_sec + ((double)diff.tv_usec / 1000000.0);
+}
+
 #else
 typedef clock_t bench_timer_t;
+
+bench_timer_t time_start() {
+    bench_timer_t t = clock();
+    return t;
+}
+
+double time_stop(bench_timer_t start) {
+    clock_t _end = clock();
+    return ((double)(_end - start)) / CLOCKS_PER_SEC;
+}
 #endif
 
 /** Returns a formatted string suitable for benchmark parsing. */
@@ -42,38 +70,21 @@ static char *path_for_data(const char *datafile) {
 }
 
 #ifdef USE_HDFS
+extern hdfsFS fs;
+
 /**
  * Reads the entire _local_ block of a file from HDFS. There isn't an explicit
  * API for reading only the local block, but we can get the start offset and the
  * number of bytes for the local block from Spark. `filename_uri` must be of the
  * form "hdfs://hostname/path/to/file"
  **/
-long read_all_hdfs(const char *filename_uri, char **buf, long start,
-                   long length) {
-    printf("Start: %lu\n", start);
-    printf("Length: %lu\n", length);
-    // must start with "hdfs://"
-    if (strncmp("hdfs://", filename_uri, 7)) {
-        printf("filename_uri %s does not start with 'hdfs://'\n", filename_uri);
-        abort();
-    }
-    // Extract hostname and file path from filename_uri
+long read_hdfs(const char *filename_uri, char **buf, unsigned long start,
+                   unsigned long length) {
+    // Extract file path from filename_uri, skip over "hdfs://hostname"
     char *filename = (char *)filename_uri + 7;
     while (*filename != '/') {
         ++filename;
     }
-    const unsigned int hostname_length = filename - (filename_uri + 7);
-    char *hostname = (char *)malloc(hostname_length + 1);
-    strncpy(hostname, filename_uri + 7, hostname_length);
-    hostname[hostname_length] = '\0';
-
-    // connect to NameNode
-    setenv("LIBHDFS3_CONF", "/etc/hadoop/conf/hdfs-site.xml", 1);
-    struct hdfsBuilder *builder = hdfsNewBuilder();
-    hdfsBuilderSetNameNode(builder, hostname);
-    // TODO: don't hardcode HDFS port
-    hdfsBuilderSetNameNodePort(builder, 8020);
-    hdfsFS fs = hdfsBuilderConnect(builder);
 
     char *x = (char *)malloc(length + 1);
     char *buffer = x;
@@ -83,23 +94,49 @@ long read_all_hdfs(const char *filename_uri, char **buf, long start,
     unsigned long num_bytes_read = 0;
     unsigned long bytes_remaining = length;
     while (num_bytes_read < length) {
-      const unsigned long done = hdfsRead(fs, fin, buffer, bytes_remaining);
-      if (done <= 0) break;
-      buffer += done;
-      num_bytes_read += done;
-      bytes_remaining -= done;
+        // bench_timer_t t_start = time_start();
+        const unsigned long done = hdfsRead(fs, fin, buffer, bytes_remaining);
+        // printf("node: m, start: %lu, bytes_remaining: %lu, hdfsRead: %f\n",
+        // start, bytes_remaining, time_stop(t_start));
+        if (done <= 0) break;
+        buffer += done;
+        num_bytes_read += done;
+        bytes_remaining -= done;
     }
 
     ret = hdfsCloseFile(fs, fin);
     x[length] = '\0';
     *buf = x;
 
-    hdfsFreeBuilder(builder);
-    free(hostname);
-
     return length + 1;
 }
 #endif
+
+/**
+ * Reads chunk of local file `filename` into memory, used in Spark benchmarking.
+ * `filename_uri` must be of the form "file:///path/to/file"
+ **/
+long read_local(const char *filename_uri, char **buf, unsigned long start,
+                   unsigned long length) {
+    // Extract file path from filename_uri, skip over "file://"
+    char *filename = (char *)filename_uri + 7;
+
+    FILE *f = fopen(filename, "r");
+    if (!f) {
+        fprintf(stderr, "%s: ", filename);
+        perror("read_local");
+        exit(1);
+    }
+
+    char *string = (char *)malloc(length + 1);
+    fread(string, length, 1, f);
+    fclose(f);
+
+    string[length] = '\0';
+
+    *buf = string;
+    return length + 1;
+}
 
 /** Reads the entire file filename into memory. */
 long read_all(const char *filename, char **buf) {
@@ -123,39 +160,5 @@ long read_all(const char *filename, char **buf) {
     *buf = string;
     return fsize + 1;
 }
-
-
-#ifdef USE_WALL_TIME
-/** Starts the clock for a benchmark. */
-bench_timer_t time_start() {
-    bench_timer_t t;
-    gettimeofday(&t, NULL);
-    return t;
-}
-
-/** Stops the clock and returns time elapsed in seconds.
- * Throws an error if time__start() was not called first.
- * */
-double time_stop(bench_timer_t start) {
-    bench_timer_t end;
-    bench_timer_t diff;
-    gettimeofday(&end, NULL);
-    timersub(&end, &start, &diff);
-    return (double)diff.tv_sec + ((double)diff.tv_usec / 1000000.0);
-}
-
-#else
-bench_timer_t time_start() {
-    bench_timer_t t = clock();
-    return t;
-}
-
-double time_stop(bench_timer_t start) {
-  clock_t _end = clock();
-  return ((double)(_end - start)) / CLOCKS_PER_SEC;
-}
-#endif
-
-
 
 #endif

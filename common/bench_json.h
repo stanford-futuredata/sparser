@@ -23,17 +23,27 @@ typedef sparser_callback_t parser_t;
  *
  * @return number of records parsed
  */
-long bench_sparser_hdfs(const char *filename, const unsigned long start,
-                      const unsigned long hdfs_length, const char **predicates,
+long bench_sparser_spark(const char *filename_uri, const unsigned long start,
+                      const unsigned long file_length, const char **predicates,
                       int num_predicates, parser_t callback, void *callback_ctx) {
 
   // Read in the data into a buffer.
-  bench_timer_t t = time_start();
   char *raw = NULL;
-  const unsigned long length = read_all_hdfs(filename, &raw, start, hdfs_length);
-  assert(length == hdfs_length + 1);
-  double read_hdfs_time = time_stop(t);
-  printf("Read time: %f\n", read_hdfs_time);
+  unsigned long length = 0;
+  printf("Start: %lu\n", start);
+  printf("Length: %lu\n", length);
+  if (strncmp("hdfs://", filename_uri, 7) == 0) {
+    bench_timer_t t = time_start();
+    length = read_hdfs(filename_uri, &raw, start, file_length);
+    double read_hdfs_time = time_stop(t);
+    printf("Read time: %f\n", read_hdfs_time);
+    assert(length == file_length + 1);
+  } else if (strncmp("file:///", filename_uri, 8) == 0) {
+    bench_timer_t t = time_start();
+    length = read_local(filename_uri, &raw, start, file_length);
+    double read_local_time = time_stop(t);
+    printf("Read time: %f\n", read_local_time);
+  }
 
   bench_timer_t s = time_start();
   sparser_query_t *query = sparser_calibrate(raw, length, predicates, num_predicates, callback);
