@@ -74,12 +74,15 @@ def install_libs():
 def install_config():
     with settings(prompts=GIT_PROMPT):
         run('git clone git@github.com:fabuzaid21/dotfiles.git')
-        with cd('dotfiles'):
-            run('./install.sh')
-        run('echo "export SPARK_HOME=/usr/lib/spark" >> ~/.bashrc.user')
         run('git clone git@github.com:fabuzaid21/Vim.git --branch vundle')
+    with cd('dotfiles'):
+        run('./install.sh')
+    run('echo "export SPARK_HOME=/usr/lib/spark" >> ~/.bashrc.user')
+    run('echo ". ~/.bashrc.user" >> ~/.bashrc')
+    run('echo ". ~/.bashrc.user" >> ~/.bash_profile')
 
 
+@parallel
 def setup():
     code_dir = '/home/fabuzaid21/sparser'
     push_ssh_key()
@@ -89,4 +92,3 @@ def setup():
     install_pivotal_libhdfs3(code_dir)
     build_sparser(code_dir)
     download_data()
-    put_data_on_hdfs()
