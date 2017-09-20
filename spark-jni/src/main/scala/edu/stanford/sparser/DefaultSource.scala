@@ -96,13 +96,9 @@ private[sparser] class DefaultSource extends TextFileFormat with DataSourceRegis
       println(file.filePath)
       // println("Start: " + file.start)
       // println("Length: " + file.length)
-      val filtersStr = options("filters")
-      println("Filters: " + filtersStr)
-      val projectionsStr = options("projections")
-      println("Projections: " + projectionsStr)
-      println("Port: " + broadcastedHadoopConf.value.value.get("port"))
+      val queryIndex = options("query").toInt
       val sp = new Sparser()
-      sp.parseJson(file.filePath, file.start, file.length)
+      sp.parseJson(file.filePath, file.start, file.length, queryIndex)
       sp.iterator()
 
       // val reader = new HadoopFileLinesReader(file, broadcastedHadoopConf.value.value)

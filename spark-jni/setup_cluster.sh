@@ -12,4 +12,4 @@ set -x
 
 gcloud compute instances list --filter=${CLUSTER_NAME} | tr -s ' ' | cut -d ' ' -f \
   5 | grep -v INTERNAL_IP | xargs -I {} fab -i ~/.ssh/google_compute_engine -H {} \
-  $COMMAND
+  -P $COMMAND

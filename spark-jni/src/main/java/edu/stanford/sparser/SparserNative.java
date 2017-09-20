@@ -9,6 +9,6 @@ public class SparserNative {
     // Declare a native method parse() that receives nothing and returns the
     // number of records parsed
     public native long parse(String filename, int filename_length, long addr, long start,
-                              long length, long recordSize, long maxRecords);
+                              long length, int queryIndex, long recordSize, long maxRecords);
     private static native void init();
 }

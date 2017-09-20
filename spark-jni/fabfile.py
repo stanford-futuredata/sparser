@@ -23,6 +23,7 @@ def put_data_on_hdfs():
 @parallel
 def build_sparser(code_dir):
     with cd('%s/spark-jni' % code_dir):
+        run('git pull origin master')
         run('make clean && make')
     run('sudo ln -sfn %s/spark-jni/libsparser.so /usr/lib/libsparser.so' %
         code_dir)
