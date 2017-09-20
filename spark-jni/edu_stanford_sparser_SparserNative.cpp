@@ -68,6 +68,7 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
     JNIEnv *env, jobject obj, jstring filename_java, jint filename_length,
     jlong buffer_addr, jlong start, jlong length, jint query_index,
     jlong record_size, jlong max_records) {
+    printf("max_records: %lu\n", max_records);
     bench_timer_t start_time = time_start();
     // Convert the Java String (jstring) into C string (char*)
     char filename_c[filename_length];
