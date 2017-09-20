@@ -4,7 +4,8 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 
 object App {
 
-  val queryMap = Map("zakir1" -> "0",
+  val queryMap = Map(
+    "zakir1" -> "0",
     "zakir2" -> "1",
     "zakir3" -> "2",
     "zakir4" -> "3",
@@ -19,9 +20,47 @@ object App {
     queryStr match {
       case "0" =>
         (input: String) => {
-          spark.read.format("json").load(input).filter($"text".contains("Putin") &&
-            $"text".contains("Russia"))
+          spark.read.format("json").load(input).filter($"p23.telnet.banner.banner" != null &&
+            $"autonomous_system.asn" == 9318)
         }
+
+     case "1" =>
+        (input: String) => {
+          spark.read.format("json").load(input).filter($"p80.http.get.body".contains("content=\"wordpress 3.51\"")) 
+        }
+
+     case "2" =>
+        (input: String) => {
+          spark.read.format("json").load(input).filter($"autonomous_system.asn" == 2516)
+        }
+
+     case "3" =>
+        (input: String) => {
+          spark.read.format("json").load(input).filter($"location.country".equals("Chile") &&
+            $"p80.http.get.status_code" != null)
+        }
+
+     case "4" =>
+        (input: String) => {
+          spark.read.format("json").load(input).filter($"p80.http.get.headers.server".contains("DIR-300"))
+        }
+
+     case "5" =>
+        (input: String) => {
+          spark.read.format("json").load(input).filter($"p110.pop3.starttls.banner" != null &&
+            $"p995.pop3s.tls.banner" != null)
+        }
+
+     case "6" =>
+        (input: String) => {
+          spark.read.format("json").load(input).filter($"p21.ftp.banner.banner".contains("Seagate Central Shared"))
+        }
+
+     case "7" =>
+        (input: String) => {
+          spark.read.format("json").load(input).filter($"p20000.dnp3.status.support" == true)
+        }
+
       case "8" =>
         (input: String) => {
           spark.read.format("json").load(input).filter($"text".contains("Donald Trump") &&
