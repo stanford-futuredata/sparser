@@ -4,6 +4,7 @@
 #include <iostream>
 #include "bench_json.h"
 #include "common.h"
+#include "zakir_queries.h"
 #ifdef USE_HDFS
 #include <hdfs/hdfs.h>
 #endif
@@ -16,6 +17,13 @@
 using namespace rapidjson;
 
 hdfsFS fs;
+
+typedef struct callback_info {
+    long ptr;
+    json_query_t query;
+    long count;
+    long capacity;
+} callback_info_t;
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.
@@ -47,23 +55,38 @@ int parse_putin_russia(const char *line, void *data) {
     return true;
 }
 
+int rapidjson_parse_callback(const char *line, void *thunk) {
+    callback_info_t *info = (callback_info_t *)thunk;
+    json_query_t query = info->query;
+
+    if (!thunk) return 1;
+
+    return rapidjson_engine(query, line, NULL);
+}
+
 JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
-    JNIEnv *env, jobject obj, jstring filename_java, jint filename_length_java,
-    jlong buffer_addr_java, jlong start_java, jlong length_java,
+    JNIEnv *env, jobject obj, jstring filename_java, jint filename_length,
+    jlong buffer_addr, jlong start, jlong length, jint query_index,
     jlong record_size, jlong max_records) {
     bench_timer_t start = time_start();
-    // Step 1: Convert the Java String (jstring) into C string (char*)
-    char filename_c[filename_length_java];
-    env->GetStringUTFRegion(filename_java, 0, filename_length_java, filename_c);
+    // Convert the Java String (jstring) into C string (char*)
+    char filename_c[filename_length];
+    env->GetStringUTFRegion(filename_java, 0, filename_length, filename_c);
     printf("In C++, the string is: %s\n", filename_c);
 
-    // Step 2: Benchmark Sparser (ToDo: pass in predicates as argument)
-    const char *predicates[] = {
-        "Putin", "Russia",
-    };
+    // Benchmark Sparser
+    int count;
+    json_query_t jquery = queries[query_index]();
+    const char **preds = squeries[query_index](&count);
+
+    callback_info_t ctx;
+    ctx.query = jquery;
+    ctx.ptr = buffer_addr;
+
     const long num_records_parsed =
-        bench_sparser_spark(filename_c, start_java, length_java, predicates, 2,
-                           parse_putin_russia, (void *)buffer_addr_java);
+        bench_sparser_spark(filename_c, start, length, preds, count,
+                            rapidjson_parse_callback, &ctx);
+
     assert(num_records_parsed <= max_records);
 
     const double time = time_stop(start);
