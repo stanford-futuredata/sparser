@@ -62,7 +62,7 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
         "Putin", "Russia",
     };
     const long num_records_parsed =
-        bench_sparser_hdfs(filename_c, start_java, length_java, predicates, 2,
+        bench_sparser_spark(filename_c, start_java, length_java, predicates, 2,
                            parse_putin_russia, (void *)buffer_addr_java);
     assert(num_records_parsed <= max_records);
 

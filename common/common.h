@@ -78,16 +78,9 @@ extern hdfsFS fs;
  * number of bytes for the local block from Spark. `filename_uri` must be of the
  * form "hdfs://hostname/path/to/file"
  **/
-long read_all_hdfs(const char *filename_uri, char **buf, long start,
+long read_hdfs(const char *filename_uri, char **buf, unsigned long start,
                    unsigned long length) {
-    printf("Start: %lu\n", start);
-    printf("Length: %lu\n", length);
-    // must start with "hdfs://"
-    if (strncmp("hdfs://", filename_uri, 7)) {
-        printf("filename_uri %s does not start with 'hdfs://'\n", filename_uri);
-        abort();
-    }
-    // Extract file path from filename_uri
+    // Extract file path from filename_uri, skip over "hdfs://hostname"
     char *filename = (char *)filename_uri + 7;
     while (*filename != '/') {
         ++filename;
@@ -118,6 +111,32 @@ long read_all_hdfs(const char *filename_uri, char **buf, long start,
     return length + 1;
 }
 #endif
+
+/**
+ * Reads chunk of local file `filename` into memory, used in Spark benchmarking.
+ * `filename_uri` must be of the form "file:///path/to/file"
+ **/
+long read_local(const char *filename_uri, char **buf, unsigned long start,
+                   unsigned long length) {
+    // Extract file path from filename_uri, skip over "file://"
+    char *filename = (char *)filename_uri + 7;
+
+    FILE *f = fopen(filename, "r");
+    if (!f) {
+        fprintf(stderr, "%s: ", filename);
+        perror("read_local");
+        exit(1);
+    }
+
+    char *string = (char *)malloc(length + 1);
+    fread(string, length, 1, f);
+    fclose(f);
+
+    string[length] = '\0';
+
+    *buf = string;
+    return length + 1;
+}
 
 /** Reads the entire file filename into memory. */
 long read_all(const char *filename, char **buf) {
