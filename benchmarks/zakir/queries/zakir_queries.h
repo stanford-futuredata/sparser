@@ -22,6 +22,18 @@ zakir_query1() {
   return query;
 }
 
+static const char **
+sparser_query1(int *count) {
+  static const char *_1 = "9318";
+  static const char *predicates[] = {
+    _1,
+    NULL
+  };
+
+  *count = 1;
+  return predicates;
+}
+
 
 // *************************** QUERY 2  ****************************************
 
@@ -39,6 +51,18 @@ zakir_query2() {
   return query;
 }
 
+static const char **
+sparser_query2(int *count) {
+  static const char *_1 = "wordpress 3.5.1";
+  static const char *predicates[] = {
+    _1,
+    NULL
+  };
+
+  *count = 1;
+  return predicates;
+}
+
 
 // *************************** QUERY 3  ****************************************
 
@@ -53,6 +77,20 @@ zakir_query3() {
   json_query_add_integer_filter(query, "autonomous_system.asn", q3_autonomoussystem_asn);
   return query;
 }
+
+static const char **
+sparser_query3(int *count) {
+  static const char *_1 = "2516";
+  static const char *predicates[] = {
+    _1,
+    NULL
+  };
+
+  *count = 1;
+  return predicates;
+}
+
+
 
 // *************************** QUERY 4  ****************************************
 
@@ -73,6 +111,21 @@ zakir_query4() {
   return query;
 }
 
+
+static const char **
+sparser_query4(int *count) {
+  static const char *_1 = "Chile";
+  static const char *_2 = "status_code";
+  static const char *predicates[] = {
+    _1,
+    _2,
+    NULL
+  };
+
+  *count = 2;
+  return predicates;
+}
+
 // *************************** QUERY 5  ****************************************
 
 
@@ -85,6 +138,18 @@ zakir_query5() {
   json_query_t query = json_query_new();
   json_query_add_string_filter(query, "p80.http.get.headers.server", q5_p80_http_get_headers_server);
   return query;
+}
+
+static const char **
+sparser_query5(int *count) {
+  static const char *_1 = "DIR-300";
+  static const char *predicates[] = {
+    _1,
+    NULL
+  };
+
+  *count = 1;
+  return predicates;
 }
 
 
@@ -111,6 +176,24 @@ zakir_query6() {
   return query;
 }
 
+static const char **
+sparser_query6(int *count) {
+  static const char *_1 = "p110";
+  static const char *_2 = "p995";
+  static const char *_3 = "pop3s";
+  static const char *_4 = "starttls";
+  static const char *predicates[] = {
+    _1,
+    _2,
+    _3,
+    _4,
+    NULL
+  };
+
+  *count = 4;
+  return predicates;
+}
+
 
 // *************************** QUERY 7  ****************************************
 
@@ -126,6 +209,18 @@ zakir_query7() {
   json_query_t query = json_query_new();
   json_query_add_string_filter(query, "ftp.banner.banner", q7_ftp_banner_banner);
   return query;
+}
+
+static const char **
+sparser_query7(int *count) {
+  static const char *_1 = "Seagate Central Shared";
+  static const char *predicates[] = {
+    _1,
+    NULL
+  };
+
+  *count = 1;
+  return predicates;
 }
 
 
@@ -144,5 +239,19 @@ zakir_query8() {
   return query;
 }
 
+
+static const char **
+sparser_query8(int *count) {
+  static const char *_1 = "p20000";
+  static const char *_2 = "dnp3";
+  static const char *predicates[] = {
+    _1,
+    _2,
+    NULL
+  };
+
+  *count = 2;
+  return predicates;
+}
 
 #endif

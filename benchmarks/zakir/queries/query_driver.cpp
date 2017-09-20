@@ -3,7 +3,12 @@
 #include "zakir_queries.h"
 #include "common.h"
 
+#include "sparser.h"
+
 typedef json_query_t (*zakir_query_t)();
+typedef const char ** (*sparser_query_preds_t)(int *);
+
+#define ZAKIR_BENCH_SPARSER
 
 // All the queries we want to test.
 const zakir_query_t queries[] = {
@@ -15,6 +20,19 @@ const zakir_query_t queries[] = {
   zakir_query6,
   zakir_query7,
   zakir_query8,
+  NULL
+};
+
+// All the queries we want to test.
+const sparser_query_preds_t squeries[] = {
+  sparser_query1,
+  sparser_query2,
+  sparser_query3,
+  sparser_query4,
+  sparser_query5,
+  sparser_query6,
+  sparser_query7,
+  sparser_query8,
   NULL
 };
 
@@ -74,6 +92,39 @@ double bench_mison_engine(char *data, long length, json_query_t query, int query
   return elapsed;
 }
 
+int _mison_parse_callback(const char *line, void * _) {
+  size_t length = strlen(line);
+  if (length == 0) {
+    return false;
+  }
+  intptr_t x = mison_parse(line, length);
+  return (x == 0);
+}
+
+double bench_sparser_engine(char *data, long length, json_query_t jquery, const char **preds, int num_preds, int queryno) {
+
+  bench_timer_t s = time_start();
+
+  long doc_index = 1;
+  long matching = 0;
+
+  sparser_query_t *query = sparser_calibrate(data, length, preds, num_preds, _mison_parse_callback);
+  sparser_stats_t *stats = sparser_search(data, length, query, _mison_parse_callback, NULL);
+
+  double elapsed = time_stop(s);
+  printf("Passing Elements: %ld of %ld records\n",
+      matching,
+      doc_index);
+  printf("Query %d Execution Time: %f seconds\n", queryno, elapsed);
+  
+  assert(stats);
+  printf("%s\n", sparser_format_stats(stats));
+  free(stats);
+  free(query);
+
+  return elapsed;
+}
+
 int main(int argc, char **argv) {
 
   char *raw;
@@ -83,8 +134,10 @@ int main(int argc, char **argv) {
   //const char *filename = "/lfs/1/sparser/zakir-small.json";
   length = read_all(filename, &raw);
 
-#if 0
-  int query_index = 0;
+  int query_index;
+
+#ifdef ZAKIR_BENCH_RJ
+  query_index = 0;
   while (queries[query_index]) {
     json_query_t query = queries[query_index]();
     printf("Running Query %d\n", query_index);
@@ -93,11 +146,26 @@ int main(int argc, char **argv) {
   } 
 #endif
 
-  int query_index = 0;
+#ifdef ZAKIR_BENCH_MISON
+  query_index = 0;
   while (queries[query_index]) {
     json_query_t query = queries[query_index]();
     printf("Running Query %d\n", query_index);
     bench_mison_engine(raw, length, query, query_index + 1);
     query_index++;
   } 
+#endif
+
+#ifdef ZAKIR_BENCH_SPARSER
+  query_index = 0;
+  while (squeries[query_index]) {
+    int count;
+    json_query_t jquery = queries[query_index]();
+    const char ** preds = squeries[query_index](&count);
+    printf("Running Query %d\n", query_index);
+
+    bench_sparser_engine(raw, length, jquery, preds, count, query_index + 1);
+    query_index++;
+  } 
+#endif
 }
