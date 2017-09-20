@@ -1,15 +1,40 @@
 package edu.stanford.sparser
 
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 object App {
+
+  val queryMap = Map("zakir1" -> "0",
+    "zakir2" -> "1",
+    "zakir3" -> "2",
+    "zakir4" -> "3",
+    "zakir5" -> "4",
+    "zakir6" -> "5",
+    "zakir7" -> "6",
+    "zakir8" -> "7",
+    "twitter1" -> "8")
+
+  def queryStrToFilterOp(spark: SparkSession, queryStr: String): (String) => DataFrame = {
+    import spark.implicits._
+    queryStr match {
+      case "0" =>
+        (input: String) => {
+          spark.read.format("json").load(input).filter($"text".contains("Putin") &&
+            $"text".contains("Russia"))
+        }
+      case "8" =>
+        (input: String) => {
+          spark.read.format("json").load(input).filter($"text".contains("Donald Trump") &&
+            $"created_at".contains("Sep 13"))
+        }
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder.appName("Sparser Spark").getOrCreate()
-    import spark.implicits._
     val numWorkers: Int = args(0).toInt
-    val filterStrs: String = args(1)
-    val projectionStrs: String = args(2)
-    val jsonFilename: String = args(3) // File in HDFS
+    val queryIndexStr: String = queryMap(args(1))
+    val jsonFilename: String = args(2)
     val numTrials: Int = args(4).toInt
     val runSparser: Boolean = args(5).equalsIgnoreCase("--sparser")
     val runSpark: Boolean = args(5).equalsIgnoreCase("--spark")
@@ -19,26 +44,25 @@ object App {
       if (runSparser) {
         () => {
           val df = spark.read.format("edu.stanford.sparser").options(
-            Map("filters" -> filterStrs, "projections" -> projectionStrs)).load(jsonFilename)
+            Map("query" -> queryIndexStr)).load(jsonFilename)
           println(df.count())
           println("Num partitions: " + df.rdd.getNumPartitions)
         }
       } else if (runSpark) {
-	() => {
-          val df = spark.read.format("json").load(jsonFilename)
-          println(df.filter($"text".contains("Putin") &&
-	    $"text".contains("Russia")).count())
-	  println(df.count())
+        val filterOp = queryStrToFilterOp(spark, queryIndexStr)
+        () => {
+          val df = filterOp(jsonFilename)
+          println(df.count())
           println("Num partitions: " + df.rdd.getNumPartitions)
-	}
+        }
       } else if (runHDFSTest) {
         () => {
-	  val rdd = spark.sparkContext.textFile(jsonFilename)
-	  println(rdd.count())
+          val rdd = spark.sparkContext.textFile(jsonFilename)
+          println(rdd.count())
           println("Num partitions: " + rdd.getNumPartitions)
         }
       } else {
-	throw new RuntimeException(args(5) + " is not a valid argument!")
+        throw new RuntimeException(args(5) + " is not a valid argument!")
       }
     }
 

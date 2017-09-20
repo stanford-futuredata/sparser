@@ -14,13 +14,13 @@ class Sparser(val recordSize: Long = 4, val maxRecords: Long = 128) {
   val buf = ByteBuffer.allocateDirect((maxRecords*recordSize).toInt)
   buf.order(ByteOrder.nativeOrder())
 
-  def parseJson(jsonFilename: String, start: Long, length: Long): Unit = {
+  def parseJson(jsonFilename: String, start: Long, length: Long, queryIndex: Int): Unit = {
     rawAddress = UnsafeAccess.getRawPointer(buf)
     println("In Scala, the address is " + "0x%08x".format(rawAddress))
     val before = System.currentTimeMillis()
     // invoke the native method
     recordsParsed = spNative.parse(jsonFilename, jsonFilename.length,
-      rawAddress, start, length, recordSize, maxRecords)
+      rawAddress, start, length, queryIndex, recordSize, maxRecords)
     val timeMs = System.currentTimeMillis() - before
     println("spNative.parse: " + timeMs / 1000.0)
     println("In Scala, records parsed: " + recordsParsed)
