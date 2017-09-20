@@ -372,16 +372,26 @@ _json_execution_helper(query_node_t *node, Value::ConstMemberIterator itr, void 
         case JSON_TYPE_BOOL:
                                if (node->filter) {
                                  passed = node->filter_callback.boolean_callback(itr->value.GetBool(), udata);
+																 #ifdef DEBUG
+																 if (!passed) fprintf(stderr, "Filter failed for %s\n", node->field_name);
+																 #endif
                                }
                                break;
         case JSON_TYPE_INT:
                                if (node->filter) {
                                  passed = node->filter_callback.integer_callback(itr->value.GetInt64(), udata);
+																 #ifdef DEBUG
+																 if (!passed) fprintf(stderr, "Filter failed for %s\n", node->field_name);
+																 #endif
                                }
                                break;
         case JSON_TYPE_STRING:
                                if (node->filter) {
                                  passed = node->filter_callback.string_callback(itr->value.GetString(), udata);
+#ifdef DEBUG
+																 if (!passed) fprintf(stderr, "Filter failed for %s\n", node->field_name);
+																 #endif
+
                                }
                                break;
         case JSON_TYPE_FLOAT:
@@ -409,7 +419,7 @@ _json_execution_helper(query_node_t *node, Value::ConstMemberIterator itr, void 
 
     // The field wasn't found.
     if (itr2 == obj.MemberEnd()) {
-#if DEBUG
+#ifdef DEBUG
       fprintf(stderr, "Error: Field %s not found\n", child->field_name);
 #endif
       return JSON_FAIL;
@@ -433,7 +443,7 @@ json_query_rapidjson_execution_engine(json_query_t query, const char *line, void
   d.Parse(line);
 
   if (d.HasParseError()) {
-#if DEBUG
+#ifdef DEBUG
     fprintf(stderr, "\nError(offset %u): %s\n", (unsigned)d.GetErrorOffset(),
         GetParseError_En(d.GetParseError()));
 #endif
@@ -445,7 +455,7 @@ json_query_rapidjson_execution_engine(json_query_t query, const char *line, void
     Value::ConstMemberIterator itr = d.FindMember(child->field_name);
     // The field wasn't found.
     if (itr == d.MemberEnd()) {
-#if DEBUG
+#ifdef DEBUG
       fprintf(stderr, "Error: Field %s not found\n", child->field_name);
 #endif
       return JSON_FAIL;

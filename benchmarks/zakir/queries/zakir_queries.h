@@ -106,8 +106,8 @@ json_passed_t q6_p110_pop3_starttls_banner(const char *value, void *data) {
 json_query_t
 zakir_query6() {
   json_query_t query = json_query_new();
-  json_query_add_string_filter(query, "q6.p110.pop3.starttls.banner", q6_p110_pop3_starttls_banner);
-  json_query_add_string_filter(query, "q6.p995.pop3s.tls.banner", q6_p995_pop3s_tls_banner);
+  json_query_add_string_filter(query, "p110.pop3.starttls.banner", q6_p110_pop3_starttls_banner);
+  json_query_add_string_filter(query, "p995.pop3s.tls.banner", q6_p995_pop3s_tls_banner);
   return query;
 }
 

@@ -31,6 +31,10 @@ double bench_rapidjson_engine(char *data, long length, json_query_t query, int q
     if (rapidjson_engine(query, line, NULL) == JSON_PASS) {
       matching++;
     }
+	
+		if (ptr)
+			*(ptr - 1) = '\n';
+
     doc_index++;
   }
 
@@ -47,7 +51,7 @@ int main(int argc, char **argv) {
   char *raw;
   long length;
 
-  const char *filename = "myfile";
+  const char *filename = "/lfs/1/sparser/04-25-2016-truncated.json";
   length = read_all(filename, &raw);
 
   int query_index = 0;
