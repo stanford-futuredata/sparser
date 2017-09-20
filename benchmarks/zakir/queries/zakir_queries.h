@@ -211,11 +211,11 @@ static const char **sparser_query8(int *count) {
 // *************************** QUERY 9  ****************************************
 
 // Checking for nullity
-json_passed_t q9_text(bool value, void *data) {
+json_passed_t q9_text(const char * value, void *data) {
     return strstr(value, "Donald Trump") ? JSON_PASS : JSON_FAIL;
 }
 
-json_passed_t q9_created_at(bool value, void *data) {
+json_passed_t q9_created_at(const char * value, void *data) {
     return strstr(value, "Sep 13") ? JSON_PASS : JSON_FAIL;
 }
 

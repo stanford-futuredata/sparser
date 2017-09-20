@@ -68,7 +68,7 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
     JNIEnv *env, jobject obj, jstring filename_java, jint filename_length,
     jlong buffer_addr, jlong start, jlong length, jint query_index,
     jlong record_size, jlong max_records) {
-    bench_timer_t start = time_start();
+    bench_timer_t start_time = time_start();
     // Convert the Java String (jstring) into C string (char*)
     char filename_c[filename_length];
     env->GetStringUTFRegion(filename_java, 0, filename_length, filename_c);
@@ -89,7 +89,7 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
 
     assert(num_records_parsed <= max_records);
 
-    const double time = time_stop(start);
+    const double time = time_stop(start_time);
     printf("Total Time in C++: %f\n", time);
     return num_records_parsed;
 }

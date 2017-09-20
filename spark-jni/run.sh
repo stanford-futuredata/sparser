@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-if [ "$#" -lt 3 ]; then
-    echo "At least three arguments required: [--local | --yarn] [HDFS file] [num trials] [--sparser (optional)]"
+if [ "$#" -lt 4 ]; then
+    echo "At least four arguments required: [--local | --yarn] [query ID] [HDFS file (default) or local file ('file:///')] [num trials] [--sparser | --spark | --hdfs ]"
     exit 1
 fi
 
@@ -22,5 +22,5 @@ set -x
 
 $SPARK_HOME/bin/spark-submit --class edu.stanford.sparser.App \
   --master $MASTER target/sparser-1.0.jar \
-  2 "Putin,Russia" "created_at,user.name" \
+   9 \
   ${@:2}
