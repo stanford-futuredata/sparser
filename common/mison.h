@@ -411,12 +411,35 @@ intptr_t mison_parse(const char *record, size_t length) {
   fprintf(stderr, "Record Length: %ld\n", length);
 #endif
 
+  const int levels = 6;
+
   struct character_bitmaps *b = build_character_bitmaps(record, length);
   uint64_t *quote_bitmap = build_structural_quote_bitmap(b);
 
-  build_string_mask_bitmap(quote_bitmap, b->words);
-  intptr_t x = (intptr_t)build_leveled_colon_bitmaps(b, 6);
-  intptr_t y = (intptr_t)build_leveled_comma_bitmaps(b, 6);
+  uint64_t *str_bm = build_string_mask_bitmap(quote_bitmap, b->words);
+  uint64_t **colon_res = build_leveled_colon_bitmaps(b, levels);
+  uint64_t **comma_res = build_leveled_comma_bitmaps(b, levels);
 
-  return x + y;
+  free(b->colon_bm);
+  free(b->rbrace_bm);
+  free(b->lbrace_bm);
+  free(b->backslash_bm);
+  free(b->quotes_bm);
+  free(b->rbracket_bm);
+  free(b->lbracket_bm);
+  free(b->comma_bm);
+  free(b);
+  free(quote_bitmap);
+
+  free(str_bm);
+
+  for (int i = 0; i < levels; i++) {
+    free(colon_res[i]);
+    free(comma_res[i]);
+  }
+
+  free(colon_res);
+  free(comma_res);
+
+  return (intptr_t)colon_res + (intptr_t)(comma_res) + (intptr_t)str_bm;
 }

@@ -8,6 +8,8 @@
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
 
+#include "mison.h"
+
 using namespace rapidjson;
 
 // The types available.
@@ -465,6 +467,15 @@ json_query_rapidjson_execution_engine(json_query_t query, const char *line, void
       return JSON_FAIL;
     }
   }
+  return JSON_PASS;
+}
+
+
+json_passed_t
+json_query_mison_execution_engine(json_query_t query, const char *line, void *udata) {
+  intptr_t parse_result = mison_parse(line, strlen(line));
+  if (parse_result == 0)
+    return JSON_FAIL;
   return JSON_PASS;
 }
 
