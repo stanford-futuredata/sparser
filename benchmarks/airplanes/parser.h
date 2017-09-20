@@ -11,6 +11,8 @@
 #include <string.h>
 #include <time.h>
 
+#define SHORTCIR
+
 typedef enum {
     AIRCRAFT_ID = 0,
     TAIL_NUMBER,
@@ -29,8 +31,8 @@ typedef struct {
     int active;
 
     // Unparsed.
-    int creation_date;
-    int modification_date;
+    char creation_date[128];
+    char modification_date[128];
 } aircraft_t;
 
 /** Parse a buffer representing the airplane SFO dataset into structs. */
@@ -70,10 +72,14 @@ int parse(char *input, aircraft_t **buf) {
 
             switch (column) {
                 case AIRCRAFT_ID:
+#ifdef SHORTCIR
                     a->aircraft_id = atoi(token);
+#endif
                     break;
                 case TAIL_NUMBER:
+#ifdef SHORTCIR
                     strncpy(a->tail_number, token, sizeof(a->tail_number));
+#endif
                     break;
                 case AIRCRAFT_MODEL:
                     strncpy(a->aircraft_model, token, sizeof(a->aircraft_model));
@@ -84,13 +90,21 @@ int parse(char *input, aircraft_t **buf) {
                 case STATUS:
                     a->active = (strcmp(token, "active") == 0);
                     break;
-                // Unparsed.
                 case CREATION_DATE:
+                    strncpy(a->creation_date, token, sizeof(a->creation_date));
+                    break;
                 case MOD_DATE:
+                    strncpy(a->modification_date, token, sizeof(a->modification_date));
+                    break;
                 default:
                     break;
             }
             column++;
+
+#ifdef SHORTCIR
+            // Short circuit optimization
+            if (column >= AIRLINE) break;
+#endif
 
             *line_scan = ',';
             token = line_scan + 1;

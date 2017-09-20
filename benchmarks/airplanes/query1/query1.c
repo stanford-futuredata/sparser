@@ -10,6 +10,7 @@
 #include "parser.h"
 #include "common.h"
 
+
 double baseline(const char *filename) {
     aircraft_t *data = NULL;
 
@@ -61,15 +62,10 @@ double baseline(const char *filename) {
 // Size of a single vector.
 #define VECSIZE 32
 
-double fast(const char *filename) {
+double fast(char *raw, long length, double sel) {
 
     // The  final result.
     int count = 0;
-
-    char *raw = NULL;
-    // Don't count disk load time.
-    // Returns number of bytes in the buffer.
-    long length = read_all(filename, &raw);
 
     long capacity = (2 << 25);
     aircraft_t *data = (aircraft_t *)malloc(sizeof(aircraft_t) * capacity);
@@ -77,10 +73,14 @@ double fast(const char *filename) {
     printf("%ld\n", length);
     bench_timer_t s = time_start();
 
-    const char *model = "B747-400";
+    const char *model = "747-400";
     const char *airline = "United Airlines";
     size_t len_airline = strlen(airline);
     size_t len_model = strlen(model);
+
+    long lsel = 1000 * sel;
+    __m256i b7 = _mm256_set1_epi16((unsigned short)"b7");
+    __m256i un = _mm256_set1_epi16((unsigned short)"un");
 
     // Current line.
     char *line = raw;
@@ -161,6 +161,7 @@ double fast(const char *filename) {
                             break;
                     }
 
+                    line[line_idx + j] = ',';
                     token = line + j + line_idx + 1;
                     line_imask &= ~(1 << line_idx);
                     token_index++;
@@ -197,6 +198,7 @@ end_token_processing:
             // End Token Processing. 
             ////////////
 
+            raw[idx + i] = '\n';
             line = raw + i + idx + 1;
             imask &= ~(1 << idx);
         }
@@ -205,15 +207,29 @@ end_token_processing:
     }
 
     double total = time_stop(s);
-    free(raw);
+
+    free(data);
 
     printf("%d (parse + query: %.3f)\n", count, total);
     return total;
 }
 
-int main() {
-    double a = baseline(path_for_data("airplanes_big.csv"));
-    double b = fast(path_for_data("airplanes_big.csv"));
+int main(int argc, char **argv) {
+    const char *filename = path_for_data("airplanes_big.csv");
+    char *raw = NULL;
+    long length = read_all(filename, &raw);
 
-    printf("Speedup: %.3f\n", a / b);
+    baseline(filename);
+
+    /*
+    fast(raw, length, 0.01);
+    fast(raw, length, 0.05);
+    fast(raw, length, 0.1);
+    fast(raw, length, 0.2);
+    fast(raw, length, 0.4);
+    fast(raw, length, 0.5);
+    fast(raw, length, 0.6);
+    fast(raw, length, 0.75);
+    fast(raw, length, 1.0);
+    */
 }
