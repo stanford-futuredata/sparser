@@ -20,8 +20,8 @@ object App {
     queryStr match {
       case "0" =>
         (input: String) => {
-          spark.read.format("json").load(input)//.filter($"p23.telnet.banner.banner" != null &&
-            // $"autonomous_system.asn" == 9318)
+          spark.read.format("json").load(input).filter($"autonomous_system.asn" === 9318 &&
+            "p23.telnet.banner.banner is not null")
         }
 
      case "1" =>
@@ -31,13 +31,13 @@ object App {
 
      case "2" =>
         (input: String) => {
-          spark.read.format("json").load(input)//.filter($"autonomous_system.asn" == 2516)
+          spark.read.format("json").load(input).filter($"autonomous_system.asn" === 2516)
         }
 
      case "3" =>
         (input: String) => {
-          spark.read.format("json").load(input)//.filter($"location.country".equals("Chile") &&
-            // $"p80.http.get.status_code" != null)
+          spark.read.format("json").load(input).filter($"location.country" === "Chile" &&
+            "p80.http.get.status_code is not null")
         }
 
      case "4" =>
@@ -47,8 +47,8 @@ object App {
 
      case "5" =>
         (input: String) => {
-          spark.read.format("json").load(input)//.filter($"p110.pop3.starttls.banner" != null &&
-            // $"p995.pop3s.tls.banner" != null)
+          spark.read.format("json").load(input).filter("p110.pop3.starttls.banner is not null")
+              .filter("p995.pop3s.tls.banner is not null")
         }
 
      case "6" =>
@@ -58,7 +58,7 @@ object App {
 
      case "7" =>
         (input: String) => {
-          spark.read.format("json").load(input)//.filter($"p20000.dnp3.status.support" == true)
+          spark.read.format("json").load(input).filter($"p20000.dnp3.status.support" === true)
         }
 
       case "8" =>

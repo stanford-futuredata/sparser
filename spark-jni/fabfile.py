@@ -6,12 +6,21 @@ GIT_PROMPT = {
     'Are you sure you want to continue connecting (yes/no)? ': 'yes',
 }
 
+@parallel
+def clear_buffer_cache():
+    run("free && sync && sudo sh -c 'echo 1 >/proc/sys/vm/drop_caches' && free")
+
+
+@parallel
+def move_file_to_ssd(filename):
+    run('sudo mv %s /mnt/1/sparser/%s' % (filename, filename))
+
 
 @parallel
 def download_data(pool_size=3):
     for filename in DATASETS_TO_BENCHMARK:
         run('gsutil -m -o GSUtil:parallel_composite_upload_threshold=150M cp \
-                gs://sparser/%s .' % filename)
+                gs://sparser/%s /mnt/1/%s' % (filename, filename))
 
 
 @runs_once
@@ -24,7 +33,7 @@ def put_data_on_hdfs():
 def build_sparser(code_dir):
     with cd('%s/spark-jni' % code_dir):
         run('git pull origin master')
-        run('make clean && make')
+        run('mvn clean && mvn package')
     run('sudo ln -sfn %s/spark-jni/libsparser.so /usr/lib/libsparser.so' %
         code_dir)
 
@@ -34,6 +43,10 @@ def get_sparser_code(code_dir):
     run('rm -rf sparser')
     with settings(prompts=GIT_PROMPT):
         run('git clone git@github.com:sppalkia/sparser.git %s' % code_dir)
+
+
+def ls(path):
+    run('ls -l %s' % path)
 
 
 def push_ssh_key():
@@ -86,6 +99,7 @@ def install_config():
 @parallel
 def setup():
     code_dir = '/home/fabuzaid21/sparser'
+    run('sudo mkdir -p /mnt/1/sparser')
     push_ssh_key()
     install_libs()
     install_config()
