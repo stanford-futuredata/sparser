@@ -22,5 +22,5 @@ set -x
 
 $SPARK_HOME/bin/spark-submit --class edu.stanford.sparser.App \
   --master $MASTER target/sparser-1.0.jar \
-   9 \
+   10 \
   ${@:2}
