@@ -31,7 +31,7 @@ long bench_sparser_spark(const char *filename_uri, const unsigned long start,
   char *raw = NULL;
   unsigned long length = 0;
   printf("Start: %lu\n", start);
-  printf("Length: %lu\n", length);
+  printf("Length: %lu\n", file_length);
   if (strncmp("hdfs://", filename_uri, 7) == 0) {
     bench_timer_t t = time_start();
     length = read_hdfs(filename_uri, &raw, start, file_length);

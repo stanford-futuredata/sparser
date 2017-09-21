@@ -4,7 +4,7 @@
 #include <iostream>
 #include "bench_json.h"
 #include "common.h"
-#include "zakir_queries.h"
+#include "queries.h"
 #ifdef USE_HDFS
 #include <hdfs/hdfs.h>
 #endif
@@ -19,7 +19,7 @@ using namespace rapidjson;
 hdfsFS fs;
 
 typedef struct callback_info {
-    long ptr;
+    unsigned long ptr;
     json_query_t query;
     long count;
     long capacity;

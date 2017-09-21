@@ -1,10 +1,14 @@
 #ifndef _ZAKIR_QUERIES_H_
 #define _ZAKIR_QUERIES_H_
 
-#include "zakir_common.h"
+#include "json_projection.h"
+
+// The RapidJSON query engine.
+json_query_engine_t rapidjson_engine = json_query_rapidjson_execution_engine;
+json_query_engine_t mison_engine = json_query_mison_execution_engine;
 
 typedef json_query_t (*zakir_query_t)();
-typedef const char **(*sparser_query_preds_t)(int *);
+typedef const char **(*sparser_zakir_query_preds_t)(int *);
 
 #define ZAKIR_BENCH_SPARSER
 
@@ -28,7 +32,7 @@ json_query_t zakir_query1() {
     return query;
 }
 
-static const char **sparser_query1(int *count) {
+static const char **sparser_zakir_query1(int *count) {
     static const char *_1 = "9318";
     static const char *predicates[] = {_1, NULL};
 
@@ -52,7 +56,7 @@ json_query_t zakir_query2() {
     return query;
 }
 
-static const char **sparser_query2(int *count) {
+static const char **sparser_zakir_query2(int *count) {
     static const char *_1 = "wordpress 3.5.1";
     static const char *predicates[] = {_1, NULL};
 
@@ -73,7 +77,7 @@ json_query_t zakir_query3() {
     return query;
 }
 
-static const char **sparser_query3(int *count) {
+static const char **sparser_zakir_query3(int *count) {
     static const char *_1 = "2516";
     static const char *predicates[] = {_1, NULL};
 
@@ -101,7 +105,7 @@ json_query_t zakir_query4() {
     return query;
 }
 
-static const char **sparser_query4(int *count) {
+static const char **sparser_zakir_query4(int *count) {
     static const char *_1 = "Chile";
     static const char *_2 = "status_code";
     static const char *predicates[] = {_1, _2, NULL};
@@ -123,7 +127,7 @@ json_query_t zakir_query5() {
     return query;
 }
 
-static const char **sparser_query5(int *count) {
+static const char **sparser_zakir_query5(int *count) {
     static const char *_1 = "DIR-300";
     static const char *predicates[] = {_1, NULL};
 
@@ -152,7 +156,7 @@ json_query_t zakir_query6() {
     return query;
 }
 
-static const char **sparser_query6(int *count) {
+static const char **sparser_zakir_query6(int *count) {
     static const char *_1 = "p110";
     static const char *_2 = "p995";
     static const char *_3 = "pop3s";
@@ -177,7 +181,7 @@ json_query_t zakir_query7() {
     return query;
 }
 
-static const char **sparser_query7(int *count) {
+static const char **sparser_zakir_query7(int *count) {
     static const char *_1 = "Seagate Central Shared";
     static const char *predicates[] = {_1, NULL};
 
@@ -199,7 +203,7 @@ json_query_t zakir_query8() {
     return query;
 }
 
-static const char **sparser_query8(int *count) {
+static const char **sparser_zakir_query8(int *count) {
     static const char *_1 = "p20000";
     static const char *_2 = "dnp3";
     static const char *predicates[] = {_1, _2, NULL};
@@ -228,7 +232,7 @@ json_query_t twitter_query1() {
     return query;
 }
 
-static const char **sparser_query9(int *count) {
+static const char **sparser_twitter_query1(int *count) {
     static const char *_1 = "Donald Trump";
     static const char *_2 = "Sep 13";
     static const char *predicates[] = {_1, _2, NULL};
@@ -241,9 +245,9 @@ static const char **sparser_query9(int *count) {
 const zakir_query_t queries[] = {zakir_query1, zakir_query2, zakir_query3,
                                  zakir_query4, zakir_query5, zakir_query6,
                                  zakir_query7, zakir_query8, twitter_query1, NULL};
-const sparser_query_preds_t squeries[] = {
-    sparser_query1, sparser_query2, sparser_query3,
-    sparser_query4, sparser_query5, sparser_query6,
-    sparser_query7, sparser_query8, sparser_query9, NULL};
+const sparser_zakir_query_preds_t squeries[] = {
+    sparser_zakir_query1, sparser_zakir_query2, sparser_zakir_query3,
+    sparser_zakir_query4, sparser_zakir_query5, sparser_zakir_query6,
+    sparser_zakir_query7, sparser_zakir_query8, sparser_twitter_query1, NULL};
 
 #endif

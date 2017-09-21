@@ -1,6 +1,6 @@
 
 #include "json_projection.h"
-#include "zakir_queries.h"
+#include "queries.h"
 #include "common.h"
 
 #include "sparser.h"

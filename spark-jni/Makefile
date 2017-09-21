@@ -7,8 +7,7 @@ LIBRARIES=-L../common/libhdfs/lib -lhdfs3
 INCLUDES=-I$(JAVA_HOME)/include \
 	 -I../common \
 	 -I../common/libhdfs/include \
-	 -I../common/rapidjson/include \
-	 -I../benchmarks/zakir/queries
+	 -I../common/rapidjson/include
 
 ifeq ($(UNAME),Linux)
   INCLUDES += -I$(JAVA_HOME)/include/linux
