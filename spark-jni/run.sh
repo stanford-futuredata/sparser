@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 if [ "$#" -lt 4 ]; then
-    echo "At least four arguments required: [--local | --yarn] [query ID] [HDFS file (default) or local file ('file:///')] [num trials] [--sparser | --spark | --hdfs ]"
+    echo "At least four arguments required: [--local | --yarn] [query ID] [HDFS file (default) or local file ('file:///')] [num trials] [--sparser | --spark | --read-only ]"
     exit 1
 fi
 

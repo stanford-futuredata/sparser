@@ -77,7 +77,7 @@ object App {
     val numTrials: Int = args(3).toInt
     val runSparser: Boolean = args(4).equalsIgnoreCase("--sparser")
     val runSpark: Boolean = args(4).equalsIgnoreCase("--spark")
-    val runHDFSTest: Boolean = args(4).equalsIgnoreCase("--hdfs")
+    val runReadOnly: Boolean = args(4).equalsIgnoreCase("--read-only")
 
     val timeParser: () => Unit = {
       if (runSparser) {
@@ -94,7 +94,7 @@ object App {
           println(df.count())
           println("Num partitions: " + df.rdd.getNumPartitions)
         }
-      } else if (runHDFSTest) {
+      } else if (runReadOnly) {
         () => {
           val rdd = spark.sparkContext.textFile(jsonFilename)
           println(rdd.count())
