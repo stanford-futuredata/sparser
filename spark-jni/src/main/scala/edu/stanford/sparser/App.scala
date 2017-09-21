@@ -20,13 +20,14 @@ object App {
     queryStr match {
       case "0" =>
         (input: String) => {
-          spark.read.format("json").load(input).filter($"autonomous_system.asn" === 9318 &&
+          spark.read.format("json").load(input).filter($"autonomous_system.asn" === 9318).filter(
             "p23.telnet.banner.banner is not null")
         }
 
      case "1" =>
         (input: String) => {
-          spark.read.format("json").load(input).filter($"p80.http.get.body".contains("content=\"wordpress 3.51\"")) 
+          spark.read.format("json").load(input).filter($"p80.http.get.body".contains("content=\"wordpress 4.51\""))
+
         }
 
      case "2" =>
@@ -36,7 +37,7 @@ object App {
 
      case "3" =>
         (input: String) => {
-          spark.read.format("json").load(input).filter($"location.country" === "Chile" &&
+          spark.read.format("json").load(input).filter($"location.country" === "Chile").filter(
             "p80.http.get.status_code is not null")
         }
 
