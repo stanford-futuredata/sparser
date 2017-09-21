@@ -1,6 +1,6 @@
 CC=clang++
 CFLAGS=-std=c++11 -march=native -Wall -Wno-unused-function
-INCLUDES=-I.. -I../../../common -I ../../../common/rapidjson/include
+INCLUDES=-I.. -I../../../common -I ../../../common/rapidjson/include -I../../../common/aho_corasick/src/aho_corasick
 
 .PHONY: all debug asm clean
 

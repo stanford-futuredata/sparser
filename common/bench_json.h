@@ -10,6 +10,8 @@
 
 #include "json_projection.h"
 
+#include "aho_corasick.hpp"
+
 typedef sparser_callback_t parser_t;
 
 #ifdef USE_HDFS
@@ -103,13 +105,53 @@ double bench_sparser(const char *filename, const char **predicates,
   parse_time += time_stop(s);
 
   printf("%s\n", sparser_format_stats(stats));
-  printf("Total Runtime: %f seconds\n", parse_time);
+  printf("SPARSER Total Runtime: %f seconds\n", parse_time);
 
   free(query);
   free(stats);
   free(raw);
 
   return parse_time;
+}
+
+double bench_ac(const char *filename, const char **predicates,
+                      int num_predicates, parser_t callback, void *callback_ctx) {
+  char *data, *line;
+  read_all(filename, &data);
+  int doc_index = 1;
+  long matching = 0;
+  long ac_passed = 0;
+
+  bench_timer_t s = time_start();
+
+  aho_corasick::trie trie;
+  for (int i = 0; i < num_predicates; i++) {
+    trie.insert(predicates[i]);
+  }
+
+
+  char *ptr = data;
+  while ((line = strsep(&ptr, "\n")) != NULL) {
+    auto result = trie.parse_text(line);
+    if (result.size() == num_predicates) {
+      ac_passed++;
+      if (callback(line, callback_ctx)) {
+        matching++;
+      }
+    }
+    doc_index++;
+  }
+
+  double elapsed = time_stop(s);
+  printf("AC Passed: %ld\nRecords Passed:%ld\nFalse Positives:%ld\n",
+      ac_passed, matching, ac_passed-matching);
+  printf("AHO-CORASICK Passing Elements: %d of %d records (%.3f seconds)\n", matching,
+         doc_index, elapsed);
+
+
+  free(ptr);
+
+  return elapsed;
 }
 
 /* Times splitting the input by newline and calling the full parser on each
@@ -137,7 +179,7 @@ double bench_rapidjson(const char *filename, parser_t callback, void *callback_c
   }
 
   double elapsed = time_stop(s);
-  printf("Passing Elements: %d of %d records (%.3f seconds)\n", matching,
+  printf("JSON PARSER Passing Elements: %d of %d records (%.3f seconds)\n", matching,
          doc_index, elapsed);
 
   free(ptr);

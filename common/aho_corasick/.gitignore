@@ -1,0 +1,17 @@
+# Generated files
+src/served/version.hpp
+*.o
+build
+
+# Hideous eclipse
+.autotools
+.cproject
+.project
+.settings/
+
+# Vim - YouCompleteMe
+.ycm_extra_conf.py
+.ycm_extra_conf.pyc
+
+bin
+lib

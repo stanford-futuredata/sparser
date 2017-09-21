@@ -20,7 +20,7 @@
 using namespace rapidjson;
 
 // The query strings.
-const char *TEXT = "Putin";
+const char *TEXT = "Donald Trump";
 const char *TEXT2 = "Russia";
 
 // Data passed to parser callback in this query.
@@ -107,6 +107,7 @@ int main() {
   pd.ids = (int64_t *)malloc(sizeof(int64_t) * pd.capacity);
 
   double a = bench_sparser(filename, (const char **)predicates, 2, rapidjson_parse, &pd);
+  double c = bench_ac(filename, (const char **)predicates, 2, rapidjson_parse, &pd);
 
   printf("IDs from sparser\n");
   for (int i = 0; i < pd.count; i++) {

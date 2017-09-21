@@ -1,4 +1,7 @@
 
+#ifndef _MISON_H_
+#define _MISON_H_
+
 #include <stack>
 
 #include <immintrin.h>
@@ -443,3 +446,5 @@ intptr_t mison_parse(const char *record, size_t length) {
 
   return (intptr_t)colon_res + (intptr_t)(comma_res) + (intptr_t)str_bm;
 }
+
+#endif
