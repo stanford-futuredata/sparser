@@ -7,9 +7,9 @@ fi
 
 CLUSTER_NAME=$1
 COMMAND=${2:-setup}
+INSTANCES=`gcloud compute instances list --filter=${CLUSTER_NAME} | tr -s ' ' | cut -d ' ' -f  5 | grep -v INTERNAL_IP | tr -s '\n' ','`
+INSTANCES=${INSTANCES::${#INSTANCES}-1}
 
 set -x 
 
-gcloud compute instances list --filter=${CLUSTER_NAME} | tr -s ' ' | cut -d ' ' -f \
-  5 | grep -v INTERNAL_IP | xargs -I {} fab -i ~/.ssh/google_compute_engine -H {} \
-  -P $COMMAND
+fab -i ~/.ssh/google_compute_engine -H $INSTANCES -P $COMMAND

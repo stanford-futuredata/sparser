@@ -20,24 +20,25 @@ object App {
     queryStr match {
       case "0" =>
         (input: String) => {
-          spark.read.format("json").load(input).filter($"p23.telnet.banner.banner" != null &&
-            $"autonomous_system.asn" == 9318)
+          spark.read.format("json").load(input).filter($"autonomous_system.asn" === 9318).filter(
+            "p23.telnet.banner.banner is not null")
         }
 
      case "1" =>
         (input: String) => {
-          spark.read.format("json").load(input).filter($"p80.http.get.body".contains("content=\"wordpress 3.51\"")) 
+          spark.read.format("json").load(input).filter($"p80.http.get.body".contains("content=\"wordpress 4.51\""))
+
         }
 
      case "2" =>
         (input: String) => {
-          spark.read.format("json").load(input).filter($"autonomous_system.asn" == 2516)
+          spark.read.format("json").load(input).filter($"autonomous_system.asn" === 2516)
         }
 
      case "3" =>
         (input: String) => {
-          spark.read.format("json").load(input).filter($"location.country".equals("Chile") &&
-            $"p80.http.get.status_code" != null)
+          spark.read.format("json").load(input).filter($"location.country" === "Chile").filter(
+            "p80.http.get.status_code is not null")
         }
 
      case "4" =>
@@ -47,8 +48,8 @@ object App {
 
      case "5" =>
         (input: String) => {
-          spark.read.format("json").load(input).filter($"p110.pop3.starttls.banner" != null &&
-            $"p995.pop3s.tls.banner" != null)
+          spark.read.format("json").load(input).filter("p110.pop3.starttls.banner is not null")
+              .filter("p995.pop3s.tls.banner is not null")
         }
 
      case "6" =>
@@ -58,13 +59,13 @@ object App {
 
      case "7" =>
         (input: String) => {
-          spark.read.format("json").load(input).filter($"p20000.dnp3.status.support" == true)
+          spark.read.format("json").load(input).filter($"p20000.dnp3.status.support" === true)
         }
 
       case "8" =>
         (input: String) => {
           spark.read.format("json").load(input).filter($"text".contains("Donald Trump") &&
-            $"created_at".contains("Sep 13"))
+            $"created_at".contains("Sep 13")).select($"user.id")
         }
     }
   }
@@ -74,10 +75,10 @@ object App {
     val numWorkers: Int = args(0).toInt
     val queryIndexStr: String = queryMap(args(1))
     val jsonFilename: String = args(2)
-    val numTrials: Int = args(4).toInt
-    val runSparser: Boolean = args(5).equalsIgnoreCase("--sparser")
-    val runSpark: Boolean = args(5).equalsIgnoreCase("--spark")
-    val runHDFSTest: Boolean = args(5).equalsIgnoreCase("--hdfs")
+    val numTrials: Int = args(3).toInt
+    val runSparser: Boolean = args(4).equalsIgnoreCase("--sparser")
+    val runSpark: Boolean = args(4).equalsIgnoreCase("--spark")
+    val runReadOnly: Boolean = args(4).equalsIgnoreCase("--read-only")
 
     val timeParser: () => Unit = {
       if (runSparser) {
@@ -94,7 +95,7 @@ object App {
           println(df.count())
           println("Num partitions: " + df.rdd.getNumPartitions)
         }
-      } else if (runHDFSTest) {
+      } else if (runReadOnly) {
         () => {
           val rdd = spark.sparkContext.textFile(jsonFilename)
           println(rdd.count())

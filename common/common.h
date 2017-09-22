@@ -128,6 +128,7 @@ long read_local(const char *filename_uri, char **buf, unsigned long start,
         exit(1);
     }
 
+    fseek(f, start, SEEK_SET);
     char *string = (char *)malloc(length + 1);
     fread(string, length, 1, f);
     fclose(f);

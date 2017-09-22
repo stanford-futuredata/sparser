@@ -5,9 +5,9 @@ CFLAGS=-c -std=c++11 -fPIC -march=native -O3 -Wall -DUSE_HDFS
 LDFLAGS=-shared -Wl
 LIBRARIES=-L../common/libhdfs/lib -lhdfs3
 INCLUDES=-I$(JAVA_HOME)/include \
+	 -I../common \
 	 -I../common/libhdfs/include \
-	 -I../common/rapidjson/include \
-	 -I../common
+	 -I../common/rapidjson/include
 
 ifeq ($(UNAME),Linux)
   INCLUDES += -I$(JAVA_HOME)/include/linux
