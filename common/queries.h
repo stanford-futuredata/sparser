@@ -243,7 +243,7 @@ json_passed_t twitter_q1_user_id_proj(int64_t value, void *data) {
 json_query_t twitter_query1() {
     json_query_t query = json_query_new();
     json_query_add_string_filter(query, "text", twitter_q1_text);
-    // json_query_add_string_filter(query, "created_at", twitter_q1_created_at);
+    json_query_add_string_filter(query, "created_at", twitter_q1_created_at);
     json_query_add_integer_filter(query, "user.id", twitter_q1_user_id_proj);
     return query;
 }
