@@ -126,7 +126,7 @@ static const char **sparser_zakir_query4(int *count) {
 // ************************ ZAKIR QUERY 5 **************************
 
 json_passed_t zakir_q5_p80_http_get_headers_server(const char *value, void *) {
-    return (strstr(value, "DIR-300") == 0) ? JSON_PASS : JSON_FAIL;
+    return strstr(value, "DIR-300") ? JSON_PASS : JSON_FAIL;
 }
 
 json_query_t zakir_query5() {
@@ -224,7 +224,6 @@ static const char **sparser_zakir_query8(int *count) {
 // ************************ TWITTER QUERY 1 **************************
 typedef struct twitter_q1_proj { long user_id; } twitter_q1_proj_t;
 
-// Checking for nullity
 json_passed_t twitter_q1_text(const char *value, void *) {
     return strstr(value, "Donald Trump") ? JSON_PASS : JSON_FAIL;
 }

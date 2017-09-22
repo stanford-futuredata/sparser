@@ -19,7 +19,7 @@ using namespace rapidjson;
 hdfsFS fs;
 
 // Performs a full parse of the query using RapidJSON
-int rapidjson_parse_callback(const char *line, void *thunk) {
+int full_parser_callback(const char *line, void *thunk) {
     callback_info_t *info = (callback_info_t *)thunk;
     json_query_t query = info->query;
 
@@ -56,7 +56,7 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
 
     const long num_records_parsed =
         bench_sparser_spark(filename_c, start, length, preds, count,
-                            rapidjson_parse_callback, &ctx);
+                            full_parser_callback, &ctx);
 
     assert(num_records_parsed <= max_records);
 
