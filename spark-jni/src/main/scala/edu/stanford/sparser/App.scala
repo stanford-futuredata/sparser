@@ -65,7 +65,7 @@ object App {
       case "8" =>
         (input: String) => {
           spark.read.format("json").load(input).filter($"text".contains("Donald Trump") &&
-            $"created_at".contains("Sep 13"))
+            $"created_at".contains("Sep 13")).select($"user.id")
         }
     }
   }

@@ -18,56 +18,25 @@ using namespace rapidjson;
 
 hdfsFS fs;
 
-typedef struct callback_info {
-    unsigned long ptr;
-    json_query_t query;
-    long count;
-    long capacity;
-} callback_info_t;
-
-// Performs a parse of the query using RapidJSON. Returns true if all the
-// predicates match.
-int parse_putin_russia(const char *line, void *data) {
-    Document d;
-    d.Parse(line);
-    if (d.HasParseError()) {
-        fprintf(stderr, "\nError(offset %u): %s\n",
-                (unsigned)d.GetErrorOffset(),
-                GetParseError_En(d.GetParseError()));
-        fprintf(stderr, "Error line: %s", line);
-        return false;
-    }
-
-    Value::ConstMemberIterator itr = d.FindMember("text");
-    if (itr == d.MemberEnd()) {
-        // The field wasn't found.
-        return false;
-    }
-    if (strstr(itr->value.GetString(), "Putin") == NULL) {
-        return false;
-    }
-
-    if (strstr(itr->value.GetString(), "Russia") == NULL) {
-        return false;
-    }
-
-    // ToDo: Save projected fields instead of row indices
-    return true;
-}
-
+// Performs a full parse of the query using RapidJSON
 int rapidjson_parse_callback(const char *line, void *thunk) {
     callback_info_t *info = (callback_info_t *)thunk;
     json_query_t query = info->query;
 
     if (!thunk) return 1;
 
-    return rapidjson_engine(query, line, NULL);
+    const int ret = rapidjson_engine(query, line, thunk);
+    if (ret)
+        // IMPT: increment count, so we know which row to
+        // write to for the projections
+        info->count++;
+    return ret;
 }
 
 JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
-    JNIEnv *env, jobject obj, jstring filename_java, jint filename_length,
-    jlong buffer_addr, jlong start, jlong length, jint query_index,
-    jlong record_size, jlong max_records) {
+    JNIEnv *env, jobject, jstring filename_java, jint filename_length,
+    jlong buffer_addr, jlong start, jlong length, jint query_index, jlong,
+    jlong max_records) {
     bench_timer_t start_time = time_start();
     // Convert the Java String (jstring) into C string (char*)
     char filename_c[filename_length];
@@ -76,11 +45,13 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
 
     // Benchmark Sparser
     int count;
-    json_query_t jquery = queries[query_index]();
+    json_query_t query = queries[query_index]();
     const char **preds = squeries[query_index](&count);
 
     callback_info_t ctx;
-    ctx.query = jquery;
+    ctx.query = query;
+    ctx.count = 0;
+    ctx.capacity = max_records;
     ctx.ptr = buffer_addr;
 
     const long num_records_parsed =
@@ -95,11 +66,11 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
 }
 
 // TODO: don't hardcode HDFS hostname and port
-JNIEXPORT void JNICALL
-Java_edu_stanford_sparser_SparserNative_init(JNIEnv *env, jclass clazz) {
+JNIEXPORT void JNICALL Java_edu_stanford_sparser_SparserNative_init(JNIEnv *,
+                                                                    jclass) {
     printf("In C++, init called\n");
     // connect to NameNode
-    // setenv("LIBHDFS3_CONF", "/etc/hadoop/conf/hdfs-site.xml", 1);
+    setenv("LIBHDFS3_CONF", "/etc/hadoop/conf/hdfs-site.xml", 1);
     struct hdfsBuilder *builder = hdfsNewBuilder();
     hdfsBuilderSetNameNode(builder, "sparser-m");
     hdfsBuilderSetNameNodePort(builder, 8020);
