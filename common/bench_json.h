@@ -145,7 +145,7 @@ double bench_ac(const char *filename, const char **predicates,
   double elapsed = time_stop(s);
   printf("AC Passed: %ld\nRecords Passed:%ld\nFalse Positives:%ld\n",
       ac_passed, matching, ac_passed-matching);
-  printf("AHO-CORASICK Passing Elements: %d of %d records (%.3f seconds)\n", matching,
+  printf("AHO-CORASICK Passing Elements: %ld of %d records (%.3f seconds)\n", matching,
          doc_index, elapsed);
 
 
