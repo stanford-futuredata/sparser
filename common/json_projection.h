@@ -156,7 +156,7 @@ void json_node_print(query_node_t *node) {
                 printf("%s", node->filter_value.string);
                 break;
             case JSON_TYPE_INT:
-                printf("%lld", node->filter_value.integer);
+                printf("%ld", node->filter_value.integer);
             case JSON_TYPE_BOOL:
                 printf("%s", node->filter_value.boolean ? "true" : "false");
             default:
