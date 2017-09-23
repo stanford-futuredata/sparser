@@ -175,11 +175,6 @@ object Queries {
   def queryStrToQuery(spark: SparkSession, queryStr: String): (DataFrame) => Long = {
     import spark.implicits._
     queryStr match {
-      case _ =>
-        // for most of the queries, we simply return the global count
-        (df: DataFrame) => {
-          df.count()
-        }
       case "8" =>
         /**
           * SELECT autonomous_system.asn, count(ipint) AS count
@@ -220,7 +215,11 @@ object Queries {
         (df: DataFrame) => {
           df.distinct().count()
         }
-
+      case _ =>
+        // for most of the queries, we simply return the global count
+        (df: DataFrame) => {
+          df.count()
+        }
     }
 
   }
