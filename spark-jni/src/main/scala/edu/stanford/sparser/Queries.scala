@@ -1,5 +1,6 @@
 package edu.stanford.sparser
 
+import org.apache.spark.sql.types.{IntegerType, LongType, StructType}
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
 
 object Queries {
@@ -221,7 +222,45 @@ object Queries {
           df.count()
         }
     }
+  }
 
+  def queryStrToSchema(queryStr: String): StructType = {
+    queryStr match {
+      case "8" =>
+        /**
+          * SELECT autonomous_system.asn, count(ipint) AS count
+          * FROM ipv4.20160425
+          * WHERE autonomous_system.name CONTAINS 'Verizon'
+          * GROUP BY autonomous_system.asn;
+          */
+        new StructType().add("asn", IntegerType).add("ipint", IntegerType)
+      case "9" =>
+        /**
+          * SELECT autonomous_system.asn AS asn, COUNT(ipint) AS hosts
+          * FROM ipv4.20160425
+          * WHERE p502.modbus.device_id.function_code is not NULL
+          * GROUP BY asn ORDER BY asn DESC;
+          */
+        new StructType().add("asn", IntegerType).add("ipint", IntegerType)
+      case "11" =>
+        /**
+          * SELECT user.id, SUM(retweet_count)
+          * FROM tweets
+          * WHERE text contains "Obama"
+          *  GROUP BY user.id;
+          */
+        new StructType().add("id", LongType).add("retweet_count", IntegerType)
+      case "13" =>
+        /**
+          * SELECT distinct user.id
+          * FROM tweets
+          * WHERE text contains @realDonaldTrump;
+          */
+        new StructType().add("id", LongType)
+      case _ =>
+        // Default value for every other query
+        new StructType().add("value", LongType)
+    }
   }
 
 }

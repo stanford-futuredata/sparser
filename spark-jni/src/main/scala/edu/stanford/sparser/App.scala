@@ -35,14 +35,16 @@ object App {
         val queryOp = Queries.queryStrToQuery(spark, queryIndexStr)
         () => {
           var start = System.currentTimeMillis()
-          val df = spark.read.format("edu.stanford.sparser").options(
-            Map("query" -> queryIndexStr)).load(jsonFilename)
-          df.cache()
+          val df = spark.read.format("edu.stanford.sparser")
+            .schema(Queries.queryStrToSchema(queryIndexStr))
+            .options(Map("query" -> queryIndexStr))
+            .load(jsonFilename)
+          println("Num JSON rows: " + df.count())
           val parseTime = System.currentTimeMillis() - start
           println("Parse Time: " + parseTime / 1000.0)
 
           start = System.currentTimeMillis()
-          println(queryOp(df))
+          println("Num Query Results rows: " + queryOp(df))
           val queryTime = System.currentTimeMillis() - start
           println("Query Time: " + queryTime / 1000.0)
 

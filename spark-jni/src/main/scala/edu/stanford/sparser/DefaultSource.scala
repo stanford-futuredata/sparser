@@ -27,7 +27,7 @@ import org.apache.spark.sql.catalyst.util.{CaseInsensitiveMap, CompressionCodecs
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.execution.datasources.text.TextFileFormat
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
-import org.apache.spark.sql.types.{StringType, StructType}
+import org.apache.spark.sql.types._
 import org.slf4j.LoggerFactory
 
 import scala.util.control.NonFatal
@@ -44,13 +44,14 @@ private[sparser] class DefaultSource extends TextFileFormat with DataSourceRegis
 
 
   private def verifySchema(schema: StructType): Unit = {
-    val tpe = schema(0).dataType
   }
 
+  // For now, default schema is a single column of type Long
   override def inferSchema(
                             sparkSession: SparkSession,
                             options: Map[String, String],
-                            files: Seq[FileStatus]): Option[StructType] = Some(new StructType().add("value", StringType))
+                            files: Seq[FileStatus]): Option[StructType] = Some(new StructType().add("value", LongType))
+
 
   override def prepareWrite(
                              sparkSession: SparkSession,
@@ -89,39 +90,29 @@ private[sparser] class DefaultSource extends TextFileFormat with DataSourceRegis
                             options: Map[String, String],
                             hadoopConf: Configuration): PartitionedFile => Iterator[InternalRow] = {
 
-    val broadcastedHadoopConf =
-      sparkSession.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
+    // val broadcastedHadoopConf =
+    //   sparkSession.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
+
+        val recordSize: Int = dataSchema.fields.map { field =>
+          field.dataType match {
+            case ByteType => 1
+            case ShortType => 2
+            case IntegerType => 4
+            case FloatType => 4
+            case BooleanType => 4
+            case LongType => 8
+            case DoubleType => 8
+            case _ =>
+              throw new RuntimeException(field.dataType + " not supported in Sparser!")
+          }
+        }.sum
 
     (file: PartitionedFile) => {
       println(file.filePath)
-      // println("Start: " + file.start)
-      // println("Length: " + file.length)
       val queryIndex = options("query").toInt
-      val sp = new Sparser()
+      val sp = new Sparser(recordSize)
       sp.parseJson(file.filePath, file.start, file.length, queryIndex)
       sp.iterator()
-
-      // val reader = new HadoopFileLinesReader(file, broadcastedHadoopConf.value.value)
-      // println("after reader")
-      // Option(TaskContext.get()).foreach(_.addTaskCompletionListener(_ => reader.close()))
-
-      // println("after foreach")
-      // if (requiredSchema.isEmpty) {
-      //   val emptyUnsafeRow = new UnsafeRow(0)
-      //   reader.map(_ => emptyUnsafeRow)
-      // } else {
-      //   val unsafeRow = new UnsafeRow(1)
-      //   val bufferHolder = new BufferHolder(unsafeRow)
-      //   val unsafeRowWriter = new UnsafeRowWriter(bufferHolder, 1)
-
-      //   reader.map { line =>
-      //     // Writes to an UnsafeRow directly
-      //     bufferHolder.reset()
-      //     unsafeRowWriter.write(0, line.getBytes, 0, line.getLength)
-      //     unsafeRow.setTotalSize(bufferHolder.totalSize())
-      //     unsafeRow
-      //   }
-      // }
     }
   }
 }
