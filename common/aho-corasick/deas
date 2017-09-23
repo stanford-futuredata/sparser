@@ -1,0 +1,64 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+
+sub slurpv { open my $fh, $_[0] or die "cannot open $_[0]"; [<$fh>]; }
+
+for my $fname (@ARGV) {
+    my @file;       # maps fileno(1...) to [file_lines]
+    my $src = slurpv $fname;
+
+    # Calculate simpler labels for jumps.
+    # "F.." if a label is only the target of fwd jumps.
+    # "B.." if a label is only the target of back jumps.
+    # "L.." otherwise
+
+    my %labdef;     # Map .Lxxx to 1...
+    my %labuse;     # indicates F and B uses of a label.
+    my $labnum = 0;
+    for (@$src) {
+        if (m{^(\.L[0-9]*):}) {     # ascending numbers for labels
+            $labdef{$1} = ++$labnum;
+        } elsif (m{\tj[bplasmogen].*(\.L[0-9]*)$}) { # jump => interesting label
+            $labuse{$1} = ($labuse{$1} || '') . ($labdef{$1} ? 'B' : 'F');
+        } elsif (!m{ "/usr/|<built-in>} && m{\.file (\d+) "([^"]*)"}) {   # source file declaration
+            # gcc 4.3.4 may emit "file N <built-in>"
+            $file[$1] = -f $2 ? slurpv $2 : [];
+            s/^\s*}\s*$|.*(?:__builtin|__extension).*// for @{$file[$1]};
+        }
+    }
+
+    s{.*FB}{L} for values %labuse;
+    $labdef{$_} = substr($labuse{$_},0,1) . $labdef{$_} for keys %labuse;
+
+    # Reprocess output, inserting source lines and replacing labels:
+  
+    open my $out, ">$fname.tmp" or die "$fname.tmp: cannot create";
+    my $skip;
+    for (@$src) {
+        next if m{^#APP|^#NO|^# .*""};
+
+        # Eliminate C++ template output: /^_ZN\S+:$/,/^\w/-1
+        $skip = 0 if m{^_ZN}; $skip = 1 if m{^_ZNSt\S+:$};
+        next if $skip;
+
+        # Simplify mangled names:
+        #XXX properly decode <count><chars>... DNS-like encoding
+        s{\b_Z[KNSt]+\d+}{};
+        s{(-?\d{5,20}(?!\(%[a-z]*bp))}{sprintf "0x%X",$1}eg;
+
+        if (m{\.loc\s+(\d+)\s+(\d+)}) { # source file reference
+            my $n = $2;
+            s{^\s*}{#[$n]\t} if $_ = $file[$1][$n - 1] and m{\w};
+            $file[1][$n - 1] = '';
+        } elsif (m{^(\.L[0-9]*):}) {    # <label>:
+            $_ = "$labdef{$1}:";
+        } elsif (my ($L) = m{\tj[bplasmogen].*(\.L[0-9]*)$}) {  # jump <label>
+            s{$L}{$labdef{$L}};
+        }
+        print $out $_ if ($_ && !m{^\t?\.} && !m<^[\t\n {};]*$>sg);
+    }
+
+    close $out;
+    rename "$fname.tmp", $fname;
+}

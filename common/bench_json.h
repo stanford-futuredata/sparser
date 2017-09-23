@@ -10,7 +10,7 @@
 
 #include "json_projection.h"
 
-#include "aho_corasick.hpp"
+#include "acism.h"
 
 typedef sparser_callback_t parser_t;
 
@@ -114,6 +114,21 @@ double bench_sparser(const char *filename, const char **predicates,
   return parse_time;
 }
 
+struct ac_context {
+  unsigned flags;
+  unsigned allset;
+};
+
+int _ac_cb(int strnum, int textpos, void *context) {
+  struct ac_context *acc = (struct ac_context *)context;
+  acc->flags |= (1 << strnum);
+  // found everything.
+  if (acc->flags != acc->allset) {
+    return 0;
+  }
+  return 1;
+}
+
 double bench_ac(const char *filename, const char **predicates,
                       int num_predicates, parser_t callback, void *callback_ctx) {
   char *data, *line;
@@ -124,16 +139,34 @@ double bench_ac(const char *filename, const char **predicates,
 
   bench_timer_t s = time_start();
 
-  aho_corasick::trie trie;
+  MEMREF *memrefs = (MEMREF *)malloc(sizeof(MEMREF) * num_predicates);
   for (int i = 0; i < num_predicates; i++) {
-    trie.insert(predicates[i]);
+    memrefs[i].ptr = predicates[i];
+    memrefs[i].len = strlen(predicates[i]);
   }
 
 
+  // Compile
+  ACISM *a = acism_create(memrefs, num_predicates);
+  double elapsed = time_stop(s);
+  printf("ACISM compile time: %f\n", elapsed);
+  s = time_start();
+
   char *ptr = data;
   while ((line = strsep(&ptr, "\n")) != NULL) {
-    auto result = trie.parse_text(line);
-    if (result.size() == num_predicates) {
+
+    struct ac_context ctx;
+    ctx.flags = 0;
+    ctx.allset = (1u << num_predicates) - 1u;
+
+    MEMREF l;
+    l.ptr = line;
+    l.len = (ptr - line - 1);
+
+    acism_scan(a, l, _ac_cb, &ctx);
+
+    // Everything matched.
+    if (ctx.flags == ctx.allset) {
       ac_passed++;
       if (callback(line, callback_ctx)) {
         matching++;
@@ -142,14 +175,15 @@ double bench_ac(const char *filename, const char **predicates,
     doc_index++;
   }
 
-  double elapsed = time_stop(s);
+  elapsed += time_stop(s);
   printf("AC Passed: %ld\nRecords Passed:%ld\nFalse Positives:%ld\n",
       ac_passed, matching, ac_passed-matching);
   printf("AHO-CORASICK Passing Elements: %ld of %d records (%.3f seconds)\n", matching,
          doc_index, elapsed);
 
 
-  free(ptr);
+  free(memrefs);
+  free(data);
 
   return elapsed;
 }
