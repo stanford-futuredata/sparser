@@ -39,12 +39,12 @@ object App {
             Map("query" -> queryIndexStr)).load(jsonFilename)
           df.cache()
           val parseTime = System.currentTimeMillis() - start
-          println("Parse Time: " + parseTime)
+          println("Parse Time: " + parseTime / 1000.0)
 
           start = System.currentTimeMillis()
           println(queryOp(df))
           val queryTime = System.currentTimeMillis() - start
-          println("Query Time: " + queryTime)
+          println("Query Time: " + queryTime / 1000.0)
 
           println("Num partitions: " + df.rdd.getNumPartitions)
         }
@@ -56,18 +56,18 @@ object App {
           val dataset = spark.read.textFile(jsonFilename)
           println("Num lines in file: " + dataset.count())
           val diskLoadTime = System.currentTimeMillis() - start
-          println("Disk Load Time: " + diskLoadTime)
+          println("Disk Load Time: " + diskLoadTime / 1000.0)
 
           start = System.currentTimeMillis()
           val df = parserOp(dataset)
           println("Num JSON rows: " + df.count())
           val parseTime = System.currentTimeMillis() - start
-          println("Parse Time: " + parseTime)
+          println("Parse Time: " + parseTime / 1000.0)
 
           start = System.currentTimeMillis()
           println("Num Query Results rows: " + queryOp(df))
           val queryTime = System.currentTimeMillis() - start
-          println("Query Time: " + queryTime)
+          println("Query Time: " + queryTime / 1000.0)
 
           println("Num partitions: " + df.rdd.getNumPartitions)
         }
