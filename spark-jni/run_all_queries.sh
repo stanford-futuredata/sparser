@@ -1,20 +1,20 @@
-#! /usr/bin/env bash
+! /usr/bin/env bash
 
 set -x
 
 mkdir -p timings
 
-./run.sh --yarn twitter1 /user/fabuzaid21/twitter23g.json 6 --sparser > timings/twitter1-sparser-hdfs.txt
-./run.sh --yarn twitter1 /user/fabuzaid21/twitter23g.json 6 --spark > timings/twitter1-spark-hdfs.txt
+./run.sh --yarn twitter1 /user/fabuzaid21/tweets23g.json 6 --sparser > timings/twitter1-sparser-hdfs.txt
+./run.sh --yarn twitter1 /user/fabuzaid21/tweets23g.json 6 --spark > timings/twitter1-spark-hdfs.txt
 
-./run.sh --yarn twitter2 /user/fabuzaid21/twitter23g.json 6 --sparser > timings/twitter2-sparser-hdfs.txt
-./run.sh --yarn twitter2 /user/fabuzaid21/twitter23g.json 6 --spark > timings/twitter2-spark-hdfs.txt
+./run.sh --yarn twitter2 /user/fabuzaid21/tweets23g.json 6 --sparser > timings/twitter2-sparser-hdfs.txt
+./run.sh --yarn twitter2 /user/fabuzaid21/tweets23g.json 6 --spark > timings/twitter2-spark-hdfs.txt
 
-./run.sh --yarn twitter3 /user/fabuzaid21/twitter23g.json 6 --sparser > timings/twitter3-sparser-hdfs.txt
-./run.sh --yarn twitter3 /user/fabuzaid21/twitter23g.json 6 --spark > timings/twitter3-spark-hdfs.txt
+./run.sh --yarn twitter3 /user/fabuzaid21/tweets23g.json 6 --sparser > timings/twitter3-sparser-hdfs.txt
+./run.sh --yarn twitter3 /user/fabuzaid21/tweets23g.json 6 --spark > timings/twitter3-spark-hdfs.txt
 
-./run.sh --yarn twitter4 /user/fabuzaid21/twitter23g.json 6 --sparser > timings/twitter4-sparser-hdfs.txt
-./run.sh --yarn twitter4 /user/fabuzaid21/twitter23g.json 6 --spark > timings/twitter4-spark-hdfs.txt
+./run.sh --yarn twitter4 /user/fabuzaid21/tweets23g.json 6 --sparser > timings/twitter4-sparser-hdfs.txt
+./run.sh --yarn twitter4 /user/fabuzaid21/tweets23g.json 6 --spark > timings/twitter4-spark-hdfs.txt
 
 ./run.sh --yarn zakir1 /user/fabuzaid21/zakir652g.json 6 --sparser > timings/zakir1-sparser-hdfs.txt
 ./run.sh --yarn zakir1 /user/fabuzaid21/zakir652g.json 6 --spark > timings/zakir1-spark-hdfs.txt
