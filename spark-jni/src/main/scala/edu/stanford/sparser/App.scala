@@ -1,6 +1,6 @@
 package edu.stanford.sparser
 
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.sql.SparkSession
 
 object App {
 
@@ -13,62 +13,12 @@ object App {
     "zakir6" -> "5",
     "zakir7" -> "6",
     "zakir8" -> "7",
-    "twitter1" -> "8")
-
-  def queryStrToFilterOp(spark: SparkSession, queryStr: String): (String) => DataFrame = {
-    import spark.implicits._
-    queryStr match {
-      case "0" =>
-        (input: String) => {
-          spark.read.format("json").load(input).filter($"autonomous_system.asn" === 9318).filter(
-            "p23.telnet.banner.banner is not null")
-        }
-
-     case "1" =>
-        (input: String) => {
-          spark.read.format("json").load(input).filter($"p80.http.get.body".contains("content=\"wordpress 4.51\""))
-
-        }
-
-     case "2" =>
-        (input: String) => {
-          spark.read.format("json").load(input).filter($"autonomous_system.asn" === 2516)
-        }
-
-     case "3" =>
-        (input: String) => {
-          spark.read.format("json").load(input).filter($"location.country" === "Chile").filter(
-            "p80.http.get.status_code is not null")
-        }
-
-     case "4" =>
-        (input: String) => {
-          spark.read.format("json").load(input).filter($"p80.http.get.headers.server".contains("DIR-300"))
-        }
-
-     case "5" =>
-        (input: String) => {
-          spark.read.format("json").load(input).filter("p110.pop3.starttls.banner is not null")
-              .filter("p995.pop3s.tls.banner is not null")
-        }
-
-     case "6" =>
-        (input: String) => {
-          spark.read.format("json").load(input).filter($"p21.ftp.banner.banner".contains("Seagate Central Shared"))
-        }
-
-     case "7" =>
-        (input: String) => {
-          spark.read.format("json").load(input).filter($"p20000.dnp3.status.support" === true)
-        }
-
-      case "8" =>
-        (input: String) => {
-          spark.read.format("json").load(input).filter($"text".contains("Donald Trump") &&
-            $"created_at".contains("Sep 13")).select($"user.id")
-        }
-    }
-  }
+    "zakir9" -> "8",
+    "zakir10" -> "9",
+    "twitter1" -> "10",
+    "twitter2" -> "11",
+    "twitter3" -> "12",
+    "twitter4" -> "13")
 
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder.appName("Sparser Spark").getOrCreate()
@@ -80,19 +30,45 @@ object App {
     val runSpark: Boolean = args(4).equalsIgnoreCase("--spark")
     val runReadOnly: Boolean = args(4).equalsIgnoreCase("--read-only")
 
-    val timeParser: () => Unit = {
+    val timeJob: () => Unit = {
       if (runSparser) {
+        val queryOp = Queries.queryStrToQuery(spark, queryIndexStr)
         () => {
+          var start = System.currentTimeMillis()
           val df = spark.read.format("edu.stanford.sparser").options(
             Map("query" -> queryIndexStr)).load(jsonFilename)
-          println(df.count())
+          df.cache()
+          val parseTime = System.currentTimeMillis() - start
+          println("Parse Time: " + parseTime)
+
+          start = System.currentTimeMillis()
+          println(queryOp(df))
+          val queryTime = System.currentTimeMillis() - start
+          println("Query Time: " + queryTime)
+
           println("Num partitions: " + df.rdd.getNumPartitions)
         }
       } else if (runSpark) {
-        val filterOp = queryStrToFilterOp(spark, queryIndexStr)
+        val parserOp = Queries.queryStrToQueryParser(spark, queryIndexStr)
+        val queryOp = Queries.queryStrToQuery(spark, queryIndexStr)
         () => {
-          val df = filterOp(jsonFilename)
-          println(df.count())
+          var start = System.currentTimeMillis()
+          val dataset = spark.read.textFile(jsonFilename)
+          println("Num lines in file: " + dataset.count())
+          val diskLoadTime = System.currentTimeMillis() - start
+          println("Disk Load Time: " + diskLoadTime)
+
+          start = System.currentTimeMillis()
+          val df = parserOp(dataset)
+          println("Num JSON rows: " + df.count())
+          val parseTime = System.currentTimeMillis() - start
+          println("Parse Time: " + parseTime)
+
+          start = System.currentTimeMillis()
+          println("Num Query Results rows: " + queryOp(df))
+          val queryTime = System.currentTimeMillis() - start
+          println("Query Time: " + queryTime)
+
           println("Num partitions: " + df.rdd.getNumPartitions)
         }
       } else if (runReadOnly) {
@@ -109,7 +85,7 @@ object App {
     val runtimes = new Array[Double](numTrials)
     for (i <- 0 until numTrials) {
       val before = System.currentTimeMillis()
-      timeParser()
+      timeJob()
       val timeMs = System.currentTimeMillis() - before
       println("Total Job Time: " + timeMs / 1000.0)
       runtimes(i) = timeMs
