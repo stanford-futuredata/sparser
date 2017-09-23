@@ -1,14 +1,14 @@
 package edu.stanford.sparser
 
 import org.apache.spark.sql.types.{IntegerType, LongType, StructType}
-import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
+import org.apache.spark.sql.{DataFrame, SparkSession}
 
 object Queries {
 
   /**
     * Just parsing, filters, and projections
     */
-  def queryStrToQueryParser(spark: SparkSession, queryStr: String): (Dataset[String]) => DataFrame = {
+  def queryStrToQueryParser(spark: SparkSession, queryStr: String): (String) => DataFrame = {
     import spark.implicits._
 
     queryStr match {
@@ -20,7 +20,7 @@ object Queries {
           * WHERE p23.telnet.banner.banner is not NULL
           * AND   autonomous_system.asn = 9318;
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"autonomous_system.asn" === 9318).filter(
             "p23.telnet.banner.banner is not null")
         }
@@ -31,8 +31,8 @@ object Queries {
           * FROM  ipv4.20160425
           * WHERE p80.http.get.body CONTAINS 'content=\"WordPress 4.0';
           **/
-        (input: Dataset[String]) => {
-          spark.read.json(input).filter($"p80.http.get.body".contains("content=\\\"WordPress 4.0"))
+        (input: String) => {
+          spark.read.json(input).filter($"p80.http.get.body".contains("""content="WordPress 4.0"""))
         }
 
       case "2" =>
@@ -41,7 +41,7 @@ object Queries {
           * FROM  ipv4.20160425
           * WHERE autonomous_system.asn = 2516;
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"autonomous_system.asn" === 2516)
         }
 
@@ -52,7 +52,7 @@ object Queries {
           * WHERE location.country = "Chile"
           * AND   p80.http.get.status_code is not NULL;
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"location.country" === "Chile").filter(
             "p80.http.get.status_code is not null")
         }
@@ -63,7 +63,7 @@ object Queries {
           * FROM ipv4.20160425
           * WHERE p80.http.get.headers.server like '%DIR-300%';
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"p80.http.get.headers.server".contains("DIR-300"))
         }
 
@@ -73,7 +73,7 @@ object Queries {
           * FROM ipv4.20160425
           * WHERE p110.pop3s.starttls.banner is not NULL;
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter("p110.pop3.starttls.banner is not null")
         }
 
@@ -83,7 +83,7 @@ object Queries {
           * FROM ipv4.20160425
           * WHERE p21.ftp.banner.banner like '%Seagate Central Shared%';
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"p21.ftp.banner.banner".contains("Seagate Central Shared"))
         }
 
@@ -93,7 +93,7 @@ object Queries {
           * FROM ipv4.20160425
           * WHERE p20000.dnp3.status.support = true;
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"p20000.dnp3.status.support" === true)
         }
 
@@ -104,7 +104,7 @@ object Queries {
           * WHERE autonomous_system.name CONTAINS 'Verizon'
           * GROUP BY autonomous_system.asn;
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"autonomous_system.name".contains("Verizon"))
             .select($"autonomous_system.asn", $"ipint")
         }
@@ -116,7 +116,7 @@ object Queries {
           * WHERE p502.modbus.device_id.function_code is not NULL
           * GROUP BY asn ORDER BY asn DESC;
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"p502.modbus.device_id.function_code is not NULL")
             .select($"autonomous_system.asn", $"ipint")
         }
@@ -129,7 +129,7 @@ object Queries {
           * WHERE text contains "Donald Trump"
           * AND created_at contains "Sep 13";
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"text".contains("Donald Trump") &&
             $"created_at".contains("Sep 13"))
         }
@@ -141,7 +141,7 @@ object Queries {
           * WHERE text contains "Obama"
           *  GROUP BY user.id;
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"text".contains("Obama"))
             .select($"user.id", $"retweet_count")
         }
@@ -152,7 +152,7 @@ object Queries {
           * FROM tweets
           * WHERE user.lang = "msa";
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"user.lang" === "msa").select($"id")
         }
 
@@ -162,7 +162,7 @@ object Queries {
           * FROM tweets
           * WHERE text contains @realDonaldTrump;
           **/
-        (input: Dataset[String]) => {
+        (input: String) => {
           spark.read.json(input).filter($"text".contains("@realDonaldTrump"))
             .select($"user.id")
         }

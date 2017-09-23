@@ -63,7 +63,7 @@ static const char **sparser_zakir_query1(int *count) {
  **/
 
 json_passed_t zakir_q2_p80_http_get_body(const char *value, void *) {
-    if (strstr(value, "content=\\\"WordPress 4.0")) {
+    if (strstr(value, "content=\"WordPress 4.0")) {
         return JSON_PASS;
     }
     return JSON_FAIL;
