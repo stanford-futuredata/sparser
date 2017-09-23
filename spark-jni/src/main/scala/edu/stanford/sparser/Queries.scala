@@ -204,7 +204,7 @@ object Queries {
           *  GROUP BY user.id;
           */
         (df: DataFrame) => {
-          df.groupBy($"user.id").sum("retweet_count").count()
+          df.groupBy($"id").sum("retweet_count").count()
         }
       case "13" =>
         /**
