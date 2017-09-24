@@ -106,7 +106,7 @@ object Queries {
           **/
         (input: String) => {
           spark.read.json(input).filter($"autonomous_system.name".contains("Verizon"))
-            .select($"autonomous_system.asn as asn", $"ipint")
+            .select($"autonomous_system.asn", $"ipint")
         }
 
       case "9" =>
@@ -118,7 +118,7 @@ object Queries {
           **/
         (input: String) => {
           spark.read.json(input).filter($"p502.modbus.device_id.function_code is not NULL")
-            .select($"autonomous_system.asn as asn", $"ipint")
+            .select($"autonomous_system.asn", $"ipint")
         }
 
       /************* Twitter Queries *************/
