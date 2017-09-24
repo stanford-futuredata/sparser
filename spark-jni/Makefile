@@ -8,7 +8,7 @@ INCLUDES=-I$(JAVA_HOME)/include \
 	 -I../common \
 	 -I../common/libhdfs/include \
 	 -I../common/rapidjson/include \
-	 -I../common/aho_corasick/src/aho_corasick
+	 -I../common/aho-corasick
 
 ifeq ($(UNAME),Linux)
   INCLUDES += -I$(JAVA_HOME)/include/linux

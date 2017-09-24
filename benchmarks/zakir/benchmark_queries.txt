@@ -1,8 +1,10 @@
-ipv4.20170318,['LENGTH(p23.telnet.banner.banner) > 0','autonomous_system.asn = 9318'],203543252,11847,0.000058
-ipv4.20170318,['(.p80.http.get.body CONTAINS \'content=\\"wordpress 3.5.1\' or .p80.http.get.body CONTAINS \'content=\\"WordPress 3.5.1\')','NOT (.p80.http.get.body CONTAINS \'content=\\"WordPress 3.5.1.\' OR .p80.http.get.body CONTAINS \'content=\\"wordpress 3.5.1.\')'],203543252,6534,0.000032
-ipv4.20160905,['autonomous_system.asn=2516'],188912950,143054,0.000757
-ipv4.20160905,["location.country = 'Chile' and not(p80.http.get.status_code is NULL)"],188912950,355963,0.001884
-ipv4.20160425,["p80.http.get.headers.server like '%DIR-300%'"],185424201,278,0.000001
-ipv4.20160425,['p110.pop3.starttls.banner is not null or p995.pop3s.tls.banner is not null'],185424201,5351725,0.028862
-ipv4.20160425,["p21.ftp.banner.banner like '%Seagate Central Shared%'"],185424201,405,0.000002
-ipv4.20160425,['p20000.dnp3.status.support=true'],185424201,429,0.000002
+SELECT COUNT(*) FROM ipv4.20160425 WHERE p23.telnet.banner.banner is not NULL AND autonomous_system.asn = 9318;
+SELECT COUNT(*) FROM ipv4.20160425 WHERE p80.http.get.body CONTAINS 'content=\"WordPress 4.0';
+SELECT COUNT(*) FROM ipv4.20160425 WHERE autonomous_system.asn = 2516;
+SELECT COUNT(*) FROM ipv4.20160425 WHERE location.country = "Chile" AND p80.http.get.status_code is not NULL;
+SELECT COUNT(*) FROM ipv4.20160425 WHERE p80.http.get.headers.server like '%DIR-300%';185424201,278,0.000001
+SELECT COUNT(*) FROM ipv4.20160425 WHERE p110.pop3s.starttls.banner is not NULL;
+SELECT COUNT(*) FROM ipv4.20160425 WHERE p21.ftp.banner.banner like '%Seagate Central Shared%';185424201,405,0.000002
+SELECT COUNT(*) FROM ipv4.20160425 WHERE p20000.dnp3.status.support = true;185424201,429,0.000002
+SELECT autonomous_system.asn, count(ipint) AS count FROM ipv4.20160425 WHERE autonomous_system.name CONTAINS 'Verizon' GROUP BY autonomous_system.asn;
+SELECT autonomous_system.asn AS asn, COUNT(ipint) AS hosts FROM ipv4.20160425 WHERE p502.modbus.device_id.function_code is not NULL GROUP BY asn ORDER BY asn DESC;
