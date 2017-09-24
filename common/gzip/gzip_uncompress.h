@@ -48,10 +48,10 @@
 #define windowBits 15
 #define ENABLE_ZLIB_GZIP 32
 
-int uncompress_gzip(unsigned char *data, unsigned char **out_a, size_t length) {
+int uncompress_gzip(char *data, char **out_a, size_t length) {
 
   const unsigned INC = 10;
-  unsigned char *out = (unsigned char *)malloc(CHUNK * INC);
+  char *out = (char *)malloc(CHUNK * INC);
   // capacity in chunks.
   size_t capacity = INC;
   // Offset of out to write at (i.e., number of bytes written so far).
@@ -73,12 +73,12 @@ int uncompress_gzip(unsigned char *data, unsigned char **out_a, size_t length) {
 
     // If we're out of space, allocate some more.
     if (CHUNK * capacity <= out_offset) {
-      out = (unsigned char *)realloc(out, CHUNK * capacity * 2);
+      out = (char *)realloc(out, CHUNK * capacity * 2);
       capacity *= 2;
     }
 
     // Inflation routine. Write inflated bytes.
-    strm.next_in = data + in_offset;
+    strm.next_in = (unsigned char *)data + in_offset;
     strm.avail_in = readsz;
     
     size_t prev = strm.total_in;
@@ -88,7 +88,7 @@ int uncompress_gzip(unsigned char *data, unsigned char **out_a, size_t length) {
       size_t have;
       size_t space = capacity * CHUNK - out_offset;
       strm.avail_out = space;
-      strm.next_out = out + out_offset;
+      strm.next_out = (unsigned char *)out + out_offset;
       CALL_ZLIB(inflate(&strm, Z_NO_FLUSH));
 
       have = space - strm.avail_out;
@@ -96,7 +96,7 @@ int uncompress_gzip(unsigned char *data, unsigned char **out_a, size_t length) {
 
       // If we're out of space, allocate some more.
       if (CHUNK * capacity <= out_offset) {
-        out = (unsigned char *)realloc(out, CHUNK * capacity * 2);
+        out = (char *)realloc(out, CHUNK * capacity * 2);
         capacity *= 2;
       }
 

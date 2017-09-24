@@ -22,8 +22,8 @@ int main (int argc, char **argv) {
     char *data;
     size_t length = read_all(filename, &data) - 1;
 
-    unsigned char *uncompressed;
-    size_t size = uncompress_gzip((unsigned char *)data, &uncompressed, length);
+    char *uncompressed;
+    size_t size = uncompress_gzip((char *)data, &uncompressed, length);
 
     FILE *f = fopen("out.json", "w");
     fwrite(uncompressed, sizeof(unsigned char), size, f);

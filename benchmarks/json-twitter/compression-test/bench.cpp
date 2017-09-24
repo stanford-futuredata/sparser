@@ -17,59 +17,26 @@
 #include "sparser.h"
 #include "mison.h"
 
-
-// For compression
-#include <zlib.h>
-
 using namespace rapidjson;
 
 // The query strings.
 const char *TEXT = "Donald Trump";
-const char *TEXT2 = "Putin";
+const char *TEXT2 = "Russia";
 
-
-/* CHUNK is the size of the memory chunk used by the zlib routines. */
-
-#define CHUNK 0x4000
-
-/* The following macro calls a zlib routine and checks the return
-   value. If the return value ("status") is not OK, it prints an error
-   message and exits the program. Zlib's error statuses are all less
-   than zero. */
-
-#define CALL_ZLIB(x) {                                                  \
-        int status;                                                     \
-        status = x;                                                     \
-        if (status < 0) {                                               \
-            fprintf (stderr,                                            \
-                     "%s:%d: %s returned a bad status of %d.\n",        \
-                     __FILE__, __LINE__, #x, status);                   \
-            exit (EXIT_FAILURE);                                        \
-        }                                                               \
-    }
-
-/* if "test" is true, print an error message and halt execution. */
-
-#define FAIL(test,message) {                             \
-        if (test) {                                      \
-            inflateEnd (& strm);                         \
-            fprintf (stderr, "%s:%d: " message           \
-                     " file '%s' failed: %s\n",          \
-                     __FILE__, __LINE__, file_name,      \
-                     strerror (errno));                  \
-            exit (EXIT_FAILURE);                         \
-        }                                                \
-    }
-
-/* These are parameters to inflateInit2. See
-   http://zlib.net/manual.html for the exact meanings. */
-
-#define windowBits 15
-#define ENABLE_ZLIB_GZIP 32
+// Data passed to parser callback in this query.
+struct parser_data {
+  // Number of ids recorded so far.
+  long count;
+  // Amount of space allocated in IDs
+  long capacity;
+  // Buffer for writing the data. @Firas, in Spark, this should be set to the pointer
+  // of unsafe rows.
+  int64_t *ids;
+};
 
 // Performs a parse of the query using RapidJSON. Returns true if all the
 // predicates match.
-bool rapidjson_parse(const char *line) {
+int rapidjson_parse(const char *line, void *thunk) {
   Document d;
   d.Parse(line);
   if (d.HasParseError()) {
@@ -92,62 +59,53 @@ bool rapidjson_parse(const char *line) {
     return false;
   }
 
+  itr = d.FindMember("id");
+  if (itr == d.MemberEnd()) {
+    // The field wasn't found.
+    return false;
+  }
+
+  // Must handle this!!
+  if (!thunk) return true;
+
+  // XXX The assumption here is that thunk has allocated enough memory
+  // for each ID!!!
+  struct parser_data *pd = (struct parser_data *)thunk;
+
+  // We messed up -- just abort.
+  assert (pd->count < pd->capacity); 
+
+  pd->ids[pd->count] = itr->value.GetInt64();
+  pd->count++;
   return true;
 }
 
-void decompress_gzip() {
-    const char * file_name = "test.gz";
-    FILE * file;
-    z_stream strm = {0};
-    unsigned char in[CHUNK];
-    unsigned char out[CHUNK];
+int mison_parse_wrapper(const char *line, void * _) {
+  size_t length = strlen(line);
+  if (length == 0) {
+    return false;
+  }
 
-    strm.zalloc = Z_NULL;
-    strm.zfree = Z_NULL;
-    strm.opaque = Z_NULL;
-    strm.next_in = in;
-    strm.avail_in = 0;
-    CALL_ZLIB (inflateInit2 (& strm, windowBits | ENABLE_ZLIB_GZIP));
-
-    /* Open the file. */
-
-    file = fopen (file_name, "rb");
-    FAIL (! file, "open");
-    while (1) {
-        int bytes_read;
-
-        bytes_read = fread (in, sizeof (char), sizeof (in), file);
-        FAIL (ferror (file), "read");
-        strm.avail_in = bytes_read;
-        do {
-	    unsigned have;
-            strm.avail_out = CHUNK;
-	    strm.next_out = out;
-            CALL_ZLIB (inflate (& strm, Z_NO_FLUSH));
-	    have = CHUNK - strm.avail_out;
-	    fwrite (out, sizeof (unsigned char), have, stdout);
-        }
-        while (strm.avail_out == 0);
-        if (feof (file)) {
-            inflateEnd (& strm);
-            break;
-        }
-    }
-    FAIL (fclose (file), "close");
-    return 0;
+  intptr_t x = mison_parse(line, length);
+  return (x == 0);
 }
 
 int main() {
-  const char *filename = path_for_data("tweets.json");
+  const char *filename = path_for_data("tweets-large-comp.json.gz");
 
+  char *predicates[] = { NULL, NULL, NULL, };
+  char *first, *second;
+  asprintf(&first, "%s", TEXT);
+  asprintf(&second, "%s", TEXT2);
 
-  // bench_rapidjson actually works for any generic parser.
-  double b = bench_rapidjson(filename, rapidjson_parse);
+  predicates[0] = first;
+  predicates[1] = second;
+
+  double a = bench_sparser(filename, 1, (const char **)predicates, 2, rapidjson_parse, NULL);
+  double b = bench_rapidjson_compressed(filename, 1, rapidjson_parse, NULL);
 
   free(first);
   free(second);
-
-  bench_read(filename);
 
   printf("Speedup: %f\n", b / a);
 
