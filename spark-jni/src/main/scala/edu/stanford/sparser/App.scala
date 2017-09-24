@@ -59,7 +59,7 @@ object App {
           val startTime = System.currentTimeMillis()
           println("Num rows in query output: " + queryOp(df))
           val queryTime = System.currentTimeMillis() - startTime
-          println("Query time: " + queryTime)
+          println("Query time: " + queryTime / 1000.0)
           println("Num partitions: " + df.rdd.getNumPartitions)
         }
       } else if (runReadOnly) {
