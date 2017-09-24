@@ -5,6 +5,22 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 
 object Queries {
 
+  val sparserQueryMap = Map(
+    "zakir1" -> "0",
+    "zakir2" -> "1",
+    "zakir3" -> "2",
+    "zakir4" -> "3",
+    "zakir5" -> "4",
+    "zakir6" -> "5",
+    "zakir7" -> "6",
+    "zakir8" -> "7",
+    "zakir9" -> "8",
+    "zakir10" -> "9",
+    "twitter1" -> "10",
+    "twitter2" -> "11",
+    "twitter3" -> "12",
+    "twitter4" -> "13")
+
   /**
     * Just parsing, filters, and projections
     */
@@ -13,7 +29,7 @@ object Queries {
 
     queryStr match {
       /************* Zakir Queries *************/
-      case "0" =>
+      case "zakir1" =>
          /**
           * SELECT COUNT(*)
           * FROM  ipv4.20160425
@@ -25,7 +41,7 @@ object Queries {
             "p23.telnet.banner.banner is not null")
         }
 
-      case "1" =>
+      case "zakir2" =>
          /**
           * SELECT COUNT(*)
           * FROM  ipv4.20160425
@@ -35,7 +51,7 @@ object Queries {
           spark.read.json(input).filter($"p80.http.get.body".contains("""content="WordPress 4.0"""))
         }
 
-      case "2" =>
+      case "zakir3" =>
          /**
           * SELECT COUNT(*)
           * FROM  ipv4.20160425
@@ -45,7 +61,7 @@ object Queries {
           spark.read.json(input).filter($"autonomous_system.asn" === 2516)
         }
 
-      case "3" =>
+      case "zakir4" =>
          /**
           * SELECT COUNT(*)
           * FROM  ipv4.20160425
@@ -57,7 +73,7 @@ object Queries {
             "p80.http.get.status_code is not null")
         }
 
-      case "4" =>
+      case "zakir5" =>
          /**
           * SELECT COUNT(*)
           * FROM ipv4.20160425
@@ -67,7 +83,7 @@ object Queries {
           spark.read.json(input).filter($"p80.http.get.headers.server".contains("DIR-300"))
         }
 
-      case "5" =>
+      case "zakir6" =>
          /**
           * SELECT COUNT(*)
           * FROM ipv4.20160425
@@ -77,7 +93,7 @@ object Queries {
           spark.read.json(input).filter("p110.pop3.starttls.banner is not null")
         }
 
-      case "6" =>
+      case "zakir7" =>
          /**
           * SELECT COUNT(*)
           * FROM ipv4.20160425
@@ -87,7 +103,7 @@ object Queries {
           spark.read.json(input).filter($"p21.ftp.banner.banner".contains("Seagate Central Shared"))
         }
 
-      case "7" =>
+      case "zakir8" =>
          /**
           * SELECT COUNT(*)
           * FROM ipv4.20160425
@@ -97,7 +113,7 @@ object Queries {
           spark.read.json(input).filter($"p20000.dnp3.status.support" === true)
         }
 
-      case "8" =>
+      case "zakir9" =>
          /**
           * SELECT autonomous_system.asn, count(ipint) AS count
           * FROM ipv4.20160425
@@ -109,7 +125,7 @@ object Queries {
             .select($"autonomous_system.asn", $"ipint")
         }
 
-      case "9" =>
+      case "zakir10" =>
          /**
           * SELECT autonomous_system.asn AS asn, COUNT(ipint) AS hosts
           * FROM ipv4.20160425
@@ -117,12 +133,12 @@ object Queries {
           * GROUP BY asn ORDER BY asn DESC;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"p502.modbus.device_id.function_code is not NULL")
+          spark.read.json(input).filter($"p502.modbus.device_id.function_code is not null")
             .select($"autonomous_system.asn", $"ipint")
         }
 
       /************* Twitter Queries *************/
-      case "10" =>
+      case "twitter1" =>
          /**
           * SELECT count(*)
           * FROM tweets
@@ -134,7 +150,7 @@ object Queries {
             $"created_at".contains("Sep 13"))
         }
 
-      case "11" =>
+      case "twitter2" =>
          /**
           * SELECT user.id, SUM(retweet_count)
           * FROM tweets
@@ -146,7 +162,7 @@ object Queries {
             .select($"user.id", $"retweet_count")
         }
 
-      case "12" =>
+      case "twitter3" =>
          /**
           * SELECT id
           * FROM tweets
@@ -156,7 +172,7 @@ object Queries {
           spark.read.json(input).filter($"user.lang" === "msa").select($"id")
         }
 
-      case "13" =>
+      case "twitter4" =>
          /**
           * SELECT distinct user.id
           * FROM tweets
@@ -176,7 +192,7 @@ object Queries {
   def queryStrToQuery(spark: SparkSession, queryStr: String): (DataFrame) => Long = {
     import spark.implicits._
     queryStr match {
-      case "8" =>
+      case "zakir9" =>
         /**
           * SELECT autonomous_system.asn, count(ipint) AS count
           * FROM ipv4.20160425
@@ -186,7 +202,7 @@ object Queries {
         (df: DataFrame) => {
           df.groupBy($"asn").count().count()
         }
-      case "9" =>
+      case "zakir10" =>
          /**
           * SELECT autonomous_system.asn AS asn, COUNT(ipint) AS hosts
           * FROM ipv4.20160425
@@ -197,7 +213,7 @@ object Queries {
           df.groupBy("asn").count()
             .orderBy($"asn".desc).count()
         }
-      case "11" =>
+      case "twitter2" =>
         /**
           * SELECT user.id, SUM(retweet_count)
           * FROM tweets
@@ -207,7 +223,7 @@ object Queries {
         (df: DataFrame) => {
           df.groupBy($"id").sum("retweet_count").count()
         }
-      case "13" =>
+      case "twitter4" =>
         /**
           * SELECT distinct user.id
           * FROM tweets
@@ -226,7 +242,7 @@ object Queries {
 
   def queryStrToSchema(queryStr: String): StructType = {
     queryStr match {
-      case "8" =>
+      case "zakir9" =>
         /**
           * SELECT autonomous_system.asn, count(ipint) AS count
           * FROM ipv4.20160425
@@ -234,7 +250,7 @@ object Queries {
           * GROUP BY autonomous_system.asn;
           */
         new StructType().add("asn", IntegerType).add("ipint", IntegerType)
-      case "9" =>
+      case "zakir10" =>
         /**
           * SELECT autonomous_system.asn AS asn, COUNT(ipint) AS hosts
           * FROM ipv4.20160425
@@ -242,7 +258,7 @@ object Queries {
           * GROUP BY asn ORDER BY asn DESC;
           */
         new StructType().add("asn", IntegerType).add("ipint", IntegerType)
-      case "11" =>
+      case "twitter2" =>
         /**
           * SELECT user.id, SUM(retweet_count)
           * FROM tweets
@@ -250,7 +266,7 @@ object Queries {
           *  GROUP BY user.id;
           */
         new StructType().add("id", LongType).add("retweet_count", IntegerType)
-      case "13" =>
+      case "twitter4" =>
         /**
           * SELECT distinct user.id
           * FROM tweets
