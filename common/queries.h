@@ -371,7 +371,7 @@ static const char **sparser_zakir_query10(int *count) {
  * SELECT count(*)
  * FROM tweets
  * WHERE text contains "Donald Trump"
- * AND created_at contains "Sep 12";
+ * AND created_at contains "Sep 13";
  **/
 
 json_passed_t twitter_q1_text(const char *value, void *) {
@@ -379,7 +379,7 @@ json_passed_t twitter_q1_text(const char *value, void *) {
 }
 
 json_passed_t twitter_q1_created_at(const char *value, void *) {
-    return strstr(value, "Sep 12") ? JSON_PASS : JSON_FAIL;
+    return strstr(value, "Sep 13") ? JSON_PASS : JSON_FAIL;
 }
 
 json_query_t twitter_query1() {
@@ -391,7 +391,7 @@ json_query_t twitter_query1() {
 
 static const char **sparser_twitter_query1(int *count) {
     static const char *_1 = "Donald Trump";
-    static const char *_2 = "Sep 12";
+    static const char *_2 = "Sep 13";
     static const char *predicates[] = {_1, _2, NULL};
 
     *count = 2;
