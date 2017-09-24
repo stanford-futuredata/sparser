@@ -133,7 +133,7 @@ object Queries {
           * GROUP BY asn ORDER BY asn DESC;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"p502.modbus.device_id.function_code is not NULL")
+          spark.read.json(input).filter($"p502.modbus.device_id.function_code is not null")
             .select($"autonomous_system.asn", $"ipint")
         }
 
