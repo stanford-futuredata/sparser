@@ -106,7 +106,7 @@ object Queries {
           **/
         (input: String) => {
           spark.read.json(input).filter($"autonomous_system.name".contains("Verizon"))
-            .select($"autonomous_system.asn", $"ipint")
+            .select($"autonomous_system.asn as asn", $"ipint")
         }
 
       case "9" =>
@@ -118,7 +118,7 @@ object Queries {
           **/
         (input: String) => {
           spark.read.json(input).filter($"p502.modbus.device_id.function_code is not NULL")
-            .select($"autonomous_system.asn", $"ipint")
+            .select($"autonomous_system.asn as asn", $"ipint")
         }
 
       /************* Twitter Queries *************/
@@ -184,7 +184,7 @@ object Queries {
           * GROUP BY autonomous_system.asn;
           */
         (df: DataFrame) => {
-          df.groupBy($"autonomous_system.asn").count().count()
+          df.groupBy($"asn").count().count()
         }
       case "9" =>
          /**
@@ -194,8 +194,8 @@ object Queries {
           * GROUP BY asn ORDER BY asn DESC;
           */
         (df: DataFrame) => {
-          df.groupBy("autonomous_system.asn").count()
-            .orderBy($"autonomous_system.asn".desc).count()
+          df.groupBy("asn").count()
+            .orderBy($"asn".desc).count()
         }
       case "11" =>
         /**
