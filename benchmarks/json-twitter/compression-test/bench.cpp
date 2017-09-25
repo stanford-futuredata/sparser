@@ -91,7 +91,8 @@ int mison_parse_wrapper(const char *line, void * _) {
 }
 
 int main() {
-  const char *filename = path_for_data("tweets-large-comp.json.gz");
+  const char *filename = //path_for_data("tweets-large-comp.json.gz");
+  const char *filename = "lfs/1/sparser/tweets23g.json.gz";
 
   char *predicates[] = { NULL, NULL, NULL, };
   char *first, *second;

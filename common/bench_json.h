@@ -168,7 +168,7 @@ double bench_rapidjson(const char *filename, parser_t callback, void *callback_c
   printf("JSON PARSER Passing Elements: %d of %d records (%.3f seconds)\n", matching,
          doc_index, elapsed);
 
-  free(ptr);
+  free(data);
 
   return elapsed;
 }
