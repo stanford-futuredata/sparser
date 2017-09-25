@@ -1,0 +1,20 @@
+Num rows in query output: 18582
+Num partitions: 539
+Total Job Time: 15.36
+Num rows in query output: 18582
+Num partitions: 539
+Total Job Time: 9.426
+Num rows in query output: 18582
+Num partitions: 539
+Total Job Time: 9.396
+Num rows in query output: 18582
+Num partitions: 539
+Total Job Time: 8.993
+Num rows in query output: 18582
+Num partitions: 539
+Total Job Time: 9.546
+Num rows in query output: 18582
+Num partitions: 539
+Total Job Time: 9.418
+15360.0,9426.0,9396.0,8993.0,9546.0,9418.0
+Average Runtime: 10.3565
