@@ -1,6 +1,6 @@
 package edu.stanford.sparser
 
-import org.apache.spark.sql.types.{IntegerType, LongType, StructType}
+import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 object Queries {
@@ -127,14 +127,18 @@ object Queries {
 
       case "zakir10" =>
          /**
-          * SELECT autonomous_system.asn AS asn, COUNT(ipint) AS hosts
-          * FROM ipv4.20160425
-          * WHERE p502.modbus.device_id.function_code is not NULL
-          * GROUP BY asn ORDER BY asn DESC;
+          * SELECT COUNT(ip) as hosts,
+          *        p443.https.tls.certificate.parsed.fingerprint_sha256 AS certificate_fingerprint
+          * FROM ipv4.20151201
+          * WHERE p443.https.tls.certificate.parsed.issuer_dn CONTAINS "Let's Encrypt"
+          * AND   p443.https.tls.validation.browser_trusted = true
+          * GROUP BY certificate_fingerprint ORDER BY hosts DESC;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"p502.modbus.device_id.function_code is not null")
-            .select($"autonomous_system.asn", $"ipint")
+          spark.read.json(input).filter($"p443.https.tls.certificate.parsed.issuer_dn"
+              .contains("Let's Encrypt"))
+            .filter($"p443.https.tls.validation.browser_trusted" === true)
+            .select($"p443.https.tls.certificate.parsed.fingerprint_sha256", $"ipint")
         }
 
       /************* Twitter Queries *************/
@@ -204,14 +208,17 @@ object Queries {
         }
       case "zakir10" =>
          /**
-          * SELECT autonomous_system.asn AS asn, COUNT(ipint) AS hosts
-          * FROM ipv4.20160425
-          * WHERE p502.modbus.device_id.function_code is not NULL
-          * GROUP BY asn ORDER BY asn DESC;
-          */
+          * SELECT COUNT(ip) as hosts,
+          *        p443.https.tls.certificate.parsed.fingerprint_sha256 AS certificate_fingerprint
+          * FROM ipv4.20151201
+          * WHERE p443.https.tls.certificate.parsed.issuer_dn CONTAINS "Let's Encrypt"
+          * AND   p443.https.tls.validation.browser_trusted = true
+          * GROUP BY certificate_fingerprint ORDER BY hosts DESC;
+          **/
         (df: DataFrame) => {
-          df.groupBy("asn").count()
-            .orderBy($"asn".desc).count()
+          df.groupBy("fingerprint_sha256").count()
+            .withColumnRenamed("count", "hosts")
+            .orderBy($"hosts".desc).count()
         }
       case "twitter2" =>
         /**
@@ -251,13 +258,17 @@ object Queries {
           */
         new StructType().add("asn", IntegerType).add("ipint", IntegerType)
       case "zakir10" =>
-        /**
-          * SELECT autonomous_system.asn AS asn, COUNT(ipint) AS hosts
-          * FROM ipv4.20160425
-          * WHERE p502.modbus.device_id.function_code is not NULL
-          * GROUP BY asn ORDER BY asn DESC;
-          */
-        new StructType().add("asn", IntegerType).add("ipint", IntegerType)
+         /**
+          * SELECT COUNT(ip) as hosts,
+          *        p443.https.tls.certificate.parsed.fingerprint_sha256 AS certificate_fingerprint
+          * FROM ipv4.20151201
+          * WHERE p443.https.tls.certificate.parsed.issuer_dn CONTAINS "Let's Encrypt"
+          * AND   p443.https.tls.validation.browser_trusted = true
+          * GROUP BY certificate_fingerprint ORDER BY hosts DESC;
+          **/
+        new StructType().add("fingerprint_sha256", StringType, nullable = false,
+          Metadata.fromJson("""{"length": 64}"""))
+            .add("ipint", IntegerType)
       case "twitter2" =>
         /**
           * SELECT user.id, SUM(retweet_count)

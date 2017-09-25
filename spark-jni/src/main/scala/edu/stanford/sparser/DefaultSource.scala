@@ -102,6 +102,7 @@ private[sparser] class DefaultSource extends TextFileFormat with DataSourceRegis
             case BooleanType => 4
             case LongType => 8
             case DoubleType => 8
+            case StringType => field.metadata.getLong("length").toInt
             case _ =>
               throw new RuntimeException(field.dataType + " not supported in Sparser!")
           }

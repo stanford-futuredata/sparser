@@ -293,11 +293,10 @@ json_passed_t zakir_q9_ipint_proj(int64_t value, void *data) {
 json_query_t zakir_query9() {
     json_query_t query = json_query_new();
     json_query_add_string_filter(query, "autonomous_system.name",
-                                  zakir_q9_autonomoussystem_name);
+                                 zakir_q9_autonomoussystem_name);
     json_query_add_integer_filter(query, "autonomous_system.asn",
                                   zakir_q9_autonomoussystem_asn_proj);
-    json_query_add_integer_filter(query, "ipint",
-                                  zakir_q9_ipint_proj);
+    json_query_add_integer_filter(query, "ipint", zakir_q9_ipint_proj);
     return query;
 }
 
@@ -309,29 +308,39 @@ static const char **sparser_zakir_query9(int *count) {
     return predicates;
 }
 
-
 // ************************ ZAKIR QUERY 10 **************************
 /**
- * SELECT autonomous_system.asn AS asn, COUNT(ipint) AS hosts
- * FROM ipv4.20160425
- * WHERE p502.modbus.device_id.function_code is not NULL
- * GROUP BY asn ORDER BY asn DESC;
+ * SELECT COUNT(ip) as hosts,
+ *        p443.https.tls.certificate.parsed.fingerprint_sha256 AS
+ *certificate_fingerprint
+ * FROM ipv4.20151201
+ * WHERE p443.https.tls.certificate.parsed.issuer_dn CONTAINS "Let's Encrypt"
+ * AND   p443.https.tls.validation.browser_trusted = true
+ * GROUP BY certificate_fingerprint ORDER BY hosts DESC;
  **/
 
 typedef struct zakir_q10_proj {
-    int asn;
+    char fingerprint_256[65];
     int ipint;
 } zakir_q10_proj_t;
 
-// Checking nullity
-json_passed_t zakir_q10_p502_modbus_device_id_function_code(int64_t, void *) {
-    return JSON_PASS;
+json_passed_t zakir_q10_p443_https_tls_certificate_parsed_issuerdn(
+    const char *value, void *) {
+    return strstr("Let's Encrypt", value) ? JSON_PASS : JSON_FAIL;
 }
 
-json_passed_t zakir_q10_autonomoussystem_asn_proj(int64_t value, void *data) {
+json_passed_t zakir_q10_p443_https_tls_validation_browsertrusted(bool value,
+                                                                 void *) {
+    return value ? JSON_PASS : JSON_FAIL;
+}
+
+json_passed_t
+zakir_q10_p443_https_tls_certificate_parsed_fingerprintsha256_proj(
+    const char *value, void *data) {
     callback_info_t *ctx = (callback_info_t *)data;
     zakir_q10_proj_t *row = ((zakir_q10_proj_t *)ctx->ptr) + ctx->count;
-    row->asn = value;
+    strncpy(row->fingerprint_256, value, 64);
+    row->fingerprint_256[64] = '\0';
 
     return JSON_PASS;
 }
@@ -346,23 +355,24 @@ json_passed_t zakir_q10_ipint_proj(int64_t value, void *data) {
 
 json_query_t zakir_query10() {
     json_query_t query = json_query_new();
-    json_query_add_integer_filter(query, "p502.modbus.device_id.function_code",
-                                  zakir_q10_p502_modbus_device_id_function_code);
-    json_query_add_integer_filter(query, "autonomous_system.asn",
-                                  zakir_q10_autonomoussystem_asn_proj);
-    json_query_add_integer_filter(query, "ipint",
-                                  zakir_q10_ipint_proj);
+    json_query_add_string_filter(
+        query, "p443.https.tls.certificate.parsed.issuer_dn",
+        zakir_q10_p443_https_tls_certificate_parsed_issuerdn);
+    json_query_add_boolean_filter(
+        query, "p443.https.tls.validation.browser_trusted",
+        zakir_q10_p443_https_tls_validation_browsertrusted);
+    json_query_add_string_filter(
+        query, "p443.https.tls.certificate.parsed.fingerprint_sha256",
+        zakir_q10_p443_https_tls_certificate_parsed_fingerprintsha256_proj);
+    json_query_add_integer_filter(query, "ipint", zakir_q10_ipint_proj);
     return query;
 }
 
 static const char **sparser_zakir_query10(int *count) {
-    static const char *_1 = "p502";
-    static const char *_2 = "modbus";
-    static const char *_3 = "device_id";
-    static const char *_4 = "function_code";
-    static const char *predicates[] = {_1, _2, _3, _4, NULL};
+    static const char *_1 = "Let's Encrypt";
+    static const char *predicates[] = {_1, NULL};
 
-    *count = 4;
+    *count = 1;
     return predicates;
 }
 
@@ -521,35 +531,16 @@ static const char **sparser_twitter_query4(int *count) {
 }
 
 // ************** All the queries we want to test **************
-const zakir_query_t queries[] = {zakir_query1,
-                                 zakir_query2,
-                                 zakir_query3,
-                                 zakir_query4,
-                                 zakir_query5,
-                                 zakir_query6,
-                                 zakir_query7,
-                                 zakir_query8,
-                                 zakir_query9,
-                                 zakir_query10,
-                                 twitter_query1,
-                                 twitter_query2,
-                                 twitter_query3,
-                                 twitter_query4,
-                                 NULL};
-const sparser_zakir_query_preds_t squeries[] = {sparser_zakir_query1,
-                                                sparser_zakir_query2,
-                                                sparser_zakir_query3,
-                                                sparser_zakir_query4,
-                                                sparser_zakir_query5,
-                                                sparser_zakir_query6,
-                                                sparser_zakir_query7,
-                                                sparser_zakir_query8,
-                                                sparser_zakir_query9,
-                                                sparser_zakir_query10,
-                                                sparser_twitter_query1,
-                                                sparser_twitter_query2,
-                                                sparser_twitter_query3,
-                                                sparser_twitter_query4,
-                                                NULL};
+const zakir_query_t queries[] = {zakir_query1,   zakir_query2,   zakir_query3,
+                                 zakir_query4,   zakir_query5,   zakir_query6,
+                                 zakir_query7,   zakir_query8,   zakir_query9,
+                                 zakir_query10,  twitter_query1, twitter_query2,
+                                 twitter_query3, twitter_query4, NULL};
+const sparser_zakir_query_preds_t squeries[] = {
+    sparser_zakir_query1,   sparser_zakir_query2,   sparser_zakir_query3,
+    sparser_zakir_query4,   sparser_zakir_query5,   sparser_zakir_query6,
+    sparser_zakir_query7,   sparser_zakir_query8,   sparser_zakir_query9,
+    sparser_zakir_query10,  sparser_twitter_query1, sparser_twitter_query2,
+    sparser_twitter_query3, sparser_twitter_query4, NULL};
 
 #endif

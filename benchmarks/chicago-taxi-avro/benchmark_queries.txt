@@ -1,0 +1,3 @@
+SELECT AVG(trip_seconds) FROM [chicago-taxi] where company = 'Choice Taxi Association';
+SELECT MAX(fare) AS maximum_fare, MIN(fare) AS minimum_fare, AVG(fare) AS avg_fare,  STDDEV(fare) AS std_dev_fare  FROM [chicago-taxi] where dropoff_census_tract = 17031320100;
+SELECT MAX(tips) FROM [chicago-taxi] where company = 'Taxi Affiliation Services' and payment_type = 'Credit Card';

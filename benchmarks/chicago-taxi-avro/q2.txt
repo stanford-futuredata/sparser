@@ -1,0 +1,11 @@
+Distinct Query matches: 0
+Sparser Passed Records: 6470
+Callback Passed Records: 6470
+Bytes Seeked Forward: 0
+Bytes Seeked Backward: 0
+Fraction Passed Correctly: 1.000000
+Fraction False Positives: 0.000000
+Total Runtime: 2.296196 seconds
+3253 - 91138 Gaither Cab Co. count - 6470
+total count - 54783475
+Loop Runtime: 8.610549 seconds
