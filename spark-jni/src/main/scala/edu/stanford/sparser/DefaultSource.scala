@@ -93,20 +93,20 @@ private[sparser] class DefaultSource extends TextFileFormat with DataSourceRegis
     // val broadcastedHadoopConf =
     //   sparkSession.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
 
-        val recordSize: Int = dataSchema.fields.map { field =>
-          field.dataType match {
-            case ByteType => 1
-            case ShortType => 2
-            case IntegerType => 4
-            case FloatType => 4
-            case BooleanType => 4
-            case LongType => 8
-            case DoubleType => 8
-            case StringType => field.metadata.getLong("length").toInt
-            case _ =>
-              throw new RuntimeException(field.dataType + " not supported in Sparser!")
-          }
-        }.sum
+    val recordSize: Int = dataSchema.fields.map { field =>
+      field.dataType match {
+        case ByteType => 1
+        case ShortType => 2
+        case IntegerType => 4
+        case FloatType => 4
+        case BooleanType => 4
+        case LongType => 8
+        case DoubleType => 8
+        case StringType => field.metadata.getLong("length").toInt
+        case _ =>
+          throw new RuntimeException(field.dataType + " not supported in Sparser!")
+      }
+    }.sum
 
     (file: PartitionedFile) => {
       println(file.filePath)

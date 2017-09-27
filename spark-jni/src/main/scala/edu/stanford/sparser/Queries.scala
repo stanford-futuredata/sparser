@@ -30,7 +30,7 @@ object Queries {
     queryStr match {
       /************* Zakir Queries *************/
       case "zakir1" =>
-         /**
+        /**
           * SELECT COUNT(*)
           * FROM  ipv4.20160425
           * WHERE p23.telnet.banner.banner is not NULL
@@ -42,7 +42,7 @@ object Queries {
         }
 
       case "zakir2" =>
-         /**
+        /**
           * SELECT COUNT(*)
           * FROM  ipv4.20160425
           * WHERE p80.http.get.body CONTAINS 'content=\"WordPress 4.0';
@@ -52,7 +52,7 @@ object Queries {
         }
 
       case "zakir3" =>
-         /**
+        /**
           * SELECT COUNT(*)
           * FROM  ipv4.20160425
           * WHERE autonomous_system.asn = 2516;
@@ -62,7 +62,7 @@ object Queries {
         }
 
       case "zakir4" =>
-         /**
+        /**
           * SELECT COUNT(*)
           * FROM  ipv4.20160425
           * WHERE location.country = "Chile"
@@ -74,7 +74,7 @@ object Queries {
         }
 
       case "zakir5" =>
-         /**
+        /**
           * SELECT COUNT(*)
           * FROM ipv4.20160425
           * WHERE p80.http.get.headers.server like '%DIR-300%';
@@ -84,7 +84,7 @@ object Queries {
         }
 
       case "zakir6" =>
-         /**
+        /**
           * SELECT COUNT(*)
           * FROM ipv4.20160425
           * WHERE p110.pop3s.starttls.banner is not NULL;
@@ -94,7 +94,7 @@ object Queries {
         }
 
       case "zakir7" =>
-         /**
+        /**
           * SELECT COUNT(*)
           * FROM ipv4.20160425
           * WHERE p21.ftp.banner.banner like '%Seagate Central Shared%';
@@ -104,7 +104,7 @@ object Queries {
         }
 
       case "zakir8" =>
-         /**
+        /**
           * SELECT COUNT(*)
           * FROM ipv4.20160425
           * WHERE p20000.dnp3.status.support = true;
@@ -114,7 +114,7 @@ object Queries {
         }
 
       case "zakir9" =>
-         /**
+        /**
           * SELECT autonomous_system.asn, count(ipint) AS count
           * FROM ipv4.20160425
           * WHERE autonomous_system.name CONTAINS 'Verizon'
@@ -126,7 +126,7 @@ object Queries {
         }
 
       case "zakir10" =>
-         /**
+        /**
           * SELECT COUNT(ip) as hosts,
           *        p443.https.tls.certificate.parsed.fingerprint_sha256 AS certificate_fingerprint
           * FROM ipv4.20151201
@@ -136,14 +136,14 @@ object Queries {
           **/
         (input: String) => {
           spark.read.json(input).filter($"p443.https.tls.certificate.parsed.issuer_dn"
-              .contains("Let's Encrypt"))
+            .contains("Let's Encrypt"))
             .filter($"p443.https.tls.validation.browser_trusted" === true)
             .select($"p443.https.tls.certificate.parsed.fingerprint_sha256", $"ipint")
         }
 
       /************* Twitter Queries *************/
       case "twitter1" =>
-         /**
+        /**
           * SELECT count(*)
           * FROM tweets
           * WHERE text contains "Donald Trump"
@@ -155,7 +155,7 @@ object Queries {
         }
 
       case "twitter2" =>
-         /**
+        /**
           * SELECT user.id, SUM(retweet_count)
           * FROM tweets
           * WHERE text contains "Obama"
@@ -167,7 +167,7 @@ object Queries {
         }
 
       case "twitter3" =>
-         /**
+        /**
           * SELECT id
           * FROM tweets
           * WHERE user.lang = "msa";
@@ -177,7 +177,7 @@ object Queries {
         }
 
       case "twitter4" =>
-         /**
+        /**
           * SELECT distinct user.id
           * FROM tweets
           * WHERE text contains @realDonaldTrump;
@@ -207,7 +207,7 @@ object Queries {
           df.groupBy($"asn").count().count()
         }
       case "zakir10" =>
-         /**
+        /**
           * SELECT COUNT(ip) as hosts,
           *        p443.https.tls.certificate.parsed.fingerprint_sha256 AS certificate_fingerprint
           * FROM ipv4.20151201
@@ -258,7 +258,7 @@ object Queries {
           */
         new StructType().add("asn", IntegerType).add("ipint", IntegerType)
       case "zakir10" =>
-         /**
+        /**
           * SELECT COUNT(ip) as hosts,
           *        p443.https.tls.certificate.parsed.fingerprint_sha256 AS certificate_fingerprint
           * FROM ipv4.20151201
@@ -268,7 +268,7 @@ object Queries {
           **/
         new StructType().add("fingerprint_sha256", StringType, nullable = false,
           Metadata.fromJson("""{"length": 64}"""))
-            .add("ipint", IntegerType)
+          .add("ipint", IntegerType)
       case "twitter2" =>
         /**
           * SELECT user.id, SUM(retweet_count)

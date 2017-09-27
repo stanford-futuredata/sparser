@@ -20,7 +20,9 @@ bench
 out
 avro-c-1.8.2/build
 common/avro
+common/libhdfs
 .ycm_extra_conf.py
 .clang-format
 .idea/
 *.iml
+.ipynb_checkpoints/

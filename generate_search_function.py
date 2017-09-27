@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 length_to_bits = lambda x: x * 8
 maskvalues = {
         1: "0xffffffff",
@@ -32,7 +34,7 @@ class SparserSearchCodeGen(object):
         buf += self.generate_loop_remaining_checks()
         buf += self.generate_tail()
         buf = buf.strip()
-        print buf
+        print(buf)
 
     def generate_header(self):
 
@@ -145,9 +147,9 @@ class SparserSearchCodeGen(object):
                 bitlength=length_to_bits(self.tokenlengths[0]),
                 maskvalue=maskvalues[self.tokenlengths[0]])
 
-    def generate_loop_remaining_checks(self):
-        if len(self.tokens) == 1:
-            return "}"
+        def generate_loop_remaining_checks(self):
+            if len(self.tokens) == 1:
+                return "}"
 
         first_check = "mask = _mm256_movemask_epi8(_mm256_cmpeq_epi{bitlength}(val, q{token}));"
         first_check = first_check.format(token=self.tokens[1])
@@ -172,8 +174,8 @@ class SparserSearchCodeGen(object):
             output += template.format(token=token,
                     maskvalue=maskvalues[self.tokenlengths[token]],
                     bitlength=length_to_bits(self.tokenlengths[token]))
-        for _ in xrange(self.tokens):
-            output += "}\n"
+            for _ in xrange(self.tokens):
+                output += "}\n"
         return output
 
     def generate_tail(self):
@@ -223,7 +225,7 @@ class SparserSearchCodeGen(object):
 import sys
 
 def usage(name):
-    print "{} <tokenlengths>".format(name)
+    print("{} <tokenlengths>".format(name))
 
 if __name__ == "__main__":
 

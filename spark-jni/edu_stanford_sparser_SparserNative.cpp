@@ -54,9 +54,8 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
     ctx.capacity = max_records;
     ctx.ptr = buffer_addr;
 
-    const long num_records_parsed =
-        bench_sparser_spark(filename_c, start, length, preds, count,
-                            full_parser_callback, &ctx);
+    const long num_records_parsed = bench_sparser_spark(
+        filename_c, start, length, preds, count, full_parser_callback, &ctx);
 
     assert(num_records_parsed <= max_records);
 

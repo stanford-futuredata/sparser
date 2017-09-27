@@ -1,10 +1,11 @@
 from __future__ import with_statement
 from fabric.api import *
 
-DATASETS_TO_BENCHMARK = ['tweets-trump.json', 'tweets23g.json', 'zakir16g.json']
+DATASETS_TO_BENCHMARK = ['tweets68g.json', 'zakir652g.json']
 GIT_PROMPT = {
     'Are you sure you want to continue connecting (yes/no)? ': 'yes',
 }
+
 
 @parallel
 def clear_buffer_cache():
@@ -13,27 +14,34 @@ def clear_buffer_cache():
 
 @parallel
 def move_file_to_ssd(filename):
-    run('sudo mv %s /mnt/1/sparser/%s' % (filename, filename))
+    run('mv %s /mnt/1/sparser/%s' % (filename, filename))
 
 
 @parallel
 def download_data(pool_size=3):
     for filename in DATASETS_TO_BENCHMARK:
-        run('gsutil -m -o GSUtil:parallel_composite_upload_threshold=150M cp \
-                gs://sparser/%s /mnt/1/%s' % (filename, filename))
+        run('sudo gsutil -m -o GSUtil:parallel_composite_upload_threshold=150M cp \
+                gs://sparser/%s /mnt/1/sparser/%s' % (filename, filename))
 
 
 @runs_once
 def put_data_on_hdfs():
     for filename in DATASETS_TO_BENCHMARK:
-        run('hadoop fs -put %s /user/fabuzaid21/%s' % (filename, filename))
+        run('hadoop fs -cp gs://sparser/%s /user/fabuzaid21/%s' % (filename,
+                                                                   filename))
 
 
 @parallel
-def build_sparser(code_dir):
+def build_sparser(code_dir, build_all=True, build_java=True):
     with cd('%s/spark-jni' % code_dir):
-        run('git pull origin master')
-        run('make clean && make')
+        run('git fetch')
+        run('git checkout master && git pull --rebase')
+        if build_all:
+            run('make clean && make')
+        elif build_java:
+            run('mvn clean && mvn package')
+        else:
+            run('rm *.o && make')
     run('sudo ln -sfn %s/spark-jni/libsparser.so /usr/lib/libsparser.so' %
         code_dir)
 
@@ -100,10 +108,11 @@ def install_config():
 def setup():
     code_dir = '/home/fabuzaid21/sparser'
     run('sudo mkdir -p /mnt/1/sparser')
+    run('sudo chown -R `whoami` /mnt/1/sparser')
     push_ssh_key()
     install_libs()
     install_config()
     get_sparser_code(code_dir)
     install_pivotal_libhdfs3(code_dir)
     build_sparser(code_dir)
-    download_data()
+    put_data_on_hdfs()

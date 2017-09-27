@@ -79,7 +79,7 @@ extern hdfsFS fs;
  * form "hdfs://hostname/path/to/file"
  **/
 long read_hdfs(const char *filename_uri, char **buf, unsigned long start,
-                   unsigned long length) {
+               unsigned long length) {
     // Extract file path from filename_uri, skip over "hdfs://hostname"
     char *filename = (char *)filename_uri + 7;
     while (*filename != '/') {
@@ -117,7 +117,7 @@ long read_hdfs(const char *filename_uri, char **buf, unsigned long start,
  * `filename_uri` must be of the form "file:///path/to/file"
  **/
 long read_local(const char *filename_uri, char **buf, unsigned long start,
-                   unsigned long length) {
+                unsigned long length) {
     // Extract file path from filename_uri, skip over "file://"
     char *filename = (char *)filename_uri + 7;
 

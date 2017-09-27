@@ -15,7 +15,6 @@
  * permissions and limitations under the License.
  */
 
-#include <avro.h>
 #include <endian.h>
 #include <errno.h>
 #include <math.h>
@@ -49,6 +48,25 @@
  * WHERE  company = 'Taxi Affiliation Services'
  * AND    payment_type = 'Credit Card';
  **/
+
+enum avro_type_t {
+    AVRO_STRING,
+    AVRO_BYTES,
+    AVRO_INT32,
+    AVRO_INT64,
+    AVRO_FLOAT,
+    AVRO_DOUBLE,
+    AVRO_BOOLEAN,
+    AVRO_NULL,
+    AVRO_RECORD,
+    AVRO_ENUM,
+    AVRO_FIXED,
+    AVRO_MAP,
+    AVRO_ARRAY,
+    AVRO_UNION,
+    AVRO_LINK
+};
+typedef enum avro_type_t avro_type_t;
 
 float int_bits_to_float(const uint32_t bits) {
     const int sign = ((bits >> 31) == 0) ? 1 : -1;
@@ -90,7 +108,6 @@ int64_t read_long_debug(char *buf) {
             /*
              * illegal byte sequence
              */
-            avro_set_error("Varint too long");
             return EILSEQ;
         }
         b = (uint8_t)*buf;
@@ -126,7 +143,6 @@ int read_long(char **outer_buf, int64_t *l) {
             /*
              * illegal byte sequence
              */
-            avro_set_error("Varint too long");
             return EILSEQ;
         }
         b = (uint8_t)*buf;
@@ -139,7 +155,7 @@ int read_long(char **outer_buf, int64_t *l) {
     return 0;
 }
 
-/*
+/* The Chicago Taxi dataset has the following Avro schema:
 "fields":[
   {"name":"unique_key","type":"string"},
   {"name":"taxi_id","type":"string"},
@@ -485,8 +501,9 @@ void verify_avro_loop(avro_context_t *ctx) {
 int main(int, char *argv[]) {
     const char *filename = argv[1];
     const int query_field_index = atoi(argv[2]);
-    const char *query_str = argv[3]; //"de5c1de70947da44115c5b8e4073f302040ff570";
-    const char *query_substr = argv[4]; //"de5c";
+    const char *query_str =
+        argv[3];  //"de5c1de70947da44115c5b8e4073f302040ff570";
+    const char *query_substr = argv[4];  //"de5c";
     char *raw;
     const size_t file_length = read_all(filename, &raw);
     char *init = raw;
