@@ -1,5 +1,5 @@
 from __future__ import with_statement
-from fabric.api import *
+from fabric.api import cd, put, run, settings, parallel, runs_once
 
 DATASETS_TO_BENCHMARK = ['tweets68g.json', 'zakir652g.json']
 GIT_PROMPT = {
