@@ -16,7 +16,9 @@
 
 using namespace rapidjson;
 
+#ifdef USE_HDFS
 hdfsFS fs;
+#endif
 
 // Performs a full parse of the query using RapidJSON
 int full_parser_callback(const char *line, void *thunk) {
@@ -67,6 +69,7 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
 // TODO: don't hardcode HDFS hostname and port
 JNIEXPORT void JNICALL Java_edu_stanford_sparser_SparserNative_init(JNIEnv *,
                                                                     jclass) {
+#ifdef USE_HDFS
     printf("In C++, init called\n");
     // connect to NameNode
     setenv("LIBHDFS3_CONF", "/etc/hadoop/conf/hdfs-site.xml", 1);
@@ -74,6 +77,7 @@ JNIEXPORT void JNICALL Java_edu_stanford_sparser_SparserNative_init(JNIEnv *,
     hdfsBuilderSetNameNode(builder, "sparser-m");
     hdfsBuilderSetNameNodePort(builder, 8020);
     fs = hdfsBuilderConnect(builder);
+#endif
 
     // Code for finding hostname; use this later when hostname is no longer
     // hard-coded

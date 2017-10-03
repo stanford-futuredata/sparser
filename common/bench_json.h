@@ -14,7 +14,6 @@
 
 typedef sparser_callback_t parser_t;
 
-#ifdef USE_HDFS
 /** Uses sparser and RapidJSON to count the number of records matching the
  * search query.
  *
@@ -35,11 +34,13 @@ long bench_sparser_spark(const char *filename_uri, const unsigned long start,
     printf("Start: %lu\n", start);
     printf("Length: %lu\n", file_length);
     if (strncmp("hdfs://", filename_uri, 7) == 0) {
+#ifdef USE_HDFS
         bench_timer_t t = time_start();
         length = read_hdfs(filename_uri, &raw, start, file_length);
         double read_hdfs_time = time_stop(t);
         printf("Read time: %f\n", read_hdfs_time);
         assert(length == file_length + 1);
+#endif
     } else if (strncmp("file:///", filename_uri, 8) == 0) {
         bench_timer_t t = time_start();
         length = read_local(filename_uri, &raw, start, file_length);
@@ -71,7 +72,6 @@ long bench_sparser_spark(const char *filename_uri, const unsigned long start,
 
     return num_records_passed;
 }
-#endif
 
 /** Uses sparser and RapidJSON to count the number of records matching the
  * search query.
