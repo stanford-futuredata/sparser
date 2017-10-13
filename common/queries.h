@@ -19,6 +19,10 @@ typedef struct callback_info {
     long capacity;
 } callback_info_t;
 
+// Structs for storing projected fields of queries (e.g., zakir_q9_proj_t)
+// need to be packed, so that UnsafeRow reads them correctly
+#pragma pack(1)
+
 #define ZAKIR_BENCH_SPARSER
 
 // ************************ ZAKIR QUERY 1 **************************
@@ -265,6 +269,7 @@ static const char **sparser_zakir_query8(int *count) {
  **/
 
 typedef struct zakir_q9_proj {
+    int64_t null_bits;
     int asn;
     int ipint;
 } zakir_q9_proj_t;
@@ -277,6 +282,7 @@ json_passed_t zakir_q9_autonomoussystem_name(const char *value, void *) {
 json_passed_t zakir_q9_autonomoussystem_asn_proj(int64_t value, void *data) {
     callback_info_t *ctx = (callback_info_t *)data;
     zakir_q9_proj_t *row = ((zakir_q9_proj_t *)ctx->ptr) + ctx->count;
+    row->null_bits &= 1 << 0;
     row->asn = value;
 
     return JSON_PASS;
@@ -285,6 +291,7 @@ json_passed_t zakir_q9_autonomoussystem_asn_proj(int64_t value, void *data) {
 json_passed_t zakir_q9_ipint_proj(int64_t value, void *data) {
     callback_info_t *ctx = (callback_info_t *)data;
     zakir_q9_proj_t *row = ((zakir_q9_proj_t *)ctx->ptr) + ctx->count;
+    row->null_bits &= 1 << 1;
     row->ipint = value;
 
     return JSON_PASS;
@@ -320,6 +327,7 @@ static const char **sparser_zakir_query9(int *count) {
  **/
 
 typedef struct zakir_q10_proj {
+    int64_t null_bits;
     char fingerprint_256[65];
     int ipint;
 } zakir_q10_proj_t;
@@ -339,6 +347,7 @@ zakir_q10_p443_https_tls_certificate_parsed_fingerprintsha256_proj(
     const char *value, void *data) {
     callback_info_t *ctx = (callback_info_t *)data;
     zakir_q10_proj_t *row = ((zakir_q10_proj_t *)ctx->ptr) + ctx->count;
+    row->null_bits &= 1 << 0;
     strncpy(row->fingerprint_256, value, 64);
     row->fingerprint_256[64] = '\0';
 
@@ -348,6 +357,7 @@ zakir_q10_p443_https_tls_certificate_parsed_fingerprintsha256_proj(
 json_passed_t zakir_q10_ipint_proj(int64_t value, void *data) {
     callback_info_t *ctx = (callback_info_t *)data;
     zakir_q10_proj_t *row = ((zakir_q10_proj_t *)ctx->ptr) + ctx->count;
+    row->null_bits &= 1 << 1;
     row->ipint = value;
 
     return JSON_PASS;
@@ -417,7 +427,8 @@ static const char **sparser_twitter_query1(int *count) {
  **/
 
 typedef struct twitter_q2_proj {
-    long user_id;
+    int64_t null_bits;
+    int64_t user_id;
     int retweet_count;
 } twitter_q2_proj_t;
 
@@ -428,6 +439,7 @@ json_passed_t twitter_q2_text(const char *value, void *) {
 json_passed_t twitter_q2_user_id_proj(int64_t value, void *data) {
     callback_info_t *ctx = (callback_info_t *)data;
     twitter_q2_proj_t *row = ((twitter_q2_proj_t *)ctx->ptr) + ctx->count;
+    row->null_bits &= 1 << 1;
     row->user_id = value;
 
     return JSON_PASS;
@@ -436,6 +448,7 @@ json_passed_t twitter_q2_user_id_proj(int64_t value, void *data) {
 json_passed_t twitter_q2_retweet_count_proj(int64_t value, void *data) {
     callback_info_t *ctx = (callback_info_t *)data;
     twitter_q2_proj_t *row = ((twitter_q2_proj_t *)ctx->ptr) + ctx->count;
+    row->null_bits &= 1 << 0;
     row->retweet_count = value;
 
     return JSON_PASS;
@@ -465,7 +478,10 @@ static const char **sparser_twitter_query2(int *count) {
  * WHERE user.lang = "msa";
  **/
 
-typedef struct twitter_q3_id_proj { long id; } twitter_q3_proj_t;
+typedef struct twitter_q3_id_proj {
+    int64_t null_bits;
+    int64_t id;
+} twitter_q3_proj_t;
 
 json_passed_t twitter_q3_user_lang(const char *value, void *) {
     return (strcmp(value, "msa") == 0) ? JSON_PASS : JSON_FAIL;
@@ -474,6 +490,7 @@ json_passed_t twitter_q3_user_lang(const char *value, void *) {
 json_passed_t twitter_q3_id_proj(int64_t value, void *data) {
     callback_info_t *ctx = (callback_info_t *)data;
     twitter_q3_proj_t *row = ((twitter_q3_proj_t *)ctx->ptr) + ctx->count;
+    row->null_bits &= 1 << 0;
     row->id = value;
 
     return JSON_PASS;
@@ -501,7 +518,10 @@ static const char **sparser_twitter_query3(int *count) {
  * WHERE text contains @realDonaldTrump;
  **/
 
-typedef struct twitter_q4_proj { long user_id; } twitter_q4_proj_t;
+typedef struct twitter_q4_proj {
+    int64_t null_bits;
+    int64_t user_id;
+} twitter_q4_proj_t;
 
 json_passed_t twitter_q4_text(const char *value, void *) {
     return strstr(value, "@realDonaldTrump") ? JSON_PASS : JSON_FAIL;
@@ -510,6 +530,7 @@ json_passed_t twitter_q4_text(const char *value, void *) {
 json_passed_t twitter_q4_user_id_proj(int64_t value, void *data) {
     callback_info_t *ctx = (callback_info_t *)data;
     twitter_q4_proj_t *row = ((twitter_q4_proj_t *)ctx->ptr) + ctx->count;
+    row->null_bits &= 1 << 0;
     row->user_id = value;
 
     return JSON_PASS;

@@ -37,7 +37,7 @@ int full_parser_callback(const char *line, void *thunk) {
 
 JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
     JNIEnv *env, jobject, jstring filename_java, jint filename_length,
-    jlong buffer_addr, jlong start, jlong length, jint query_index, jlong,
+    jlong buffer_addr, jlong start, jlong length, jint query_index,
     jlong max_records) {
     bench_timer_t start_time = time_start();
     // Convert the Java String (jstring) into C string (char*)
@@ -69,8 +69,8 @@ JNIEXPORT jlong JNICALL Java_edu_stanford_sparser_SparserNative_parse(
 // TODO: don't hardcode HDFS hostname and port
 JNIEXPORT void JNICALL Java_edu_stanford_sparser_SparserNative_init(JNIEnv *,
                                                                     jclass) {
-#ifdef USE_HDFS
     printf("In C++, init called\n");
+#ifdef USE_HDFS
     // connect to NameNode
     setenv("LIBHDFS3_CONF", "/etc/hadoop/conf/hdfs-site.xml", 1);
     struct hdfsBuilder *builder = hdfsNewBuilder();

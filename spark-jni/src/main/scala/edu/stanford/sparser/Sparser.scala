@@ -5,13 +5,12 @@ import java.nio.{ByteBuffer, ByteOrder}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow
 
-// TODO: change recordSize to match size of projected fields
-class Sparser(val recordSize: Long = 8, val maxRecords: Long = 16777216) {
+class Sparser(val numFields: Int = 1, val recordSizeInBytes: Long = 16, val maxRecords: Long = 16777216) {
 
   val spNative = new SparserNative()
   var rawAddress: Long = 0L
   var recordsParsed: Long = 0L
-  val buf = ByteBuffer.allocateDirect((maxRecords*recordSize).toInt)
+  val buf: ByteBuffer = ByteBuffer.allocateDirect((maxRecords*recordSizeInBytes).toInt)
   buf.order(ByteOrder.nativeOrder())
 
   def parseJson(jsonFilename: String, start: Long, length: Long, queryIndex: Int): Unit = {
@@ -19,15 +18,14 @@ class Sparser(val recordSize: Long = 8, val maxRecords: Long = 16777216) {
     println("In Scala, the address is " + "0x%08x".format(rawAddress))
     // invoke the native method
     recordsParsed = spNative.parse(jsonFilename, jsonFilename.length,
-      rawAddress, start, length, queryIndex, recordSize, maxRecords)
+      rawAddress, start, length, queryIndex, maxRecords)
     println("In Scala, records parsed: " + recordsParsed)
   }
 
   def iterator(): Iterator[InternalRow] = {
     new Iterator[InternalRow]() {
 
-      // TODO: change arg to UnsafeRow to match number of projected fields
-      val currRecord = new UnsafeRow(1)
+      val currRecord = new UnsafeRow(numFields)
       var currRecordIndex: Long = 0
 
       override def hasNext(): Boolean = {
@@ -37,9 +35,8 @@ class Sparser(val recordSize: Long = 8, val maxRecords: Long = 16777216) {
       override def next(): UnsafeRow = {
         currRecord.pointTo(
           null,
-          // TODO: figure out why it's 8 bytes ahead of where it should be
-          rawAddress - 8 + currRecordIndex * recordSize,
-          recordSize.toInt)
+          rawAddress + currRecordIndex * recordSizeInBytes,
+          recordSizeInBytes.toInt)
         currRecordIndex += 1
         currRecord
       }

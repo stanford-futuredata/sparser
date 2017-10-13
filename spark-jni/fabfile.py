@@ -96,7 +96,7 @@ def install_libs():
 def install_config():
     with settings(prompts=GIT_PROMPT):
         run('git clone git@github.com:fabuzaid21/dotfiles.git')
-        run('git clone git@github.com:fabuzaid21/Vim.git --branch vundle')
+        run('git clone git@github.com:fabuzaid21/Vim.git')
     with cd('dotfiles'):
         run('./install.sh')
     run('echo "export SPARK_HOME=/usr/lib/spark" >> ~/.bashrc.user')

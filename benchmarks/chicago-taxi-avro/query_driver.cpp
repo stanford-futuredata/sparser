@@ -15,13 +15,13 @@
  * permissions and limitations under the License.
  */
 
-#include <endian.h>
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "common.h"
+#include "endian.h"
 #include "sparser.h"
 
 #ifdef DEFLATE_CODEC
@@ -30,24 +30,6 @@
 #define QUICKSTOP_CODEC "null"
 #endif
 
-/**** AVRO QUERIES ***/
-/**
- * SELECT AVG(trip_seconds)
- * FROM   chicago-taxi
- * WHERE  company = 'Choice Taxi Association';
-**/
-/**
- * SELECT MAX(fare) AS maximum_fare, MIN(fare) AS minimum_fare, AVG(fare) AS
- *        avg_fare, STDDEV(fare) AS std_dev_fare
- * FROM   chicago-taxi
- * WHERE  dropoff_census_tract = 17031320100;
- **/
-/**
- * SELECT MAX(tips)
- * FROM   chicago-taxi
- * WHERE  company = 'Taxi Affiliation Services'
- * AND    payment_type = 'Credit Card';
- **/
 
 enum avro_type_t {
     AVRO_STRING,
@@ -66,7 +48,6 @@ enum avro_type_t {
     AVRO_UNION,
     AVRO_LINK
 };
-typedef enum avro_type_t avro_type_t;
 
 float int_bits_to_float(const uint32_t bits) {
     const int sign = ((bits >> 31) == 0) ? 1 : -1;
@@ -133,7 +114,7 @@ uint64_t read_little_endian_eight_bytes(char **outer_buf) {
     return htole64(value);
 }
 
-int read_long(char **outer_buf, int64_t *l) {
+int read_int64(char **outer_buf, int64_t *l) {
     char *buf = *outer_buf;
     uint64_t value = 0;
     uint8_t b;
@@ -283,8 +264,8 @@ static const avro_type_t **test_schema(int **schema_counts, int *total_count) {
 }
 
 typedef struct avro_iterator {
-    long num_records;
-    long num_bytes;
+    int64_t num_records;
+    int64_t num_bytes;
     char *prev_header;
     char *curr_record;
     char *eof;
@@ -318,7 +299,7 @@ int single_record_contains(char **prev_ptr, avro_context_t *ctx) {
             curr_type = schema[i][0];
         } else {
             int64_t schema_index;
-            read_long(&ptr, &schema_index);
+            read_int64(&ptr, &schema_index);
             curr_type = schema[i][schema_index];
         }
         switch (curr_type) {
@@ -326,7 +307,7 @@ int single_record_contains(char **prev_ptr, avro_context_t *ctx) {
             // (`query_field_index`) then we skip over the field
             case AVRO_STRING: {
                 int64_t str_length;
-                read_long(&ptr, &str_length);
+                read_int64(&ptr, &str_length);
                 if (i == query_field_index) {
                     // for string fields, we implement "CONTAINS" checks
                     char *tmp = (char *)memmem(ptr, str_length, query_str,
@@ -341,7 +322,7 @@ int single_record_contains(char **prev_ptr, avro_context_t *ctx) {
                 // we can't skip over ints and longs, since they're
                 // variable-length encoded
                 int64_t val;
-                read_long(&ptr, &val);
+                read_int64(&ptr, &val);
                 if (i == query_field_index) {
                     // for int and long fields, we implement full equality
                     // checks
@@ -400,14 +381,14 @@ int record_contains(avro_context_t *ctx, const char *line) {
                 curr_type = schema[i][0];
             } else {
                 int64_t schema_index;
-                read_long(&itr->curr_record, &schema_index);
+                read_int64(&itr->curr_record, &schema_index);
                 curr_type = schema[i][schema_index];
             }
             // don't read values for now, just skip over them
             switch (curr_type) {
                 case AVRO_STRING: {
                     int64_t str_length;
-                    read_long(&itr->curr_record, &str_length);
+                    read_int64(&itr->curr_record, &str_length);
                     itr->curr_record += str_length;
                     break;
                 }
@@ -416,7 +397,7 @@ int record_contains(avro_context_t *ctx, const char *line) {
                     // we can't skip over ints and longs, since they're
                     // variable-length encoded
                     int64_t val;
-                    read_long(&itr->curr_record, &val);
+                    read_int64(&itr->curr_record, &val);
                     break;
                 }
                 case AVRO_DOUBLE: {
@@ -449,8 +430,8 @@ int advance_iterator(avro_iterator_t *itr) {
     if (itr->curr_record >= itr->eof) {
         return 0;
     }
-    read_long(&itr->curr_record, &itr->num_records);
-    read_long(&itr->curr_record, &itr->num_bytes);
+    read_int64(&itr->curr_record, &itr->num_records);
+    read_int64(&itr->curr_record, &itr->num_bytes);
     itr->prev_header = itr->curr_record;
     itr->curr_record_index = 0;
     return 1;
@@ -523,8 +504,8 @@ int main(int, char *argv[]) {
     // skip schema, null character, and magic 16-byte string
     raw += strlen(raw) + 1 + 16;
     char *after_header = raw;
-    read_long(&raw, &itr.num_records);
-    read_long(&raw, &itr.num_bytes);
+    read_int64(&raw, &itr.num_records);
+    read_int64(&raw, &itr.num_bytes);
     itr.prev_header = raw;
     itr.curr_record = raw;
 
@@ -545,8 +526,8 @@ int main(int, char *argv[]) {
 
     // Reinitialize iterator at the beginning of the file
     raw = after_header;
-    read_long(&raw, &itr.num_records);
-    read_long(&raw, &itr.num_bytes);
+    read_int64(&raw, &itr.num_records);
+    read_int64(&raw, &itr.num_bytes);
     itr.prev_header = raw;
     itr.curr_record = raw;
 

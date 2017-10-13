@@ -93,7 +93,22 @@ private[sparser] class DefaultSource extends TextFileFormat with DataSourceRegis
     // val broadcastedHadoopConf =
     //   sparkSession.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
 
-    val recordSize: Int = dataSchema.fields.map { field =>
+    /*
+     * From the UnsafeRow documentation:
+     * Each tuple has three parts: [null bit set] [values] [variable length portion]
+     *
+     * The bit set is used for null tracking and is aligned to 8-byte word boundaries.  It stores
+     * one bit per field.
+     *
+     * In the `values` region, we store one 8-byte word per field. (TODO: we currently don't do this; should we?)
+     * For fields that hold fixed-length primitive types, such as long, double, or int, we store the value
+     * directly in the word. For fields with non-primitive or variable-length values, we store a relative
+     * offset (w.r.t. the base address of the row) that points to the beginning of the variable-length
+     * field, and length (they are combined into a long).
+     */
+    val numFields = dataSchema.fields.length
+    println("Num fields: " + numFields)
+    val recordSizeInBytes = dataSchema.fields.map { field =>
       field.dataType match {
         case ByteType => 1
         case ShortType => 2
@@ -106,12 +121,13 @@ private[sparser] class DefaultSource extends TextFileFormat with DataSourceRegis
         case _ =>
           throw new RuntimeException(field.dataType + " not supported in Sparser!")
       }
-    }.sum
+    }.sum  + ((numFields >> 6) + 1) * 8 // Additional bytes to track null bits set at beginning of record
+    println("Record size: " + recordSizeInBytes)
 
     (file: PartitionedFile) => {
       println(file.filePath)
       val queryIndex = options("query").toInt
-      val sp = new Sparser(recordSize)
+      val sp = new Sparser(numFields, recordSizeInBytes)
       sp.parseJson(file.filePath, file.start, file.length, queryIndex)
       sp.iterator()
     }
