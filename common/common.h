@@ -21,7 +21,7 @@
 typedef struct timeval bench_timer_t;
 
 /** Starts the clock for a benchmark. */
-bench_timer_t time_start() {
+inline bench_timer_t time_start() {
     bench_timer_t t;
     gettimeofday(&t, NULL);
     return t;
@@ -30,7 +30,7 @@ bench_timer_t time_start() {
 /** Stops the clock and returns time elapsed in seconds.
  * Throws an error if time__start() was not called first.
  * */
-double time_stop(bench_timer_t start) {
+inline double time_stop(bench_timer_t start) {
     bench_timer_t end;
     bench_timer_t diff;
     gettimeofday(&end, NULL);
@@ -41,26 +41,26 @@ double time_stop(bench_timer_t start) {
 #else
 typedef clock_t bench_timer_t;
 
-bench_timer_t time_start() {
+inline bench_timer_t time_start() {
     bench_timer_t t = clock();
     return t;
 }
 
-double time_stop(bench_timer_t start) {
+inline double time_stop(bench_timer_t start) {
     clock_t _end = clock();
     return ((double)(_end - start)) / CLOCKS_PER_SEC;
 }
 #endif
 
 /** Returns a formatted string suitable for benchmark parsing. */
-static char *benchmark_string(const char *name, double time) {
+inline static char *benchmark_string(const char *name, double time) {
     static char buf[8192];
     snprintf(buf, sizeof(buf), "%s: %f", name, time);
     return buf;
 }
 
 /** Returns a path for the given data file. */
-static char *path_for_data(const char *datafile) {
+inline static char *path_for_data(const char *datafile) {
     static char buf[8192];
     char *envvar = getenv("SPARSER_HOME");
     assert(envvar);
