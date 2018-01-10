@@ -1,0 +1,9 @@
+[package]
+name = "sparser"
+version = "0.1.0"
+authors = ["Shoumik Palkar <shoumik@cs.stanford.edu>"]
+
+[dependencies]
+memchr = "2.0.1"
+bit-vec = "0.4.4"
+libc = "*"
