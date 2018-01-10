@@ -1,6 +1,7 @@
 //! Expressions that may be added to Sparser for processing.
 
 use std::ops::{Not, BitAnd, BitOr, BitAndAssign, BitOrAssign};
+use std::vec;
 
 /// FilterKinds supported by Sparser.
 #[derive(Debug, Clone)]
@@ -19,7 +20,6 @@ pub enum FilterKind {
 }
 
 impl FilterKind {
-
     /// Creates a new exact match filter expression.
     pub fn new_exact_match<S>(t: S) -> FilterKind
         where S: Into<String> {
@@ -38,6 +38,89 @@ impl FilterKind {
                 delimiters: delimiters.into_iter().map(|e| e.into()).collect(),
             }
         }
+
+    /// Converts this filter expression to Conjunctive Normal Form in place.
+    pub fn to_cnf(&mut self) {
+        // Apply DeMorgan's Law repeatedly until fixpoint.
+        self.transform(&FilterKind::demorgans_law);
+        // Apply the Distribute Law repeatedly until fixpoint.
+        self.transform(&FilterKind::distributive_law);
+    }
+
+    /// Returns mutable references to each of the subfilters of `self`.
+    fn subfilters_mut(&mut self) -> vec::IntoIter<&mut FilterKind> {
+        use self::FilterKind::*;
+        match *self {
+            Or(ref mut lhs, ref mut rhs) => vec![lhs.as_mut(), rhs.as_mut()],
+            And(ref mut lhs, ref mut rhs) => vec![lhs.as_mut(), rhs.as_mut()],
+            Not(ref mut child) => vec![child.as_mut()],
+
+            // List explicitly so we don't forget to add new ones.
+            ExactMatch(_) | KeyValueSearch { .. } => vec![],
+        }.into_iter()
+    }
+
+    /// Recursively transforms an expression in place by running a function on it and optionally
+    /// replacing it with another expression.
+    fn transform<F>(&mut self, func: &F) where F: Fn(&mut FilterKind) -> Option<FilterKind> {
+        if let Some(e) = func(self) {
+            *self = e;
+            return self.transform(func);
+        }
+        for c in self.subfilters_mut() {
+            c.transform(func);
+        }
+    }
+
+    /// Applies DeMorgan's Laws to this filter expression, returning Some if
+    /// the expression changed or None otherwise.
+    /// 
+    /// This function changes
+    /// 
+    /// ~(p & q) to ~p | ~q
+    /// and
+    /// ~(p | q) to ~p & ~q
+    fn demorgans_law(fk: &mut FilterKind) -> Option<FilterKind> {
+        use self::FilterKind::*;
+
+        let mut changed = None;
+        if let Not(ref child) = *fk {
+            match *child.as_ref() {
+                And(ref lhs, ref rhs) => {
+                    let new_lhs = Not(lhs.clone());
+                    let new_rhs = Not(lhs.clone());
+                    changed = Some(Or(Box::new(new_lhs), Box::new(new_rhs)));
+                }
+                Or(ref lhs, ref rhs) => {
+                    let new_lhs = Not(lhs.clone());
+                    let new_rhs = Not(lhs.clone());
+                    changed = Some(And(Box::new(new_lhs), Box::new(new_rhs)));
+                }
+                _ => (),
+            }
+        }
+        changed
+    }
+
+    /// Applies the Distributive Law to this filter expression, returning Some if
+    /// the expression changed or None otherwise.
+    /// 
+    /// This function changes
+    /// 
+    /// p | (q & r) to (p & q) | (p & r)
+    fn distributive_law(fk: &mut FilterKind) -> Option<FilterKind> {
+        use self::FilterKind::*;
+
+        let mut changed = None;
+        if let Or(ref lhs, ref rhs) = *fk {
+            if let And(ref lhs2, ref rhs2) = *rhs.as_ref() {
+                let new_lhs = Or(lhs.clone(), lhs2.clone());
+                let new_rhs = Or(lhs.clone(), rhs2.clone());
+                changed = Some(And(Box::new(new_lhs), Box::new(new_rhs)));
+            }
+        }
+        changed
+    }
 }
 
 impl Not for FilterKind {
