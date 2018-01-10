@@ -10,6 +10,8 @@ use libc::{c_uchar, c_void, c_int};
 
 use memmem::Searcher;
 
+mod expressions;
+
 /// The maximum word length (generally the size in bytes of a `long` in C).
 const MAX_WORD_LENGTH: usize = 8;
 
@@ -29,7 +31,7 @@ type ParserCallbackFn = fn(*const c_uchar, *mut c_void) -> c_int;
 
 /// Holds data returned by the sampler.
 #[derive(Debug, Clone)]
-pub struct SparserSamples {
+pub struct SampleData {
     /// Tracks false positives across samples.
     /// 
     /// If bit false_positives[i][j] is set, then the candidate pre-filter `i` returned a false
@@ -41,10 +43,10 @@ pub struct SparserSamples {
     callback_cost: time::Duration,
 }
 
-impl SparserSamples {
-    /// Generates a new `SparserSamples` given the number of candidates and samples.
-    fn with_size(num_samples: usize, num_candidates: usize) -> SparserSamples {
-        SparserSamples {
+impl SampleData {
+    /// Generates a new `SampleData` given the number of candidates and samples.
+    fn with_size(num_samples: usize, num_candidates: usize) -> SampleData {
+        SampleData {
             false_positives: vec![bit_vec::BitVec::from_elem(num_samples, false); num_candidates],
             callback_cost: time::Duration::nanoseconds(0),
         }
@@ -112,11 +114,11 @@ fn generate_candidates(predicates: &Vec<String>) -> Vec<PreFilterKind> {
     candidates
 }
 
-pub fn generate_false_positives(sample: &mut [u8], predicates: Vec<String>, parser_callback: ParserCallbackFn) -> SparserSamples {
+pub fn generate_false_positives(sample: &mut [u8], predicates: Vec<String>, parser_callback: ParserCallbackFn) -> SampleData {
     use PreFilterKind::*;
     let candidates = generate_candidates(&predicates);
     let mut records_processed = 0;
-    let mut result = SparserSamples::with_size(MAX_SAMPLES, candidates.len());
+    let mut result = SampleData::with_size(MAX_SAMPLES, candidates.len());
 
     // The index of the record currently being processed as an offset from `sample`.
     let mut base = 0;
@@ -189,7 +191,7 @@ pub fn gen_candidates() {}
 
 
 /// Generates the final schedule to execute, which is interpreted by the execution engine.
-pub fn gen_schedule(_: &SparserSamples) {}
+pub fn gen_schedule(_: &SampleData) {}
 
 // parse_expressions                    gen_candidates                             sample         gen_schedule
 // Filter Expression (input by user) -> Expression Set to Candidate Pre-Filters -> Measurement -> Optimizer
