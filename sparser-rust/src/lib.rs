@@ -27,6 +27,43 @@ const MAX_SAMPLES: usize = 64;
 /// selections or projections).
 type ParserCallbackFn = fn(*const c_uchar, *mut c_void) -> c_int;
 
+/// Holds data returned by the sampler.
+#[derive(Debug, Clone)]
+pub struct SparserSamples {
+    /// Tracks false positives across samples.
+    /// 
+    /// If bit false_positives[i][j] is set, then the candidate pre-filter `i` returned a false
+    /// positive for sample `j`. A false positive is defined as a pre-filter which passes a record,
+    /// but the callback fails the record.
+    false_positives: Vec<bit_vec::BitVec>,
+
+    /// Measures the average duration of invoking the callback.
+    callback_cost: time::Duration,
+}
+
+impl SparserSamples {
+    /// Generates a new `SparserSamples` given the number of candidates and samples.
+    fn with_size(num_samples: usize, num_candidates: usize) -> SparserSamples {
+        SparserSamples {
+            false_positives: vec![bit_vec::BitVec::from_elem(num_samples, false); num_candidates],
+            callback_cost: time::Duration::nanoseconds(0),
+        }
+    }
+}
+
+/// Designates the kind of pre-filter.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum PreFilterKind {
+    /// Searches for an exact match of `word` in a record.
+    WordSearch(String),
+    /// Searches for `key`. If it is found, searches for `value` until any one of the `delimiters`.
+    KeyValueSearch {
+        key: String,
+        value: String,
+        delimiters: Vec<String>,
+    },
+}
+
 /// Returns all substrings of `s` of up to length `max` (and of at least length 2).
 /// The returned substrings all fit exactly within a word, i.e., are 2, 4, or 8 bytes long.
 fn all_substrings(s: &str, max: usize) -> Vec<&str> {
@@ -56,15 +93,16 @@ fn all_substrings(s: &str, max: usize) -> Vec<&str> {
 }
 
 /// Returns a list of candidate strings to search for when performing calibration.
+/// TODO Currently, this just returns `WordMatch` candidates.
 /// TODO We can make this smarter; it just returns an exhaustive set of strings for now.
-fn generate_candidates(predicates: &Vec<String>) -> Vec<&str> {
+fn generate_candidates(predicates: &Vec<String>) -> Vec<PreFilterKind> {
     let mut candidates = vec![];
 
     // Generate the list of predicates.
     for predicate in predicates.iter() {
         let substrings = all_substrings(&predicate, MAX_WORD_LENGTH);
         let num_to_add = std::cmp::min(substrings.len(), MAX_CANDIDATES - candidates.len());
-        candidates.extend(substrings.into_iter().take(num_to_add));
+        candidates.extend(substrings.into_iter().take(num_to_add).map(|e| PreFilterKind::WordSearch(e.into())));
 
         // Candidate list is full!
         if candidates.len() == MAX_CANDIDATES {
@@ -74,22 +112,11 @@ fn generate_candidates(predicates: &Vec<String>) -> Vec<&str> {
     candidates
 }
 
-/// Runs the sparser scheduler and returns a `SparserQuery`, which is interpreted by the engine
-/// during execution.
-/// 
-/// TODO: Bunch of work left here!
-pub fn calibrate(sample: &mut [u8], predicates: Vec<String>, parser_callback: ParserCallbackFn) {
+pub fn generate_false_positives(sample: &mut [u8], predicates: Vec<String>, parser_callback: ParserCallbackFn) -> SparserSamples {
+    use PreFilterKind::*;
     let candidates = generate_candidates(&predicates);
-
-    // The estimated callback cost.
-    let mut callback_cost = time::Duration::nanoseconds(0);
     let mut records_processed = 0;
-
-    // Tracks false positives across samples.
-    // If bit false_positives[i][j] is set, then the candidate pre-filter `i` returned a false
-    // positive for sample `j`. A false positive is defined as a pre-filter which passes a record,
-    // but the callback fails the record.
-    let mut false_positives = vec![bit_vec::BitVec::from_elem(MAX_SAMPLES, false); candidates.len()];
+    let mut result = SparserSamples::with_size(MAX_SAMPLES, candidates.len());
 
     // The index of the record currently being processed as an offset from `sample`.
     let mut base = 0;
@@ -106,11 +133,16 @@ pub fn calibrate(sample: &mut [u8], predicates: Vec<String>, parser_callback: Pa
                 // candidate is applied).  This is the biggest change we want to make for VLDB;
                 // instead of just grepping for some terms, we need some kind of interpretation
                 // engine that can handle different kinds of pre-filters.
-                let searcher = memmem::TwoWaySearcher::new(candidate.as_bytes());
-                if let Some(_) = searcher.search_in(sample.get(base..base + endpos).unwrap()) {
-                    false_positives[i].set(records_processed, true);
-                    found.set(i, true);
-                }
+                match *candidate {
+                    WordSearch(ref word) => {
+                        let searcher = memmem::TwoWaySearcher::new(word.as_bytes());
+                        if let Some(_) = searcher.search_in(sample.get(base..base + endpos).unwrap()) {
+                            result.false_positives[i].set(records_processed, true);
+                            found.set(i, true);
+                        }
+                    }
+                    _ => unimplemented!(),
+                };
             }
 
             // If all the candidates were found, we need to run the full parser to check
@@ -121,12 +153,12 @@ pub fn calibrate(sample: &mut [u8], predicates: Vec<String>, parser_callback: Pa
                 let start = time::PreciseTime::now();
                 let passed = parser_callback(c_sample, std::ptr::null_mut()) as i32;
                 let end = time::PreciseTime::now();
-                callback_cost = callback_cost + start.to(end);
+                result.callback_cost = result.callback_cost + start.to(end);
 
                 if passed != 0 { 
                     // the callback passed too, so these aren't false positives!
                     for i in 0..candidates.len() {
-                        false_positives[i].set(records_processed, false);
+                        result.false_positives[i].set(records_processed, false);
                     }
                 }
             }
@@ -143,4 +175,21 @@ pub fn calibrate(sample: &mut [u8], predicates: Vec<String>, parser_callback: Pa
             }
         }
     }
+    result
 }
+
+/// Parses filter expressions into an expression tree.
+pub fn parse_expressions() {}
+
+/// Returns a heuristically generated list of candidate pre-filters which satisfy the expression
+/// tree provided by the user. Each candidate pre-filter only generates false positives. Pre-filter
+/// candidates are returned as _pre-filter classes_. The optimizer must select at least one
+/// pre-filter from each class.
+pub fn gen_candidates() {}
+
+
+/// Generates the final schedule to execute, which is interpreted by the execution engine.
+pub fn gen_schedule(_: &SparserSamples) {}
+
+// parse_expressions                    gen_candidates                             sample         gen_schedule
+// Filter Expression (input by user) -> Expression Set to Candidate Pre-Filters -> Measurement -> Optimizer
