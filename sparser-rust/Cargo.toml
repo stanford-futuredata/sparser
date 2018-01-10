@@ -5,5 +5,7 @@ authors = ["Shoumik Palkar <shoumik@cs.stanford.edu>"]
 
 [dependencies]
 memchr = "2.0.1"
+memmem = "*"
 bit-vec = "0.4.4"
 libc = "*"
+time = "*"
