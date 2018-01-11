@@ -26,3 +26,14 @@ common/libhdfs
 .idea/
 *.iml
 .ipynb_checkpoints/
+
+
+benchmarks/airplanes/sparser-based/
+benchmarks/pcap/query1/output.pcap
+benchmarks/pcap/query1/pcap-23.pcap
+benchmarks/pcap/query1/post.sh
+benchmarks/pcap/query1/scaled.pcap
+benchmarks/pcap/query1/scalepcap
+benchmarks/pcap/query1/tcpdump-out.pcap
+benchmarks/pcap/query1/tshark-out.pcap
+common/dummy.h
