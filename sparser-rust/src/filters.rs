@@ -1,4 +1,7 @@
-//! Expressions that may be added to Sparser for processing.
+//! Filter expressions that users may add to Sparser. These expressions are eventually compiled
+//! into pre-filters.
+
+use super::prefilters::{PreFilterSet, PreFilterKind};
 
 use std::ops::{Not, BitAnd, BitOr, BitAndAssign, BitOrAssign};
 use std::vec;
@@ -18,6 +21,10 @@ pub enum FilterKind {
     And(Box<FilterKind>, Box<FilterKind>),
     Not(Box<FilterKind>),
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Inherent Methods
+////////////////////////////////////////////////////////////////////////////////
 
 impl FilterKind {
     /// Creates a new exact match filter expression.
@@ -41,7 +48,7 @@ impl FilterKind {
 
     /// Converts this filter expression to Conjunctive Normal Form as an in-place transformation.
     pub fn to_cnf(&mut self) {
-        // Apply DeMorgan's Law repeatedly until fixpoint.
+        // Apply DeMorgan's Laws repeatedly until fixpoint.
         self.transform(&FilterKind::demorgans_law);
         // Apply the Distribute Law repeatedly until fixpoint.
         self.transform(&FilterKind::distributive_law);
@@ -172,6 +179,63 @@ impl FilterKind {
         changed
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// PreFilterSet Implementation for FilterKind
+////////////////////////////////////////////////////////////////////////////////
+
+/// Convert user-defined filters to pre-filters.
+impl PreFilterSet for FilterKind {
+    fn prefilter_set(&self) -> Vec<PreFilterKind> {
+        use super::prefilters::PreFilterKind::*;
+        use super::prefilters::{MAX_CANDIDATES, MAX_WORD_LENGTH};
+        let mut candidates = vec![];
+        match *self {
+            FilterKind::ExactMatch(ref s) => {
+                let substrings = all_substrings(s, MAX_WORD_LENGTH);
+                let num_to_add = ::std::cmp::min(substrings.len(), MAX_CANDIDATES - candidates.len());
+                candidates.extend(substrings.into_iter().take(num_to_add).map(|e| WordSearch(e.into())));
+            }
+            // Other conversions are currently unsupported.
+            _ => unimplemented!()
+        }
+        candidates
+    }
+}
+
+/// Returns all substrings of `s` of up to length `max` (and of at least length 2).
+/// The returned substrings all fit exactly within a word, i.e., are 2, 4, or 8 bytes long.
+fn all_substrings(s: &str, max: usize) -> Vec<&str> {
+    let mut substrings = vec![];
+    let max = ::std::cmp::min(s.len(), max);
+
+    // Don't search for things that are too small.
+    if max < 2 {
+        return substrings;
+    }
+
+    let mut lens = vec![];
+
+    // Clamp the max to an even number that fits into a single word (2, 4, or 8 bytes).
+    if max >= 8 {
+        lens.push(8);
+    }
+    if max >= 4 {
+        lens.push(4);
+    } 
+    lens.push(2);
+    
+    for len in lens.iter().rev() {
+        for start in 0..(s.len() - len + 1) {
+            substrings.push(&s[start..start + len]);
+        }
+    }
+    substrings
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Operator Overloading for FilterKind
+////////////////////////////////////////////////////////////////////////////////
 
 impl Not for FilterKind {
     type Output = FilterKind;
@@ -327,4 +391,20 @@ fn filter_sets_2() {
     assert!(sets.contains(expect2));
     assert!(sets.contains(expect3));
     assert!(sets.contains(expect4));
+}
+
+#[test]
+fn all_substrings_1() {
+    let input = "12345678";
+
+    let substrs = all_substrings(input, 8);
+    assert_eq!(substrs, vec!["12", "23", "34", "45", "56", "67", "78",
+               "1234", "2345", "3456", "4567", "5678", "12345678"]);
+
+    let substrs = all_substrings(input, 4);
+    assert_eq!(substrs, vec!["12", "23", "34", "45", "56", "67", "78",
+               "1234", "2345", "3456", "4567", "5678"]);
+
+    let substrs = all_substrings(input, 2);
+    assert_eq!(substrs, vec!["12", "23", "34", "45", "56", "67", "78"]);
 }
