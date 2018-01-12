@@ -21,13 +21,13 @@ pub enum FilterKind {
 
 impl FilterKind {
     /// Creates a new exact match filter expression.
-    pub fn new_exact_match<S>(t: S) -> FilterKind
+    pub fn exact_match<S>(t: S) -> FilterKind
         where S: Into<String> {
             FilterKind::ExactMatch(t.into())
         }
 
     /// Creates a new key-value search filter expression.
-    pub fn new_key_value_search<S, T, U>(key: S, value: T, delimiters: Vec<U>) -> FilterKind
+    pub fn key_value_search<S, T, U>(key: S, value: T, delimiters: Vec<U>) -> FilterKind
         where
         S: Into<String>,
         T: Into<String>,
@@ -247,5 +247,18 @@ fn basic_distributive() {
     let expect = Or(Box::new(p_and_q), Box::new(p_and_r));
 
     test.to_cnf();
+    assert_eq!(test, expect);
+}
+
+#[test]
+fn with_operators() {
+    // p & (q | r)
+    let test = FilterKind::exact_match("p") & (FilterKind::exact_match("q") | FilterKind::exact_match("r"));
+
+    let p = boxed_match("p");
+    let q_and_r = Or(boxed_match("q"), boxed_match("r"));
+    // p & (q | r)
+    let expect = And(p, Box::new(q_and_r));
+
     assert_eq!(test, expect);
 }
