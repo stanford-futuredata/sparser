@@ -10,7 +10,7 @@ use libc::{c_uchar, c_void, c_int};
 
 use memmem::Searcher;
 
-mod expressions;
+pub mod expressions;
 
 /// The maximum word length (generally the size in bytes of a `long` in C).
 const MAX_WORD_LENGTH: usize = 8;

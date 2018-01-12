@@ -39,12 +39,52 @@ impl FilterKind {
             }
         }
 
-    /// Converts this filter expression to Conjunctive Normal Form in place.
+    /// Converts this filter expression to Conjunctive Normal Form as an in-place transformation.
     pub fn to_cnf(&mut self) {
         // Apply DeMorgan's Law repeatedly until fixpoint.
         self.transform(&FilterKind::demorgans_law);
         // Apply the Distribute Law repeatedly until fixpoint.
         self.transform(&FilterKind::distributive_law);
+    }
+
+    /// Internal recursive implementation of `filter_sets`.
+    fn filter_sets_internal<'a, 'b, 'c>(&'a self,
+                                        stack: &'b mut Vec<Vec<&'a FilterKind>>,
+                                        result: &'c mut Vec<Vec<&'a FilterKind>>) {
+        use self::FilterKind::*;
+        match *self {
+            And(ref lhs, ref rhs) => {
+                lhs.filter_sets_internal(stack, result);
+                rhs.filter_sets_internal(stack, result);
+            },
+            Or(ref lhs, ref rhs) => {
+                stack.push(vec![]);
+                lhs.filter_sets_internal(stack, result);
+                rhs.filter_sets_internal(stack, result);
+                result.push(stack.pop().unwrap());
+            },
+            ref other => {
+                if stack.len() == 0 {
+                    result.push(vec![&other]);
+                } else {
+                    stack.last_mut().unwrap().push(&other);
+                }
+            }
+        }
+    }
+
+    /// Returns this filter expression as a vector of vectors. Each inner vector represents a
+    /// disjunction of filters, where each vector of disjucntions is joined into a conjunction.
+    /// 
+    /// Notes:
+    /// The filter expression should be converted to CNF using `to_cnf` first.
+    pub fn filter_sets(&self) -> Vec<Vec<&FilterKind>> {
+        let mut result = vec![];
+        let mut stack = vec![];
+        self.filter_sets_internal(&mut stack, &mut result);
+
+        assert_eq!(stack.len(), 0);
+        return result;
     }
 
     /// Returns mutable references to each of the subfilters of `self`.
@@ -88,12 +128,12 @@ impl FilterKind {
             match *child.as_ref() {
                 And(ref lhs, ref rhs) => {
                     let new_lhs = Not(lhs.clone());
-                    let new_rhs = Not(lhs.clone());
+                    let new_rhs = Not(rhs.clone());
                     changed = Some(Or(Box::new(new_lhs), Box::new(new_rhs)));
                 }
                 Or(ref lhs, ref rhs) => {
                     let new_lhs = Not(lhs.clone());
-                    let new_rhs = Not(lhs.clone());
+                    let new_rhs = Not(rhs.clone());
                     changed = Some(And(Box::new(new_lhs), Box::new(new_rhs)));
                 }
                 _ => (),
