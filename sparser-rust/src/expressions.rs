@@ -4,7 +4,7 @@ use std::ops::{Not, BitAnd, BitOr, BitAndAssign, BitOrAssign};
 use std::vec;
 
 /// FilterKinds supported by Sparser.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FilterKind {
     ExactMatch(String),
     KeyValueSearch {
@@ -47,44 +47,54 @@ impl FilterKind {
         self.transform(&FilterKind::distributive_law);
     }
 
-    /// Internal recursive implementation of `filter_sets`.
-    fn filter_sets_internal<'a, 'b, 'c>(&'a self,
-                                        stack: &'b mut Vec<Vec<&'a FilterKind>>,
-                                        result: &'c mut Vec<Vec<&'a FilterKind>>) {
-        use self::FilterKind::*;
-        match *self {
-            And(ref lhs, ref rhs) => {
-                lhs.filter_sets_internal(stack, result);
-                rhs.filter_sets_internal(stack, result);
-            },
-            Or(ref lhs, ref rhs) => {
-                stack.push(vec![]);
-                lhs.filter_sets_internal(stack, result);
-                rhs.filter_sets_internal(stack, result);
-                result.push(stack.pop().unwrap());
-            },
-            ref other => {
-                if stack.len() == 0 {
-                    result.push(vec![&other]);
-                } else {
-                    stack.last_mut().unwrap().push(&other);
-                }
-            }
-        }
-    }
-
-    /// Returns this filter expression as a vector of vectors. Each inner vector represents a
-    /// disjunction of filters, where each vector of disjucntions is joined into a conjunction.
-    /// 
+    /// Converts this filter expression as a vector of vectors. Each inner vector represents a
+    /// disjunction of filters, where each vector of disjunctions is joined into a conjunction.
+    ///
     /// Notes:
     /// The filter expression should be converted to CNF using `to_cnf` first.
-    pub fn filter_sets(&self) -> Vec<Vec<&FilterKind>> {
+    pub fn into_filter_sets(self) -> Vec<Vec<FilterKind>> {
         let mut result = vec![];
         let mut stack = vec![];
-        self.filter_sets_internal(&mut stack, &mut result);
+        self.into_filter_sets_internal(&mut stack, &mut result);
 
         assert_eq!(stack.len(), 0);
         return result;
+    }
+
+    /// Internal recursive implementation of `into_filter_sets`.
+    fn into_filter_sets_internal(self,
+                                    stack: &mut Vec<Vec<FilterKind>>,
+                                    result: &mut Vec<Vec<FilterKind>>) {
+        use self::FilterKind::*;
+        match self {
+            And(lhs, rhs) => {
+                lhs.into_filter_sets_internal(stack, result);
+                rhs.into_filter_sets_internal(stack, result);
+            },
+            Or(lhs, rhs) => {
+                stack.push(vec![]);
+                lhs.into_filter_sets_internal(stack, result);
+                // Nested `Or` expressions may leave empty sets.
+                let vec = stack.pop().unwrap();
+                if vec.len() != 0 {
+                    result.push(vec);
+                }
+
+                stack.push(vec![]);
+                rhs.into_filter_sets_internal(stack, result);
+                let vec = stack.pop().unwrap();
+                if vec.len() != 0 {
+                    result.push(vec);
+                }
+            },
+            other => {
+                if stack.len() == 0 {
+                    result.push(vec![other]);
+                } else {
+                    stack.last_mut().unwrap().push(other);
+                }
+            }
+        }
     }
 
     /// Returns mutable references to each of the subfilters of `self`.
@@ -114,9 +124,9 @@ impl FilterKind {
 
     /// Applies DeMorgan's Laws to this filter expression, returning Some if
     /// the expression changed or None otherwise.
-    /// 
+    ///
     /// This function changes
-    /// 
+    ///
     /// ~(p & q) to ~p | ~q
     /// and
     /// ~(p | q) to ~p & ~q
@@ -144,9 +154,9 @@ impl FilterKind {
 
     /// Applies the Distributive Law to this filter expression, returning Some if
     /// the expression changed or None otherwise.
-    /// 
+    ///
     /// This function changes
-    /// 
+    ///
     /// p & (q | r) to (p & q) | (p & r)
     fn distributive_law(fk: &mut FilterKind) -> Option<FilterKind> {
         use self::FilterKind::*;
@@ -175,13 +185,13 @@ impl BitAnd for FilterKind {
     type Output = Self;
 
     fn bitand(self, rhs: Self) -> Self {
-        FilterKind::And(Box::new(self), Box::new(rhs))    
+        FilterKind::And(Box::new(self), Box::new(rhs))
     }
 }
 
 impl BitAndAssign for FilterKind {
     fn bitand_assign(&mut self, rhs: Self) {
-        *self = FilterKind::And(Box::new(self.clone()), Box::new(rhs));    
+        *self = FilterKind::And(Box::new(self.clone()), Box::new(rhs));
     }
 }
 
@@ -189,13 +199,13 @@ impl BitOr for FilterKind {
     type Output = Self;
 
     fn bitor(self, rhs: Self) -> Self {
-        FilterKind::Or(Box::new(self), Box::new(rhs))    
+        FilterKind::Or(Box::new(self), Box::new(rhs))
     }
 }
 
 impl BitOrAssign for FilterKind {
     fn bitor_assign(&mut self, rhs: Self) {
-        *self = FilterKind::Or(Box::new(self.clone()), Box::new(rhs));    
+        *self = FilterKind::Or(Box::new(self.clone()), Box::new(rhs));
     }
 }
 
@@ -261,4 +271,60 @@ fn with_operators() {
     let expect = And(p, Box::new(q_and_r));
 
     assert_eq!(test, expect);
+}
+
+#[test]
+fn filter_sets_1() {
+    use std::collections::HashSet;
+
+    let p_and_q = And(boxed_match("p"), boxed_match("q"));
+    let r_and_s = And(boxed_match("r"), boxed_match("s"));
+    let t = boxed_match("t");
+
+    // (p & q) | (r & s) | t
+    let test = Or(Box::new(Or(Box::new(p_and_q), Box::new(r_and_s))), t);
+
+    // Get the filter sets as a hashset of hashsets so we can compare them.
+    let sets: Vec<_> = test.into_filter_sets().into_iter().map(|e| e.into_iter().collect::<HashSet<_>>()).collect();
+
+    let ref expect1: HashSet<_> = vec![FilterKind::exact_match("p"), FilterKind::exact_match("q")].into_iter().collect();
+    let ref expect2: HashSet<_> = vec![FilterKind::exact_match("r"), FilterKind::exact_match("s")].into_iter().collect();
+    let ref expect3: HashSet<_> = vec![FilterKind::exact_match("t")].into_iter().collect();
+
+    assert_eq!(sets.len(), 3);
+    assert!(sets.contains(expect1));
+    assert!(sets.contains(expect2));
+    assert!(sets.contains(expect3));
+}
+
+
+#[test]
+fn filter_sets_2() {
+    use std::collections::HashSet;
+
+    let p_and_q_and_r = And(Box::new(And(boxed_match("p"), boxed_match("q"))), boxed_match("r"));
+    let t_and_u = And(boxed_match("t"), boxed_match("u"));
+    let v_and_w = And(boxed_match("v"), boxed_match("w"));
+    let x = Not(boxed_match("x"));
+
+    let test = Or(Box::new(p_and_q_and_r), Box::new(t_and_u));
+    let test = Or(Box::new(test), Box::new(v_and_w));
+    // (p & q & r) | (t & u) | (v & w) | ~x
+    let test = Or(Box::new(test), Box::new(x));
+
+    // Get the filter sets as a hashset of hashsets so we can compare them.
+    let sets: Vec<_> = test.into_filter_sets().into_iter().map(|e| e.into_iter().collect::<HashSet<_>>()).collect();
+
+    let ref expect1: HashSet<_> = vec![FilterKind::exact_match("p"),
+    FilterKind::exact_match("q"),
+    FilterKind::exact_match("r")].into_iter().collect();
+    let ref expect2: HashSet<_> = vec![FilterKind::exact_match("t"), FilterKind::exact_match("u")].into_iter().collect();
+    let ref expect3: HashSet<_> = vec![FilterKind::exact_match("v"), FilterKind::exact_match("w")].into_iter().collect();
+    let ref expect4: HashSet<_> = vec![Not(boxed_match("x"))].into_iter().collect();
+
+    assert_eq!(sets.len(), 4);
+    assert!(sets.contains(expect1));
+    assert!(sets.contains(expect2));
+    assert!(sets.contains(expect3));
+    assert!(sets.contains(expect4));
 }
