@@ -18,7 +18,7 @@ const MAX_SAMPLES: usize = 64;
 /// A callback into a full parser. This function takes a C string as a pointer and an arbitrary
 /// context object, and returns 0 if the callback successfully passed the record and 1 if the
 /// callback failed (i.e., received a NULL record or did not pass the record).
-/// 
+///
 /// The context generally encapsulates the query to execute on the parsed record (e.g., a set of
 /// selections or projections).
 type ParserCallbackFn = fn(*const c_uchar, *mut c_void) -> c_int;
@@ -27,7 +27,7 @@ type ParserCallbackFn = fn(*const c_uchar, *mut c_void) -> c_int;
 #[derive(Debug, Clone)]
 pub struct SampleData {
     /// Tracks false positives across samples.
-    /// 
+    ///
     /// If bit false_positives[i][j] is set, then the candidate pre-filter `i` returned a false
     /// positive for sample `j`. A false positive is defined as a pre-filter which passes a record,
     /// but the callback fails the record.
@@ -47,7 +47,9 @@ impl SampleData {
     }
 }
 
-pub fn generate_false_positives(sample: &mut [u8], candidates: Vec<PreFilterKind>, parser_callback: ParserCallbackFn) -> SampleData {
+pub fn generate_false_positives(sample: &mut [u8],
+                                candidates: Vec<PreFilterKind>,
+                                parser_callback: ParserCallbackFn) -> SampleData {
     use super::prefilters::PreFilterKind::*;
     let mut records_processed = 0;
     let mut result = SampleData::with_size(MAX_SAMPLES, candidates.len());
@@ -56,7 +58,7 @@ pub fn generate_false_positives(sample: &mut [u8], candidates: Vec<PreFilterKind
     let mut base = 0;
 
     while records_processed < MAX_SAMPLES {
-        if let Some(endpos) = memchr::memchr(b'\n', sample) { 
+        if let Some(endpos) = memchr::memchr(b'\n', sample) {
             sample[base + endpos] = b'\0';
 
             // Tracks whether a candidates is found in the current record.
@@ -89,7 +91,7 @@ pub fn generate_false_positives(sample: &mut [u8], candidates: Vec<PreFilterKind
                 let end = time::PreciseTime::now();
                 result.callback_cost = result.callback_cost + start.to(end);
 
-                if passed != 0 { 
+                if passed != 0 {
                     // the callback passed too, so these aren't false positives!
                     for i in 0..candidates.len() {
                         result.false_positives[i].set(records_processed, false);

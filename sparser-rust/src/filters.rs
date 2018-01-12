@@ -222,9 +222,9 @@ fn all_substrings(s: &str, max: usize) -> Vec<&str> {
     }
     if max >= 4 {
         lens.push(4);
-    } 
+    }
     lens.push(2);
-    
+
     for len in lens.iter().rev() {
         for start in 0..(s.len() - len + 1) {
             substrings.push(&s[start..start + len]);
