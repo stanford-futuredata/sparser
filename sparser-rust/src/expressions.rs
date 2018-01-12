@@ -4,7 +4,7 @@ use std::ops::{Not, BitAnd, BitOr, BitAndAssign, BitOrAssign};
 use std::vec;
 
 /// FilterKinds supported by Sparser.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FilterKind {
     ExactMatch(String),
     KeyValueSearch {
@@ -147,16 +147,16 @@ impl FilterKind {
     /// 
     /// This function changes
     /// 
-    /// p | (q & r) to (p & q) | (p & r)
+    /// p & (q | r) to (p & q) | (p & r)
     fn distributive_law(fk: &mut FilterKind) -> Option<FilterKind> {
         use self::FilterKind::*;
 
         let mut changed = None;
-        if let Or(ref lhs, ref rhs) = *fk {
-            if let And(ref lhs2, ref rhs2) = *rhs.as_ref() {
-                let new_lhs = Or(lhs.clone(), lhs2.clone());
-                let new_rhs = Or(lhs.clone(), rhs2.clone());
-                changed = Some(And(Box::new(new_lhs), Box::new(new_rhs)));
+        if let And(ref lhs, ref rhs) = *fk {
+            if let Or(ref lhs2, ref rhs2) = *rhs.as_ref() {
+                let new_lhs = And(lhs.clone(), lhs2.clone());
+                let new_rhs = And(lhs.clone(), rhs2.clone());
+                changed = Some(Or(Box::new(new_lhs), Box::new(new_rhs)));
             }
         }
         changed
@@ -197,4 +197,55 @@ impl BitOrAssign for FilterKind {
     fn bitor_assign(&mut self, rhs: Self) {
         *self = FilterKind::Or(Box::new(self.clone()), Box::new(rhs));    
     }
+}
+
+#[cfg(test)]
+use self::FilterKind::*;
+
+#[cfg(test)]
+fn boxed_match<S>(string: S) -> Box<FilterKind>
+where S: Into<String> {
+    Box::new(ExactMatch(string.into()))
+}
+
+#[test]
+fn basic_or() {
+    // ~(a | b)
+    let mut test = Not(Box::new(Or(boxed_match("a"), boxed_match("b"))));
+
+    // ~a & ~b
+    let expect = And(Box::new(Not(boxed_match("a"))), Box::new(Not(boxed_match("b"))));
+
+    test.to_cnf();
+    assert_eq!(test, expect);
+}
+
+#[test]
+fn basic_and() {
+    // ~(a & b)
+    let mut test = Not(Box::new(And(boxed_match("a"), boxed_match("b"))));
+
+    // ~a | ~b
+    let expect = Or(Box::new(Not(boxed_match("a"))), Box::new(Not(boxed_match("b"))));
+
+    test.to_cnf();
+    assert_eq!(test, expect);
+}
+
+
+#[test]
+fn basic_distributive() {
+    let p = boxed_match("p");
+    let q_and_r = Or(boxed_match("q"), boxed_match("r"));
+    // p & (q | r)
+    let mut test = And(p, Box::new(q_and_r));
+
+
+    let p_and_q = And(boxed_match("p"), boxed_match("q"));
+    let p_and_r = And(boxed_match("p"), boxed_match("r"));
+    // (p & q) | (p & r)
+    let expect = Or(Box::new(p_and_q), Box::new(p_and_r));
+
+    test.to_cnf();
+    assert_eq!(test, expect);
 }
