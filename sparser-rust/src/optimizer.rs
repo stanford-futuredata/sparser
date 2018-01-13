@@ -1,28 +1,17 @@
 extern crate memchr;
 extern crate bit_vec;
 
-extern crate libc;
 extern crate time;
 
 use std;
-use self::libc::{c_uchar, c_void, c_int, c_ulong};
 use self::bit_vec::BitVec;
 
 use super::prefilters::PreFilterKind;
+use super::engine::ParserCallbackFn;
+use super::engine::RecordIteratorFn;
 
 /// The maximum number of samples to evaluate during calibration.
 pub const MAX_SAMPLES: usize = 64;
-
-/// A callback into a full parser. This function takes a C string as a pointer and an arbitrary
-/// context object, and returns 0 if the callback successfully passed the record and 1 if the
-/// callback failed (i.e., received a NULL record or did not pass the record).
-///
-/// The context generally encapsulates the query to execute on the parsed record (e.g., a set of
-/// selections or projections).
-pub type ParserCallbackFn = fn(*const c_uchar, *mut c_void) -> c_int;
-
-/// A callback which returns the length of the passed record, in bytes.
-pub type RecordIteratorFn = fn(*const c_uchar) -> c_ulong;
 
 /// Holds data returned by the sampler.
 #[derive(Debug, Clone)]

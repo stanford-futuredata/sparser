@@ -3,9 +3,10 @@
 pub mod filters;
 pub mod prefilters;
 pub mod optimizer;
+pub mod engine;
 
 use filters::FilterKind;
-use optimizer::{ParserCallbackFn, RecordIteratorFn};
+use engine::{ParserCallbackFn, RecordIteratorFn};
 
 /// Builds the Sparser query for `data` with the given `filter`. This function is re-entrant,
 /// in that it can be called multiple times with no side effects.
