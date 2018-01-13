@@ -1,6 +1,8 @@
 //! Pre-filters are the main workhorse of Sparser. This file defines the pre-filter types and a
 //! trait which converts a user-defined filter type into a Pre-filter type.
 
+extern crate memmem;
+
 /// The maximum word length (generally the size in bytes of a `long` in C).
 pub const MAX_WORD_LENGTH: usize = 8;
 
@@ -19,6 +21,23 @@ pub enum PreFilterKind {
         value: String,
         delimiters: Vec<String>,
     },
+}
+
+impl PreFilterKind {
+    /// Evaluates a pre-filter on a slice, returning `true` if the filter passes (potentially
+    /// indicating a false positive) or `false` otherwise. This effectively implements a Rust-based
+    /// interpreter for the prefilters.
+    pub fn evaluate(&self, buffer: &[u8]) -> bool {
+        use self::PreFilterKind::*;
+        use self::memmem::Searcher;
+        match *self {
+            WordSearch(ref word) => {
+                let searcher = memmem::TwoWaySearcher::new(word.as_bytes());
+                searcher.search_in(buffer).is_some()
+            }
+            _ => unimplemented!(),
+        }
+    }
 }
 
 /// Converts `Self` into a set of pre-filters.
