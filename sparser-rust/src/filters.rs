@@ -1,5 +1,4 @@
-//! Filter expressions that users may add to Sparser. These expressions are eventually compiled
-//! into pre-filters.
+//! Filter expressions that users may add to Sparser.
 
 use super::prefilters::{PreFilterSet, PreFilterKind};
 

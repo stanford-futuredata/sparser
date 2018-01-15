@@ -17,9 +17,11 @@ pub fn compile(filter: &FilterKind, data: &[u8], parser: ParserCallbackFn, rec_i
     let sets = filter.into_filter_sets();
 
     // Generate pre-filter candidates for each filter set.
+    // TODO maybe this is a weird representation of prefilter sets...especially if we want to
+    // jointly optimize across OR queries too.
     let prefilters: Vec<_> = sets.into_iter().map(|ref v| prefilters::prefilter_candidates(v)).collect();
 
-    // Run the optimizer to get the filter cascade. TODO use this.
+    // Run the optimizer to get the filter cascade.
     let _cascade = optimizer::generate_cascade(data, &prefilters, parser, rec_iter);
 
     // Generate a runtime which either JITs code or creates an interpreter for the filter cascade.

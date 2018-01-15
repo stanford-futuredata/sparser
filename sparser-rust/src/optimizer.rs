@@ -1,3 +1,5 @@
+//! Chooses pre-filters to execute using Sparser's optimization algorithm.
+
 extern crate memchr;
 extern crate bit_vec;
 
@@ -23,8 +25,11 @@ struct SampleData {
     /// but the callback fails the record.
     false_positives: Vec<BitVec>,
 
-    /// Measures the average duration of invoking the callback.
-    callback_cost: time::Duration,
+    /// Measures the average duration of invoking the full parser.
+    parse_cost: time::Duration,
+
+    /// Measures the average record length.
+    record_length: usize,
 
     /// The number of samples tested.
     records_processed: usize,
@@ -35,27 +40,28 @@ impl SampleData {
     fn with_size(num_samples: usize, num_candidates: usize) -> SampleData {
         SampleData {
             false_positives: vec![BitVec::from_elem(num_samples, false); num_candidates],
-            callback_cost: time::Duration::nanoseconds(0),
+            parse_cost: time::Duration::nanoseconds(0),
+            record_length: 0,
             records_processed: 0,
         }
     }
 }
 
-/// Retruns a cascade of ordered prefilters to execute using Sparser's optimization algorithm.
+/// Returns a cascade of ordered prefilters to execute using Sparser's optimization algorithm.
 pub fn generate_cascade(data: &[u8],
                         prefilters: &Vec<Vec<PreFilterKind>>,
                         parser: ParserCallbackFn,
                         rec_iter: RecordIteratorFn) {
 
-    // TODO Consider all the prefilter sets.
-    let _sample_data = generate_false_positives(data, prefilters.get(0).unwrap(), parser, rec_iter);
-    // TODO run optimzation algorithm by combining bitmaps.
+    // TODO handle multiple filter sets...
+    let prefilters = prefilters.get(0).unwrap();
+    let _sample_data = sample(data, prefilters, parser, rec_iter);
 }
 
-fn generate_false_positives(data: &[u8],
-                                prefilters: &Vec<PreFilterKind>,
-                                parser: ParserCallbackFn,
-                                rec_iter: RecordIteratorFn) -> SampleData {
+fn sample(data: &[u8],
+          prefilters: &Vec<PreFilterKind>,
+          parser: ParserCallbackFn,
+          rec_iter: RecordIteratorFn) -> SampleData {
 
     let mut result = SampleData::with_size(MAX_SAMPLES, prefilters.len());
 
@@ -87,7 +93,7 @@ fn generate_false_positives(data: &[u8],
             let start = time::PreciseTime::now();
             let passed = parser(record, std::ptr::null_mut()) as i32;
             let end = time::PreciseTime::now();
-            result.callback_cost = result.callback_cost + start.to(end);
+            result.parse_cost = result.parse_cost + start.to(end);
 
             if passed != 0 {
                 // the callback passed too, so these aren't false positives; the record actually
@@ -109,4 +115,54 @@ fn generate_false_positives(data: &[u8],
         }
     }
     result
+}
+
+/// Computes the cost of a cascade `plan`, composed of a linear list of prefilters. The masks
+/// represent the false positive bitmasks computed during sampling, and the parse cost is the cost
+/// of using the full parser. The cost roughly represents the number of nanoseconds required to
+/// process the cascade.
+fn cascade_cost(plan: &Vec<PreFilterKind>,
+        masks: &Vec<&BitVec>,
+        parse_cost: &time::Duration,
+        record_length: usize) -> f64 {
+
+    let mut total_cost = 0.0;
+    let mut joint = BitVec::from_elem(plan.len(), true);
+
+    for (filter, mask) in plan.iter().zip(masks.iter()) {
+        let set_bits = joint.iter().filter(|x| *x).count();
+        let joint_probability = (set_bits as f64) / (joint.len() as f64);
+
+        // This is the expected cost of the filter: P[p0,p1,p2..pn] * Cn where
+        // pi is the random variable designating whether filter i passed.
+        // Cn is the cost of the current filter.
+        let cost = filter.cost(record_length) * joint_probability;
+        total_cost += cost;
+
+        // Captures the probability of the next filter passing.
+        joint.intersect(mask);
+    }
+
+    // Factor in the final parsing cost, if all the filters passthrough.
+    let set_bits = joint.iter().filter(|x| *x).count();
+    let joint_probability = (set_bits as f64) / (joint.len() as f64);
+
+    let parse_cost = (parse_cost.num_nanoseconds().unwrap() as f64) * joint_probability;
+    total_cost += parse_cost;
+    total_cost
+}
+
+/// Returns the joint false positive rate of the passed masks.
+fn joint_false_positive_rate(masks: Vec<&BitVec>) -> f64 {
+    if masks.len() == 0 {
+        return 0.0;
+    }
+
+    let mut joint = masks[0].clone();
+    for mask in masks.iter() {
+        joint.intersect(mask);
+    }
+
+    let set_bits = joint.iter().filter(|x| *x).count();
+    (set_bits as f64) / (joint.len() as f64)
 }
