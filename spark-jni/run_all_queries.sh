@@ -1,5 +1,6 @@
 #! /usr/bin/env bash
 
+set -e
 set -x
 
 mkdir -p timings
@@ -8,18 +9,22 @@ mkdir -p timings
 ./run.sh --yarn twitter1 /user/fabuzaid21/tweets68g.json 6 --read-only > timings/twitter-read-only-hdfs.txt
 
 ./run.sh --yarn twitter1 /user/fabuzaid21/tweets68g.json 6 --spark > timings/twitter1-spark-hdfs.txt
+./run.sh --yarn twitter1 /user/fabuzaid21/tweets68g.parquet 6 --spark > timings/twitter1-spark-hdfs-parquet.txt
 ./run.sh --yarn twitter1 /user/fabuzaid21/tweets68g.json 6 --sparser > timings/twitter1-sparser-hdfs.txt
 ./run.sh --yarn twitter1 /user/fabuzaid21/tweets68g.json 6 --query-only > timings/twitter1-query-only-hdfs.txt
 
 ./run.sh --yarn twitter2 /user/fabuzaid21/tweets68g.json 6 --spark > timings/twitter2-spark-hdfs.txt
+./run.sh --yarn twitter2 /user/fabuzaid21/tweets68g.parquet 6 --spark > timings/twitter2-spark-hdfs-parquet.txt
 ./run.sh --yarn twitter2 /user/fabuzaid21/tweets68g.json 6 --sparser > timings/twitter2-sparser-hdfs.txt
 ./run.sh --yarn twitter2 /user/fabuzaid21/tweets68g.json 6 --query-only > timings/twitter2-query-only-hdfs.txt
 
 ./run.sh --yarn twitter3 /user/fabuzaid21/tweets68g.json 6 --spark > timings/twitter3-spark-hdfs.txt
+./run.sh --yarn twitter3 /user/fabuzaid21/tweets68g.parquet 6 --spark > timings/twitter3-spark-hdfs-parquet.txt
 ./run.sh --yarn twitter3 /user/fabuzaid21/tweets68g.json 6 --sparser > timings/twitter3-sparser-hdfs.txt
 ./run.sh --yarn twitter3 /user/fabuzaid21/tweets68g.json 6 --query-only > timings/twitter3-query-only-hdfs.txt
 
 ./run.sh --yarn twitter4 /user/fabuzaid21/tweets68g.json 6 --spark > timings/twitter4-spark-hdfs.txt
+./run.sh --yarn twitter4 /user/fabuzaid21/tweets68g.parquet 6 --spark > timings/twitter4-spark-hdfs-parquet.txt
 ./run.sh --yarn twitter4 /user/fabuzaid21/tweets68g.json 6 --sparser > timings/twitter4-sparser-hdfs.txt
 ./run.sh --yarn twitter4 /user/fabuzaid21/tweets68g.json 6 --query-only > timings/twitter4-query-only-hdfs.txt
 
