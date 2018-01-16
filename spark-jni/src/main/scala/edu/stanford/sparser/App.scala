@@ -9,52 +9,61 @@ object App {
     val spark = SparkSession.builder.appName("Sparser Spark").getOrCreate()
     val numWorkers: Int = args(0).toInt
     val queryStr: String = args(1)
-    val jsonFilename: String = args(2)
+    val filename: String = args(2)
     val numTrials: Int = args(3).toInt
-    val runSparser: Boolean = args(4).equalsIgnoreCase("--sparser")
-    val runSpark: Boolean = args(4).equalsIgnoreCase("--spark")
-    val runReadOnly: Boolean = args(4).equalsIgnoreCase("--read-only")
-    val runQueryOnly: Boolean = args(4).equalsIgnoreCase("--query-only")
+
+
+    if (filename.endsWith(".json")) {
+      spark.sqlContext.setConf("spark.sql.sources.default", "json")
+    } else if (filename.endsWith(".parquet")) {
+      spark.sqlContext.setConf("spark.sql.sources.default", "parquet")
+    } else {
+      throw new RuntimeException(s"$filename has file format that is not supported")
+    }
 
     val timeJob: () => Unit = {
-      if (runSparser) {
-        val queryOp = Queries.queryStrToQuery(spark, queryStr)
-        () => {
-          val df = spark.read.format("edu.stanford.sparser")
-            .schema(Queries.queryStrToSchema(queryStr))
-            .options(Map("query" -> Queries.sparserQueryMap(queryStr)))
-            .load(jsonFilename)
-          println("Num rows in query output: " + queryOp(df))
-          println("Num partitions: " + df.rdd.getNumPartitions)
-        }
-      } else if (runSpark) {
-        val parserOp = Queries.queryStrToQueryParser(spark, queryStr)
-        val queryOp = Queries.queryStrToQuery(spark, queryStr)
-        () => {
-          val df = parserOp(jsonFilename)
-          println("Num rows in query output: " + queryOp(df))
-          println("Num partitions: " + df.rdd.getNumPartitions)
-        }
-      } else if (runQueryOnly) {
-        val parserOp = Queries.queryStrToQueryParser(spark, queryStr)
-        val queryOp = Queries.queryStrToQuery(spark, queryStr)
-        () => {
-          val df = parserOp(jsonFilename)
-          df.cache()
-          val startTime = System.currentTimeMillis()
-          println("Num rows in query output: " + queryOp(df))
-          val queryTime = System.currentTimeMillis() - startTime
-          println("Query Time: " + queryTime / 1000.0)
-          println("Num partitions: " + df.rdd.getNumPartitions)
-        }
-      } else if (runReadOnly) {
-        () => {
-          val rdd = spark.sparkContext.textFile(jsonFilename)
-          println(rdd.count())
-          println("Num partitions: " + rdd.getNumPartitions)
-        }
-      } else {
-        throw new RuntimeException(args(4) + " is not a valid argument!")
+      args(4).toLowerCase match {
+        case "--sparser" =>
+          if (filename.endsWith(".parquet")) {
+            throw new RuntimeException("can't run Sparser on Parquet files yet")
+          }
+          val queryOp = Queries.queryStrToQuery(spark, queryStr)
+          () => {
+            val df = spark.read.format("edu.stanford.sparser")
+              .schema(Queries.queryStrToSchema(queryStr))
+              .options(Map("query" -> Queries.sparserQueryMap(queryStr)))
+              .load(filename)
+            println("Num rows in query output: " + queryOp(df))
+            println("Num partitions: " + df.rdd.getNumPartitions)
+          }
+        case "--spark" =>
+          val parserOp = Queries.queryStrToQueryParser(spark, queryStr)
+          val queryOp = Queries.queryStrToQuery(spark, queryStr)
+          () => {
+            val df = parserOp(filename)
+            println("Num rows in query output: " + queryOp(df))
+            println("Num partitions: " + df.rdd.getNumPartitions)
+          }
+        case "--read-only" =>
+          () => {
+            val rdd = spark.sparkContext.textFile(filename)
+            println(rdd.count())
+            println("Num partitions: " + rdd.getNumPartitions)
+          }
+        case "--query-only" =>
+          val parserOp = Queries.queryStrToQueryParser(spark, queryStr)
+          val queryOp = Queries.queryStrToQuery(spark, queryStr)
+          () => {
+            val df = parserOp(filename)
+            df.cache()
+            val startTime = System.currentTimeMillis()
+            println("Num rows in query output: " + queryOp(df))
+            val queryTime = System.currentTimeMillis() - startTime
+            println("Query Time: " + queryTime / 1000.0)
+            println("Num partitions: " + df.rdd.getNumPartitions)
+          }
+        case _ =>
+          throw new RuntimeException(args(4) + " is not a valid argument!")
       }
     }
 

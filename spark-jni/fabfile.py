@@ -1,7 +1,7 @@
 from __future__ import with_statement
 from fabric.api import cd, put, run, settings, parallel, runs_once
 
-DATASETS_TO_BENCHMARK = ['tweets68g.json', 'zakir652g.json']
+DATASETS_TO_BENCHMARK = ['tweets68g.json', 'tweets68g.parquet', 'zakir652g.json']
 GIT_PROMPT = {
     'Are you sure you want to continue connecting (yes/no)? ': 'yes',
 }

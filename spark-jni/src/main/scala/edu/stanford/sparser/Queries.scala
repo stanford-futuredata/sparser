@@ -37,7 +37,7 @@ object Queries {
           * AND   autonomous_system.asn = 9318;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"autonomous_system.asn" === 9318).filter(
+          spark.read.load(input).filter($"autonomous_system.asn" === 9318).filter(
             "p23.telnet.banner.banner is not null")
         }
 
@@ -48,7 +48,7 @@ object Queries {
           * WHERE p80.http.get.body CONTAINS 'content=\"WordPress 4.0';
           **/
         (input: String) => {
-          spark.read.json(input).filter($"p80.http.get.body".contains("""content="WordPress 4.0"""))
+          spark.read.load(input).filter($"p80.http.get.body".contains("""content="WordPress 4.0"""))
         }
 
       case "zakir3" =>
@@ -58,7 +58,7 @@ object Queries {
           * WHERE autonomous_system.asn = 2516;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"autonomous_system.asn" === 2516)
+          spark.read.load(input).filter($"autonomous_system.asn" === 2516)
         }
 
       case "zakir4" =>
@@ -69,7 +69,7 @@ object Queries {
           * AND   p80.http.get.status_code is not NULL;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"location.country" === "Chile").filter(
+          spark.read.load(input).filter($"location.country" === "Chile").filter(
             "p80.http.get.status_code is not null")
         }
 
@@ -80,7 +80,7 @@ object Queries {
           * WHERE p80.http.get.headers.server like '%DIR-300%';
           **/
         (input: String) => {
-          spark.read.json(input).filter($"p80.http.get.headers.server".contains("DIR-300"))
+          spark.read.load(input).filter($"p80.http.get.headers.server".contains("DIR-300"))
         }
 
       case "zakir6" =>
@@ -90,7 +90,7 @@ object Queries {
           * WHERE p110.pop3s.starttls.banner is not NULL;
           **/
         (input: String) => {
-          spark.read.json(input).filter("p110.pop3.starttls.banner is not null")
+          spark.read.load(input).filter("p110.pop3.starttls.banner is not null")
         }
 
       case "zakir7" =>
@@ -100,7 +100,7 @@ object Queries {
           * WHERE p21.ftp.banner.banner like '%Seagate Central Shared%';
           **/
         (input: String) => {
-          spark.read.json(input).filter($"p21.ftp.banner.banner".contains("Seagate Central Shared"))
+          spark.read.load(input).filter($"p21.ftp.banner.banner".contains("Seagate Central Shared"))
         }
 
       case "zakir8" =>
@@ -110,7 +110,7 @@ object Queries {
           * WHERE p20000.dnp3.status.support = true;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"p20000.dnp3.status.support" === true)
+          spark.read.load(input).filter($"p20000.dnp3.status.support" === true)
         }
 
       case "zakir9" =>
@@ -121,7 +121,7 @@ object Queries {
           * GROUP BY autonomous_system.asn;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"autonomous_system.name".contains("Verizon"))
+          spark.read.load(input).filter($"autonomous_system.name".contains("Verizon"))
             .select($"autonomous_system.asn", $"ipint")
         }
 
@@ -135,7 +135,7 @@ object Queries {
           * GROUP BY certificate_fingerprint ORDER BY hosts DESC;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"p443.https.tls.certificate.parsed.issuer_dn"
+          spark.read.load(input).filter($"p443.https.tls.certificate.parsed.issuer_dn"
             .contains("Let's Encrypt"))
             .filter($"p443.https.tls.validation.browser_trusted" === true)
             .select($"p443.https.tls.certificate.parsed.fingerprint_sha256", $"ipint")
@@ -150,7 +150,7 @@ object Queries {
           * AND created_at contains "Sep 13";
           **/
         (input: String) => {
-          spark.read.json(input).filter($"text".contains("Donald Trump") &&
+          spark.read.load(input).filter($"text".contains("Donald Trump") &&
             $"created_at".contains("Sep 13"))
         }
 
@@ -162,7 +162,7 @@ object Queries {
           *  GROUP BY user.id;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"text".contains("Obama"))
+          spark.read.load(input).filter($"text".contains("Obama"))
             .select($"user.id", $"retweet_count")
         }
 
@@ -173,7 +173,7 @@ object Queries {
           * WHERE user.lang = "msa";
           **/
         (input: String) => {
-          spark.read.json(input).filter($"user.lang" === "msa").select($"id")
+          spark.read.load(input).filter($"user.lang" === "msa").select($"id")
         }
 
       case "twitter4" =>
@@ -183,7 +183,7 @@ object Queries {
           * WHERE text contains @realDonaldTrump;
           **/
         (input: String) => {
-          spark.read.json(input).filter($"text".contains("@realDonaldTrump"))
+          spark.read.load(input).filter($"text".contains("@realDonaldTrump"))
             .select($"user.id")
         }
     }
