@@ -73,11 +73,11 @@ impl FilterKind {
                                     result: &mut Vec<Vec<FilterKind>>) {
         use self::FilterKind::*;
         match self {
-            And(lhs, rhs) => {
+            Or(lhs, rhs) => {
                 lhs.into_filter_sets_internal(stack, result);
                 rhs.into_filter_sets_internal(stack, result);
             },
-            Or(lhs, rhs) => {
+            And(lhs, rhs) => {
                 stack.push(vec![]);
                 lhs.into_filter_sets_internal(stack, result);
                 // Nested `Or` expressions may leave empty sets.
@@ -163,16 +163,16 @@ impl FilterKind {
     ///
     /// This function changes
     ///
-    /// p & (q | r) to (p & q) | (p & r)
+    /// p | (q & r) to (p | q) & (p | r)
     fn distributive_law(fk: &mut FilterKind) -> Option<FilterKind> {
         use self::FilterKind::*;
 
         let mut changed = None;
-        if let And(ref lhs, ref rhs) = *fk {
-            if let Or(ref lhs2, ref rhs2) = *rhs.as_ref() {
-                let new_lhs = And(lhs.clone(), lhs2.clone());
-                let new_rhs = And(lhs.clone(), rhs2.clone());
-                changed = Some(Or(Box::new(new_lhs), Box::new(new_rhs)));
+        if let Or(ref lhs, ref rhs) = *fk {
+            if let And(ref lhs2, ref rhs2) = *rhs.as_ref() {
+                let new_lhs = Or(lhs.clone(), lhs2.clone());
+                let new_rhs = Or(lhs.clone(), rhs2.clone());
+                changed = Some(And(Box::new(new_lhs), Box::new(new_rhs)));
             }
         }
         changed
@@ -309,15 +309,15 @@ fn basic_and() {
 #[test]
 fn basic_distributive() {
     let p = boxed_match("p");
-    let q_and_r = Or(boxed_match("q"), boxed_match("r"));
+    let q_or_r = And(boxed_match("q"), boxed_match("r"));
     // p & (q | r)
-    let mut test = And(p, Box::new(q_and_r));
+    let mut test = Or(p, Box::new(q_or_r));
 
 
-    let p_and_q = And(boxed_match("p"), boxed_match("q"));
-    let p_and_r = And(boxed_match("p"), boxed_match("r"));
-    // (p & q) | (p & r)
-    let expect = Or(Box::new(p_and_q), Box::new(p_and_r));
+    let p_or_q = Or(boxed_match("p"), boxed_match("q"));
+    let p_or_r = Or(boxed_match("p"), boxed_match("r"));
+    // (p | q) & (p | r)
+    let expect = And(Box::new(p_or_q), Box::new(p_or_r));
 
     test.to_cnf();
     assert_eq!(test, expect);
@@ -340,12 +340,12 @@ fn with_operators() {
 fn filter_sets_1() {
     use std::collections::HashSet;
 
-    let p_and_q = And(boxed_match("p"), boxed_match("q"));
-    let r_and_s = And(boxed_match("r"), boxed_match("s"));
+    let p_or_q = Or(boxed_match("p"), boxed_match("q"));
+    let r_or_s = Or(boxed_match("r"), boxed_match("s"));
     let t = boxed_match("t");
 
-    // (p & q) | (r & s) | t
-    let test = Or(Box::new(Or(Box::new(p_and_q), Box::new(r_and_s))), t);
+    // (p | q) & (r | s) & t
+    let test = And(Box::new(And(Box::new(p_or_q), Box::new(r_or_s))), t);
 
     // Get the filter sets as a hashset of hashsets so we can compare them.
     let sets: Vec<_> = test.into_filter_sets().into_iter().map(|e| e.into_iter().collect::<HashSet<_>>()).collect();
@@ -365,15 +365,15 @@ fn filter_sets_1() {
 fn filter_sets_2() {
     use std::collections::HashSet;
 
-    let p_and_q_and_r = And(Box::new(And(boxed_match("p"), boxed_match("q"))), boxed_match("r"));
-    let t_and_u = And(boxed_match("t"), boxed_match("u"));
-    let v_and_w = And(boxed_match("v"), boxed_match("w"));
+    let p_or_q_or_r = Or(Box::new(Or(boxed_match("p"), boxed_match("q"))), boxed_match("r"));
+    let t_or_u = Or(boxed_match("t"), boxed_match("u"));
+    let v_or_w = Or(boxed_match("v"), boxed_match("w"));
     let x = Not(boxed_match("x"));
 
-    let test = Or(Box::new(p_and_q_and_r), Box::new(t_and_u));
-    let test = Or(Box::new(test), Box::new(v_and_w));
-    // (p & q & r) | (t & u) | (v & w) | ~x
-    let test = Or(Box::new(test), Box::new(x));
+    let test = And(Box::new(p_or_q_or_r), Box::new(t_or_u));
+    let test = And(Box::new(test), Box::new(v_or_w));
+    // (p | q | r) & (t | u) & (v | w) & ~x
+    let test = And(Box::new(test), Box::new(x));
 
     // Get the filter sets as a hashset of hashsets so we can compare them.
     let sets: Vec<_> = test.into_filter_sets().into_iter().map(|e| e.into_iter().collect::<HashSet<_>>()).collect();

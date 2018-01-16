@@ -117,10 +117,10 @@ fn sample(data: &[u8],
     result
 }
 
-/// Computes the cost of a cascade `plan`, composed of a linear list of prefilters. The masks
-/// represent the false positive bitmasks computed during sampling, and the parse cost is the cost
-/// of using the full parser. The cost roughly represents the number of nanoseconds required to
-/// process the cascade.
+/// Computes the cost of a linear cascade `plan`, composed of a linear list of prefilters. The
+/// masks represent the false positive bitmasks computed during sampling, and the parse cost is the
+/// cost of using the full parser. The cost roughly represents the number of nanoseconds required
+/// to process the cascade.
 fn cascade_cost(plan: &Vec<PreFilterKind>,
         masks: &Vec<&BitVec>,
         parse_cost: &time::Duration,
