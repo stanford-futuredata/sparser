@@ -18,24 +18,26 @@ use super::engine::RecordIteratorFn;
 /// The maximum number of samples to evaluate during calibration.
 pub const MAX_SAMPLES: usize = 64;
 
-/// ID of a prefilter set.
-type SetId = i32;
+/// ID of a set.
+type SetId = usize;
+
+/// Id of a prefilter.
+type PreFilterId = usize;
 
 #[derive(Debug, Clone)]
 struct PreFilterEntry {
     /// The false positive mask for the prefilter.
+    /// 
+    /// If bit false_positives[j] is set, then this prefilter returned a false
+    /// positive for sample `j`. A false positive is defined as a prefilter which passes a record,
+    /// but the callback fails the record.
     false_positives: BitVec,
-    /// The prefilter sets this prefilter belongs to. Prefilters in the same set are OR'd together.
-    /// If the prefilter belongs in more than one set, then it appears more than once in the full
-    /// expression.
-    set: Vec<SetId>,
 }
 
 impl PreFilterEntry {
-    fn new(bits: usize, sets: Vec<SetId>) -> PreFilterEntry {
+    fn new(bits: usize) -> PreFilterEntry {
         PreFilterEntry {
             false_positives: BitVec::from_elem(bits, false),
-            set: sets
         }
     }
 }
@@ -114,17 +116,21 @@ impl Plan {
 
 #[derive(Debug, Clone)]
 struct Optimizer {
-    /// Tracks false positives across samples.
-    ///
-    /// If bit false_positives[i][j] is set, then the candidate pre-filter `i` returned a false
-    /// positive for sample `j`. A false positive is defined as a pre-filter which passes a record,
-    /// but the callback fails the record.
-    prefilters: HashMap<PreFilterKind, PreFilterEntry>,
 
-    /// Parsing function
+    /// Associates prefiltesr with various metadata and optimizer information,
+    /// such as the bitmap information.
+    prefilter_map: HashMap<PreFilterId, PreFilterEntry>,
+
+    /// Associates sets with prefilters.
+    set_map: HashMap<SetId, Vec<PreFilterId>>, 
+
+    /// Stores the actual prefilters. The index of the prefilter is its PreFilterId.
+    prefilters: Vec<PreFilterKind>,
+
+    /// Parsing function.
     parser: ParserCallbackFn,
 
-    /// Record iterator
+    /// Record iterator.
     record_iterator: RecordIteratorFn,
 
     /// Measures the average duration of invoking the full parser.
@@ -138,22 +144,37 @@ struct Optimizer {
 }
 
 impl Optimizer {
+
     /// Generates a new `Optimizer` given the candidate prefilter sets.
-    fn from(prefilters: Vec<Vec<PreFilterKind>>,
+    fn from(in_prefilters: Vec<Vec<PreFilterKind>>,
             parser: ParserCallbackFn,
             record_iterator: RecordIteratorFn) -> Optimizer {
 
-        /*
+        let mut prefilters = vec![];
         let mut prefilter_map = HashMap::new();
+        let mut set_map = HashMap::new();
 
-        for prefilter_set in prefilters.into_iter() {
-           // These are the prefilters that are OR'd together. If we choose one of these in a
-           // schedule, we should choose all of them.
+        // The filter Id.
+        let mut filter_id = 0;
+        for (i, prefilter_set) in in_prefilters.into_iter().enumerate() {
+
+            let set_id = i as SetId;
+            set_map.insert(set_id, vec![]);
+
+            // Move the prefilters into the optimizer.
+            for prefilter in prefilter_set.into_iter() {
+                set_map.get_mut(&set_id).unwrap().push(filter_id);
+                prefilter_map.insert(filter_id, PreFilterEntry::new(MAX_SAMPLES));
+                prefilters.push(prefilter);
+
+                filter_id += 1;
+            }
         }
-        */
 
         Optimizer {
-            prefilters: HashMap::new(),
+            prefilter_map: prefilter_map,
+            set_map: set_map,
+            prefilters: prefilters,
             parser: parser,
             record_iterator: record_iterator,
             parse_cost: time::Duration::nanoseconds(0),
@@ -190,8 +211,8 @@ impl Optimizer {
 
             // Evaluate each of the candidate pre-filters on the record, recording whether
             // the pre-filter passed the record.
-            for (key, entry) in self.prefilters.iter_mut() {
-                if key.evaluate(data.get(base..base + record_length).unwrap()) {
+            for (key, entry) in self.prefilter_map.iter_mut() {
+                if self.prefilters[*key].evaluate(data.get(base..base + record_length).unwrap()) {
                     entry.false_positives.set(self.records_processed, true);
                     found += 1;
                 }
@@ -200,7 +221,7 @@ impl Optimizer {
             // If all the prefilters were found, we need to run the full parser to check
             // if they are all false positives. If any of them failed, since each one can only
             // return a false positive, all the other ones which passed are false positives.
-            if found == self.prefilters.len() {
+            if found == self.prefilter_map.len() {
                 let start = time::PreciseTime::now();
                 let passed = (self.parser)(record, std::ptr::null_mut()) as i32;
                 let end = time::PreciseTime::now();
@@ -209,7 +230,7 @@ impl Optimizer {
                 if passed != 0 {
                     // the callback passed too, so these aren't false positives; the record actually
                     // passed!
-                    for (_, entry) in self.prefilters.iter_mut() {
+                    for (_, entry) in self.prefilter_map.iter_mut() {
                         entry.false_positives.set(self.records_processed, false);
                     }
                 }
