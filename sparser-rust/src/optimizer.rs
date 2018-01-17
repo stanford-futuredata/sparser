@@ -6,6 +6,9 @@ extern crate bit_vec;
 extern crate time;
 
 use std;
+
+use std::collections::HashMap;
+
 use self::bit_vec::BitVec;
 
 use super::prefilters::PreFilterKind;
@@ -45,6 +48,78 @@ impl SampleData {
             records_processed: 0,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum Operator {
+    PreFilter {
+        kind: PreFilterKind,
+        on_true: Box<Operator>,
+        on_false: Box<Operator>,
+    },
+    Parse,
+    Finish,
+}
+
+/// A plan is just a tree of operators.
+type SparserPlan = Operator;
+
+/// Internal recursive helper for `cost`.
+fn cost_internal(plan: &SparserPlan,
+        probs: &HashMap<PreFilterKind, BitVec>,
+        stack: &mut Vec<BitVec>,
+        p_pfs: &mut HashMap<PreFilterKind, f64>,
+        p_parse: &mut f64) {
+    use self::Operator::*;
+    match *plan {
+        PreFilter { ref kind, ref on_true, ref on_false } => {
+            // Add the probability into the map.
+            // TODO memoize this.
+            let probability = joint_false_positive_rate(stack);
+            { // scope borrow of p_pfs
+                let prob = p_pfs.entry(kind.clone()).or_insert(0.0);
+                *prob += probability;
+            }
+
+            // Recurse.
+            let bitvec = probs.get(kind).unwrap().clone();
+            stack.push(bitvec);
+            cost_internal(on_true, probs, stack, p_pfs, p_parse);
+            let mut bitvec = stack.pop().unwrap();
+
+            bitvec.negate();
+            stack.push(bitvec);
+            cost_internal(on_false, probs, stack, p_pfs, p_parse);
+            stack.pop();
+        }
+        Parse => {
+            let probability = joint_false_positive_rate(stack);
+            *p_parse += probability;
+        }
+        Finish => (),
+    }
+}
+
+/// Computes the cost of a sparser plan, which is a tree of operators such as prefilters, parsing,
+/// or aborting the computation on the current record.
+fn cost(plan: &SparserPlan,
+        probs: &HashMap<PreFilterKind, BitVec>,
+        parse_cost: f64) -> f64 {
+    // Stack to track probabilities, used to compute joint probabilities and nodes in the tree.
+    let ref mut stack = vec![];
+    // Stores the probabilities of executing a prefilter.
+    let ref mut p_pfs = HashMap::new();
+    // Probability of parsing the full result.
+    let ref mut p_parse = 0.0;
+
+    cost_internal(plan, probs, stack, p_pfs, p_parse);
+
+    let mut total_cost = 0.0;
+    for (key, _) in probs.iter() {
+        total_cost += p_pfs.get(key).unwrap_or(&0.0) * key.cost(1000);
+    }
+    total_cost += *p_parse * parse_cost;
+    total_cost
 }
 
 /// Returns a cascade of ordered prefilters to execute using Sparser's optimization algorithm.
@@ -153,9 +228,9 @@ fn cascade_cost(plan: &Vec<PreFilterKind>,
 }
 
 /// Returns the joint false positive rate of the passed masks.
-fn joint_false_positive_rate(masks: Vec<&BitVec>) -> f64 {
+fn joint_false_positive_rate(masks: &Vec<BitVec>) -> f64 {
     if masks.len() == 0 {
-        return 0.0;
+        return 1.0;
     }
 
     let mut joint = masks[0].clone();
