@@ -18,40 +18,30 @@ use super::engine::RecordIteratorFn;
 /// The maximum number of samples to evaluate during calibration.
 pub const MAX_SAMPLES: usize = 64;
 
-/// Holds data returned by the sampler.
+/// ID of a prefilter set.
+type SetId = i32;
+
 #[derive(Debug, Clone)]
-struct SampleData {
-    /// Tracks false positives across samples.
-    ///
-    /// If bit false_positives[i][j] is set, then the candidate pre-filter `i` returned a false
-    /// positive for sample `j`. A false positive is defined as a pre-filter which passes a record,
-    /// but the callback fails the record.
-    false_positives: Vec<BitVec>,
-
-    /// Measures the average duration of invoking the full parser.
-    parse_cost: time::Duration,
-
-    /// Measures the average record length.
-    record_length: usize,
-
-    /// The number of samples tested.
-    records_processed: usize,
+struct PreFilterEntry {
+    /// The false positive mask for the prefilter.
+    false_positives: BitVec,
+    /// The prefilter sets this prefilter belongs to. Prefilters in the same set are OR'd together.
+    /// If the prefilter belongs in more than one set, then it appears more than once in the full
+    /// expression.
+    set: Vec<SetId>,
 }
 
-impl SampleData {
-    /// Generates a new `SampleData` given the number of candidates and samples.
-    fn with_size(num_samples: usize, num_candidates: usize) -> SampleData {
-        SampleData {
-            false_positives: vec![BitVec::from_elem(num_samples, false); num_candidates],
-            parse_cost: time::Duration::nanoseconds(0),
-            record_length: 0,
-            records_processed: 0,
+impl PreFilterEntry {
+    fn new(bits: usize, sets: Vec<SetId>) -> PreFilterEntry {
+        PreFilterEntry {
+            false_positives: BitVec::from_elem(bits, false),
+            set: sets
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum Operator {
+pub enum Operator {
     PreFilter {
         kind: PreFilterKind,
         on_true: Box<Operator>,
@@ -62,169 +52,202 @@ enum Operator {
 }
 
 /// A plan is just a tree of operators.
-type SparserPlan = Operator;
+pub type Plan = Operator;
 
-/// Internal recursive helper for `cost`.
-fn cost_internal(plan: &SparserPlan,
-        probs: &HashMap<PreFilterKind, BitVec>,
-        stack: &mut Vec<BitVec>,
-        p_pfs: &mut HashMap<PreFilterKind, f64>,
-        p_parse: &mut f64) {
-    use self::Operator::*;
-    match *plan {
-        PreFilter { ref kind, ref on_true, ref on_false } => {
-            // Add the probability into the map.
-            // TODO memoize this.
-            let probability = joint_false_positive_rate(stack);
-            { // scope borrow of p_pfs
-                let prob = p_pfs.entry(kind.clone()).or_insert(0.0);
-                *prob += probability;
+impl Plan {
+    /// Computes the cost of a sparser plan, which is a tree of operators such as prefilters, parsing,
+    /// or aborting the computation on the current record.
+    fn cost(&self, prefilters: &HashMap<PreFilterKind, PreFilterEntry>, parse_cost: f64) -> f64 {
+        // Stack to track probabilities, used to compute joint probabilities and nodes in the tree.
+        let ref mut stack = vec![];
+        // Stores the probabilities of executing a prefilter.
+        let ref mut p_pfs = HashMap::new();
+        // Probability of parsing the full result.
+        let ref mut p_parse = 0.0;
+
+        self.cost_internal(prefilters, stack, p_pfs, p_parse);
+
+        let mut total_cost = 0.0;
+        for (key, _) in prefilters.iter() {
+            total_cost += p_pfs.get(key).unwrap_or(&0.0) * key.cost(1000);
+        }
+        total_cost += *p_parse * parse_cost;
+        total_cost
+    }
+
+    /// Internal recursive helper for `cost`.
+    fn cost_internal(&self,
+                     prefilters: &HashMap<PreFilterKind, PreFilterEntry>,
+                     stack: &mut Vec<BitVec>,
+                     p_pfs: &mut HashMap<PreFilterKind, f64>,
+                     p_parse: &mut f64) {
+        use self::Operator::*;
+        match *self {
+            PreFilter { ref kind, ref on_true, ref on_false } => {
+                // Add the probability into the map.
+                // TODO memoize this.
+                let probability = joint_false_positive_rate(stack);
+                { // scope borrow of p_pfs
+                    let prob = p_pfs.entry(kind.clone()).or_insert(0.0);
+                    *prob += probability;
+                }
+
+                // Recurse.
+                let bitvec = prefilters.get(kind).unwrap().false_positives.clone();
+                stack.push(bitvec);
+                on_true.cost_internal(prefilters, stack, p_pfs, p_parse);
+                let mut bitvec = stack.pop().unwrap();
+
+                bitvec.negate();
+                stack.push(bitvec);
+                on_false.cost_internal(prefilters, stack, p_pfs, p_parse);
+                stack.pop();
             }
-
-            // Recurse.
-            let bitvec = probs.get(kind).unwrap().clone();
-            stack.push(bitvec);
-            cost_internal(on_true, probs, stack, p_pfs, p_parse);
-            let mut bitvec = stack.pop().unwrap();
-
-            bitvec.negate();
-            stack.push(bitvec);
-            cost_internal(on_false, probs, stack, p_pfs, p_parse);
-            stack.pop();
+            Parse => {
+                let probability = joint_false_positive_rate(stack);
+                *p_parse += probability;
+            }
+            Finish => (),
         }
-        Parse => {
-            let probability = joint_false_positive_rate(stack);
-            *p_parse += probability;
-        }
-        Finish => (),
     }
 }
 
-/// Computes the cost of a sparser plan, which is a tree of operators such as prefilters, parsing,
-/// or aborting the computation on the current record.
-fn cost(plan: &SparserPlan,
-        probs: &HashMap<PreFilterKind, BitVec>,
-        parse_cost: f64) -> f64 {
-    // Stack to track probabilities, used to compute joint probabilities and nodes in the tree.
-    let ref mut stack = vec![];
-    // Stores the probabilities of executing a prefilter.
-    let ref mut p_pfs = HashMap::new();
-    // Probability of parsing the full result.
-    let ref mut p_parse = 0.0;
+#[derive(Debug, Clone)]
+struct Optimizer {
+    /// Tracks false positives across samples.
+    ///
+    /// If bit false_positives[i][j] is set, then the candidate pre-filter `i` returned a false
+    /// positive for sample `j`. A false positive is defined as a pre-filter which passes a record,
+    /// but the callback fails the record.
+    prefilters: HashMap<PreFilterKind, PreFilterEntry>,
 
-    cost_internal(plan, probs, stack, p_pfs, p_parse);
+    /// Parsing function
+    parser: ParserCallbackFn,
 
-    let mut total_cost = 0.0;
-    for (key, _) in probs.iter() {
-        total_cost += p_pfs.get(key).unwrap_or(&0.0) * key.cost(1000);
+    /// Record iterator
+    record_iterator: RecordIteratorFn,
+
+    /// Measures the average duration of invoking the full parser.
+    parse_cost: time::Duration,
+
+    /// Measures the average record length in bytes.
+    record_length: usize,
+
+    /// The number of samples tested.
+    records_processed: usize,
+}
+
+impl Optimizer {
+    /// Generates a new `Optimizer` given the candidate prefilter sets.
+    fn from(prefilters: Vec<Vec<PreFilterKind>>,
+            parser: ParserCallbackFn,
+            record_iterator: RecordIteratorFn) -> Optimizer {
+
+        /*
+        let mut prefilter_map = HashMap::new();
+
+        for prefilter_set in prefilters.into_iter() {
+           // These are the prefilters that are OR'd together. If we choose one of these in a
+           // schedule, we should choose all of them.
+        }
+        */
+
+        Optimizer {
+            prefilters: HashMap::new(),
+            parser: parser,
+            record_iterator: record_iterator,
+            parse_cost: time::Duration::nanoseconds(0),
+            record_length: 0,
+            records_processed: 0,
+        }
     }
-    total_cost += *p_parse * parse_cost;
-    total_cost
+
+    /// Reset internal state.
+    fn reset(&mut self) {
+        self.records_processed = 0;
+        self.record_length = 0;
+        self.parse_cost = time::Duration::nanoseconds(0);
+    }
+
+    /// Sample `data` to obtain measurements of the passthrough rates of each of the prefilters,
+    /// the estimated cost of a the parser function, and the average lenght of a record.
+    fn sample(&mut self, data: &[u8]) {
+        // Reset state before sampling.
+        self.reset();
+        // The index of the record currently being processed as an offset from `data`.
+        let mut base = 0;
+
+        while self.records_processed < MAX_SAMPLES {
+            // The record currently being processed.
+            let record = unsafe { data.as_ptr().offset(base as isize) };
+            // The length of the record.
+            let record_length = (self.record_iterator)(record) as usize;
+
+            self.record_length += record_length;
+
+            // Tracks whether a prefilters is found in the current record.
+            let mut found = 0;
+
+            // Evaluate each of the candidate pre-filters on the record, recording whether
+            // the pre-filter passed the record.
+            for (key, entry) in self.prefilters.iter_mut() {
+                if key.evaluate(data.get(base..base + record_length).unwrap()) {
+                    entry.false_positives.set(self.records_processed, true);
+                    found += 1;
+                }
+            }
+
+            // If all the prefilters were found, we need to run the full parser to check
+            // if they are all false positives. If any of them failed, since each one can only
+            // return a false positive, all the other ones which passed are false positives.
+            if found == self.prefilters.len() {
+                let start = time::PreciseTime::now();
+                let passed = (self.parser)(record, std::ptr::null_mut()) as i32;
+                let end = time::PreciseTime::now();
+                self.parse_cost = self.parse_cost + start.to(end);
+
+                if passed != 0 {
+                    // the callback passed too, so these aren't false positives; the record actually
+                    // passed!
+                    for (_, entry) in self.prefilters.iter_mut() {
+                        entry.false_positives.set(self.records_processed, false);
+                    }
+                }
+            }
+
+            self.records_processed += 1;
+
+            // Check if we are finished processing the input dataset.
+            // If not, proceed to the next record.
+            if base + record_length + 1 > data.len() {
+                break;
+            } else {
+                base += record_length + 1;
+            }
+        }
+
+        // Get the average record length.
+        if self.records_processed > 0 {
+            self.record_length /= self.records_processed;
+        }
+    }
+
+    fn optimize(&mut self) {
+
+    }
 }
 
 /// Returns a cascade of ordered prefilters to execute using Sparser's optimization algorithm.
 pub fn generate_cascade(data: &[u8],
-                        prefilters: &Vec<Vec<PreFilterKind>>,
+                        prefilters: Vec<Vec<PreFilterKind>>,
                         parser: ParserCallbackFn,
                         rec_iter: RecordIteratorFn) {
 
-    // TODO handle multiple filter sets...
-    let prefilters = prefilters.get(0).unwrap();
-    let _sample_data = sample(data, prefilters, parser, rec_iter);
-}
-
-fn sample(data: &[u8],
-          prefilters: &Vec<PreFilterKind>,
-          parser: ParserCallbackFn,
-          rec_iter: RecordIteratorFn) -> SampleData {
-
-    let mut result = SampleData::with_size(MAX_SAMPLES, prefilters.len());
-
-    // The index of the record currently being processed as an offset from `data`.
-    let mut base = 0;
-
-    while result.records_processed < MAX_SAMPLES {
-        // The record currently being processed.
-        let record = unsafe { data.as_ptr().offset(base as isize) };
-        // The length of the record.
-        let endpos = rec_iter(record) as usize;
-
-        // Tracks whether a prefilters is found in the current record.
-        let mut found = BitVec::from_elem(prefilters.len(), false);
-
-        // Evaluate each of the candidate pre-filters on the record, recording whether
-        // the pre-filter passed the record.
-        for (i, candidate) in prefilters.iter().enumerate() {
-            if candidate.evaluate(data.get(base..base + endpos).unwrap()) {
-                result.false_positives[i].set(result.records_processed, true);
-                found.set(i, true);
-            }
-        }
-
-        // If all the prefilters were found, we need to run the full parser to check
-        // if they are all false positives. If any of them failed, since each one can only
-        // return a false positive, all the other ones which passed are false positives.
-        if found.all() {
-            let start = time::PreciseTime::now();
-            let passed = parser(record, std::ptr::null_mut()) as i32;
-            let end = time::PreciseTime::now();
-            result.parse_cost = result.parse_cost + start.to(end);
-
-            if passed != 0 {
-                // the callback passed too, so these aren't false positives; the record actually
-                // passed!
-                for i in 0..prefilters.len() {
-                    result.false_positives[i].set(result.records_processed, false);
-                }
-            }
-        }
-
-        result.records_processed += 1;
-
-        // Check if we are finished processing the input dataset.
-        // If not, proceed to the next record.
-        if base + endpos + 1 > data.len() {
-            break;
-        } else {
-            base += endpos + 1;
-        }
-    }
-    result
-}
-
-/// Computes the cost of a linear cascade `plan`, composed of a linear list of prefilters. The
-/// masks represent the false positive bitmasks computed during sampling, and the parse cost is the
-/// cost of using the full parser. The cost roughly represents the number of nanoseconds required
-/// to process the cascade.
-fn cascade_cost(plan: &Vec<PreFilterKind>,
-        masks: &Vec<&BitVec>,
-        parse_cost: &time::Duration,
-        record_length: usize) -> f64 {
-
-    let mut total_cost = 0.0;
-    let mut joint = BitVec::from_elem(plan.len(), true);
-
-    for (filter, mask) in plan.iter().zip(masks.iter()) {
-        let set_bits = joint.iter().filter(|x| *x).count();
-        let joint_probability = (set_bits as f64) / (joint.len() as f64);
-
-        // This is the expected cost of the filter: P[p0,p1,p2..pn] * Cn where
-        // pi is the random variable designating whether filter i passed.
-        // Cn is the cost of the current filter.
-        let cost = filter.cost(record_length) * joint_probability;
-        total_cost += cost;
-
-        // Captures the probability of the next filter passing.
-        joint.intersect(mask);
-    }
-
-    // Factor in the final parsing cost, if all the filters passthrough.
-    let set_bits = joint.iter().filter(|x| *x).count();
-    let joint_probability = (set_bits as f64) / (joint.len() as f64);
-
-    let parse_cost = (parse_cost.num_nanoseconds().unwrap() as f64) * joint_probability;
-    total_cost += parse_cost;
-    total_cost
+    // Initialize an optimizer.
+    let mut optimizer = Optimizer::from(prefilters, parser, rec_iter);
+    optimizer.sample(data);
+    // TODO this should return a plan or something.
+    optimizer.optimize();
 }
 
 /// Returns the joint false positive rate of the passed masks.

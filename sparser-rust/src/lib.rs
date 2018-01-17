@@ -1,5 +1,8 @@
 //! The Sparser library.
 
+// Suppress warnings for unused functions.
+#![cfg_attr(not(test), allow(dead_code))]
+
 pub mod filters;
 pub mod prefilters;
 pub mod optimizer;
@@ -22,7 +25,7 @@ pub fn compile(filter: &FilterKind, data: &[u8], parser: ParserCallbackFn, rec_i
     let prefilters: Vec<_> = sets.into_iter().map(|ref v| prefilters::prefilter_candidates(v)).collect();
 
     // Run the optimizer to get the filter cascade.
-    let _cascade = optimizer::generate_cascade(data, &prefilters, parser, rec_iter);
+    let _cascade = optimizer::generate_cascade(data, prefilters, parser, rec_iter);
 
     // Generate a runtime which either JITs code or creates an interpreter for the filter cascade.
     // let runtime = engine::generate_runtime(cascade, false);

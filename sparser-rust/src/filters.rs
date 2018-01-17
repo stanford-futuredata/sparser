@@ -164,6 +164,8 @@ impl FilterKind {
     /// This function changes
     ///
     /// p | (q & r) to (p | q) & (p | r)
+    /// and
+    /// (q & r) | p to (p | q) & (p | r)
     fn distributive_law(fk: &mut FilterKind) -> Option<FilterKind> {
         use self::FilterKind::*;
 
@@ -172,6 +174,12 @@ impl FilterKind {
             if let And(ref lhs2, ref rhs2) = *rhs.as_ref() {
                 let new_lhs = Or(lhs.clone(), lhs2.clone());
                 let new_rhs = Or(lhs.clone(), rhs2.clone());
+                changed = Some(And(Box::new(new_lhs), Box::new(new_rhs)));
+            }
+
+            else if let And(ref lhs2, ref rhs2) = *lhs.as_ref() {
+                let new_lhs = Or(rhs.clone(), lhs2.clone());
+                let new_rhs = Or(rhs.clone(), rhs2.clone());
                 changed = Some(And(Box::new(new_lhs), Box::new(new_rhs)));
             }
         }
@@ -322,6 +330,25 @@ fn basic_distributive() {
     test.to_cnf();
     assert_eq!(test, expect);
 }
+
+
+
+/* TODO need to implement collapse rule for (p | q) & q == q.
+#[test]
+fn cnf_1() {
+    let p_and_q = And(boxed_match("p"), boxed_match("q"));
+    let q_and_r = And(boxed_match("q"), boxed_match("r"));
+    // (p & q) | (q & r)
+    let mut test = Or(Box::new(p_and_q), Box::new(q_and_r));
+
+    let p_or_r = Or(boxed_match("p"), boxed_match("r"));
+    // (p | r) & q
+    let expect = And(Box::new(p_or_r), boxed_match("q"));
+
+    test.to_cnf();
+    assert_eq!(test, expect);
+}
+*/
 
 #[test]
 fn with_operators() {
