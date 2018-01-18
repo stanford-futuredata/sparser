@@ -51,6 +51,22 @@ impl PreFilterKind {
             _ => unimplemented!(),
         }
     }
+
+    /// Returns `true` if the prefilter `other` "overlaps", or provides the same, weaker signal,
+    /// than this prefilter.
+    ///
+    /// Examples:
+    /// WordSearch("puppy").overlaps("pupp") == true
+    /// WordSearch("puppy").overlaps("puppydog") == false
+    pub fn overlaps(&self, other: &PreFilterKind) -> bool {
+        use self::PreFilterKind::*;
+        if let WordSearch(ref s) = *self {
+            if let WordSearch(ref other)  = *other {
+                return s.contains(other)
+            }
+        }
+        false
+    }
 }
 
 /// Converts `Self` into a set of pre-filters.

@@ -6,6 +6,7 @@ extern crate bit_vec;
 extern crate time;
 
 use std;
+use std::vec;
 
 use std::collections::HashMap;
 
@@ -27,7 +28,7 @@ type PreFilterId = usize;
 #[derive(Debug, Clone)]
 struct PreFilterEntry {
     /// The false positive mask for the prefilter.
-    /// 
+    ///
     /// If bit false_positives[j] is set, then this prefilter returned a false
     /// positive for sample `j`. A false positive is defined as a prefilter which passes a record,
     /// but the callback fails the record.
@@ -121,7 +122,7 @@ struct Optimizer {
     prefilter_map: HashMap<PreFilterId, PreFilterEntry>,
 
     /// Associates sets with prefilters.
-    set_map: HashMap<SetId, Vec<PreFilterId>>, 
+    set_map: HashMap<SetId, Vec<PreFilterId>>,
 
     /// Stores the actual prefilters. The index of the prefilter is its PreFilterId.
     prefilters: Vec<PreFilterKind>,
@@ -252,8 +253,24 @@ impl Optimizer {
         }
     }
 
-    fn optimize(&mut self) {
+    /// Returns an iterator over generated plans.
+    fn plans(&self) -> vec::IntoIter<Plan> {
+        vec![].into_iter()
+    }
 
+    /// Generates plans and returns the best one based on the estimated cost.
+    fn optimize(&mut self) -> Option<Plan> {
+        let mut best_cost = std::f64::MAX;
+        let mut best_plan = None;
+        for plan in self.plans() {
+            // TODO change cost() to take new format of prefilter map.
+            let cost = plan.cost(&HashMap::new(), self.parse_cost.num_nanoseconds().unwrap() as f64);
+            if best_plan.is_none() || cost < best_cost {
+                best_plan = Some(plan);
+                best_cost = cost;
+            }
+        }
+        best_plan
     }
 }
 
