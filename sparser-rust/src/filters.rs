@@ -45,8 +45,8 @@ impl FilterKind {
             }
         }
 
-    /// Converts this filter expression to Conjunctive Normal Form as an in-place transformation.
-    pub fn to_cnf(&mut self) {
+    /// Converts this filter expression to Disjunctive Normal Form as an in-place transformation.
+    pub fn to_dnf(&mut self) {
         // Apply DeMorgan's Laws repeatedly until fixpoint.
         self.transform(&FilterKind::demorgans_law);
         // Apply the Distribute Law repeatedly until fixpoint.
@@ -54,10 +54,10 @@ impl FilterKind {
     }
 
     /// Converts this filter expression as a vector of vectors. Each inner vector represents a
-    /// disjunction of filters, where each vector of disjunctions is joined into a conjunction.
+    /// conjunction of filters, where each vector of conjunctions is joined by disjunctions.
     ///
     /// Notes:
-    /// The filter expression should be converted to CNF using `to_cnf` first.
+    /// The filter expression should be converted to DNF using `to_dnf` first.
     pub fn into_filter_sets(self) -> Vec<Vec<FilterKind>> {
         let mut result = vec![];
         let mut stack = vec![];
@@ -164,8 +164,6 @@ impl FilterKind {
     /// This function changes
     ///
     /// p | (q & r) to (p | q) & (p | r)
-    /// and
-    /// (q & r) | p to (p | q) & (p | r)
     fn distributive_law(fk: &mut FilterKind) -> Option<FilterKind> {
         use self::FilterKind::*;
 
@@ -174,12 +172,6 @@ impl FilterKind {
             if let And(ref lhs2, ref rhs2) = *rhs.as_ref() {
                 let new_lhs = Or(lhs.clone(), lhs2.clone());
                 let new_rhs = Or(lhs.clone(), rhs2.clone());
-                changed = Some(And(Box::new(new_lhs), Box::new(new_rhs)));
-            }
-
-            else if let And(ref lhs2, ref rhs2) = *lhs.as_ref() {
-                let new_lhs = Or(rhs.clone(), lhs2.clone());
-                let new_rhs = Or(rhs.clone(), rhs2.clone());
                 changed = Some(And(Box::new(new_lhs), Box::new(new_rhs)));
             }
         }
@@ -297,7 +289,7 @@ fn basic_or() {
     // ~a & ~b
     let expect = And(Box::new(Not(boxed_match("a"))), Box::new(Not(boxed_match("b"))));
 
-    test.to_cnf();
+    test.to_dnf();
     assert_eq!(test, expect);
 }
 
@@ -309,7 +301,7 @@ fn basic_and() {
     // ~a | ~b
     let expect = Or(Box::new(Not(boxed_match("a"))), Box::new(Not(boxed_match("b"))));
 
-    test.to_cnf();
+    test.to_dnf();
     assert_eq!(test, expect);
 }
 
@@ -327,28 +319,9 @@ fn basic_distributive() {
     // (p | q) & (p | r)
     let expect = And(Box::new(p_or_q), Box::new(p_or_r));
 
-    test.to_cnf();
+    test.to_dnf();
     assert_eq!(test, expect);
 }
-
-
-
-/* TODO need to implement collapse rule for (p | q) & q == q.
-#[test]
-fn cnf_1() {
-    let p_and_q = And(boxed_match("p"), boxed_match("q"));
-    let q_and_r = And(boxed_match("q"), boxed_match("r"));
-    // (p & q) | (q & r)
-    let mut test = Or(Box::new(p_and_q), Box::new(q_and_r));
-
-    let p_or_r = Or(boxed_match("p"), boxed_match("r"));
-    // (p | r) & q
-    let expect = And(Box::new(p_or_r), boxed_match("q"));
-
-    test.to_cnf();
-    assert_eq!(test, expect);
-}
-*/
 
 #[test]
 fn with_operators() {

@@ -17,8 +17,8 @@ pub fn compile(filter: &FilterKind,
                _data: &[u8],
                _parser: ParserCallbackFn,
                _rec_iter: RecordIteratorFn) {
-    // First, convert the user filter into a canonical form (CNF and then filter sets).
+    // First, convert the user filter into a canonical form (DNF and then filter sets).
     let mut filter = filter.clone();
-    filter.to_cnf();
+    filter.to_dnf();
     let _sets = filter.into_filter_sets();
 }
