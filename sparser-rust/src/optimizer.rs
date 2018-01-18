@@ -1,4 +1,4 @@
-//! Chooses pre-filters to execute using Sparser's optimization algorithm.
+//! Chooses prefilters to execute using Sparser's optimization algorithm.
 
 extern crate memchr;
 extern crate bit_vec;
@@ -18,7 +18,7 @@ use super::engine::RecordIteratorFn;
 /// The maximum number of samples to evaluate during calibration.
 pub const MAX_SAMPLES: usize = 64;
 
-/// ID of a set.
+/// Id of a prefilter set.
 type SetId = usize;
 
 /// Id of a prefilter.
@@ -116,8 +116,7 @@ impl Plan {
 
 #[derive(Debug, Clone)]
 struct Optimizer {
-
-    /// Associates prefiltesr with various metadata and optimizer information,
+    /// Associates prefilters with various metadata and optimizer information,
     /// such as the bitmap information.
     prefilter_map: HashMap<PreFilterId, PreFilterEntry>,
 
@@ -154,7 +153,7 @@ impl Optimizer {
         let mut prefilter_map = HashMap::new();
         let mut set_map = HashMap::new();
 
-        // The filter Id.
+        // The filter id.
         let mut filter_id = 0;
         for (i, prefilter_set) in in_prefilters.into_iter().enumerate() {
 
@@ -263,7 +262,6 @@ pub fn generate_cascade(data: &[u8],
                         prefilters: Vec<Vec<PreFilterKind>>,
                         parser: ParserCallbackFn,
                         rec_iter: RecordIteratorFn) {
-
     // Initialize an optimizer.
     let mut optimizer = Optimizer::from(prefilters, parser, rec_iter);
     optimizer.sample(data);
