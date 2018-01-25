@@ -53,9 +53,14 @@ json_query_t zakir_query1() {
 
 static const char **sparser_zakir_query1(int *count) {
     static const char *_1 = "9318";
-    static const char *predicates[] = {_1, NULL};
+    static const char *_2 = "telnet";
+    static const char *_3 = "banner";
+    static const char *_4 = "autonomous_system";
+    static const char *_5 = "asn";
+    static const char *_6 = "p23";
+    static const char *predicates[] = {_1, _2, _3, _4, _5, _6, NULL};
 
-    *count = 1;
+    *count = 6;
     return predicates;
 }
 
