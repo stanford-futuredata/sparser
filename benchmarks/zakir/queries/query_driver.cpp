@@ -18,7 +18,7 @@ double bench_rapidjson_engine(char *data, long length, json_query_t query, int q
     if (rapidjson_engine(query, line, NULL) == JSON_PASS) {
       matching++;
     }
-	
+
 		if (ptr)
 			*(ptr - 1) = '\n';
 
@@ -46,7 +46,7 @@ double bench_mison_engine(char *data, long length, json_query_t query, int query
     if (mison_engine(query, line, NULL) == JSON_PASS) {
       matching++;
     }
-	
+
 		if (ptr)
 			*(ptr - 1) = '\n';
 
@@ -85,7 +85,7 @@ double bench_sparser_engine(char *data, long length, json_query_t jquery, const 
       matching,
       doc_index);
   printf("Query %d Execution Time: %f seconds\n", queryno, elapsed);
-  
+
   assert(stats);
   printf("%s\n", sparser_format_stats(stats));
   free(stats);
@@ -93,6 +93,50 @@ double bench_sparser_engine(char *data, long length, json_query_t jquery, const 
 
   return elapsed;
 }
+
+double bench_strstr_rapidjson_engine(char *data,
+    long length, json_query_t jquery,
+    const char **preds,
+    int num_preds,
+    int queryno) {
+
+  bench_timer_t s = time_start();
+
+  long doc_index = 1;
+  long matching = 0;
+
+  char *ptr = data;
+  char *line;
+  while ((line = strsep(&ptr, "\n")) != NULL) {
+    int passed = 1;
+
+    // Check for everything.
+    for (int i = 0; i < num_preds; i++) {
+      if (strstr(line, preds[i]) == NULL) {
+        passed = 0;
+        break;
+      }
+    }
+
+
+    if (passed && rapidjson_engine(jquery, line, NULL) == JSON_PASS) {
+      matching++;
+    }
+
+		if (ptr)
+			*(ptr - 1) = '\n';
+
+    doc_index++;
+  }
+
+  double elapsed = time_stop(s);
+  printf("Passing Elements: %ld of %ld records\n",
+      matching,
+      doc_index);
+  printf("Query %d Execution Time: %f seconds\n", queryno, elapsed);
+  return elapsed;
+}
+
 
 int main(int argc, char **argv) {
 
@@ -106,26 +150,29 @@ int main(int argc, char **argv) {
   int query_index;
 
 #ifdef ZAKIR_BENCH_RJ
+  printf("----------------> Benchmarking RapidJSON\n");
   query_index = 0;
   while (queries[query_index]) {
     json_query_t query = queries[query_index]();
     printf("Running Query %d\n", query_index);
     bench_rapidjson_engine(raw, length, query, query_index + 1);
     query_index++;
-  } 
+  }
 #endif
 
 #ifdef ZAKIR_BENCH_MISON
+  printf("----------------> Benchmarking Mison\n");
   query_index = 0;
   while (queries[query_index]) {
     json_query_t query = queries[query_index]();
     printf("Running Query %d\n", query_index);
     bench_mison_engine(raw, length, query, query_index + 1);
     query_index++;
-  } 
+  }
 #endif
 
 #ifdef ZAKIR_BENCH_SPARSER
+  printf("----------------> Benchmarking Sparser + RapidJSON\n");
   query_index = 0;
   while (squeries[query_index]) {
     int count;
@@ -135,6 +182,20 @@ int main(int argc, char **argv) {
 
     bench_sparser_engine(raw, length, jquery, preds, count, query_index + 1);
     query_index++;
-  } 
+  }
+#endif
+
+#ifdef ZAKIR_BENCH_STRSTR
+  printf("----------------> Benchmarking strstr + RapidJSON\n");
+  query_index = 0;
+  while (squeries[query_index]) {
+    int count;
+    json_query_t jquery = queries[query_index]();
+    const char ** preds = squeries[query_index](&count);
+    printf("Running Query %d\n", query_index);
+
+    bench_strstr_rapidjson_engine(raw, length, jquery, preds, count, query_index + 1);
+    query_index++;
+  }
 #endif
 }
