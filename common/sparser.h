@@ -1206,6 +1206,10 @@ sparser_stats_t *sparser_search(char *input, long length,
                                 sparser_query_t *query,
                                 sparser_callback_t callback,
                                 void *callback_ctx) {
+
+		for (int i = 0; i < query->count; i++) {
+			 printf("Search string %d: %s\n", i+1, query->queries[i]);
+		}
     // Call into specializations if possible - it's much faster.
     if (query->count == 1 && query->lens[0] == 4) {
         fprintf(stderr, "Calling specialization 4\n");

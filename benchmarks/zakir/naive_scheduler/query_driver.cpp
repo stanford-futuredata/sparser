@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
   const char *filename = "/lfs/1/sparser/zakir-small.json";
   length = read_all(filename, &raw);
 
-  printf("----------------> Benchmarking Sparser vs. Naive Sched.\n");
+  printf("----------------> Benchmarking Sparser\n");
   int count = 0;
   json_query_t jquery = zakir_query1_mod();
   const char ** preds = sparser_zakir_query1_mod(&count);
@@ -148,5 +148,6 @@ int main(int argc, char **argv) {
   bench_sparser_engine(raw, length, jquery, preds, count);
 
   // Hard code the schedule here based on knowledge of how common each predicate is.
+  printf("----------------> Benchmarking Naive Sched.\n");
   bench_sparser_engine_naive(raw, length, jquery);
 }
