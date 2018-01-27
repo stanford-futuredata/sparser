@@ -1,4 +1,6 @@
 
+#include <time.h>
+
 #include "json_projection.h"
 #include "queries.h"
 #include "common.h"
@@ -68,7 +70,20 @@ int _mison_parse_callback(const char *line, void * _) {
     return false;
   }
   intptr_t x = mison_parse(line, length);
-  return (x == 0);
+  return (x != 0);
+}
+
+static double parse_time = 0;
+
+int _rapidjson_parse_callback(const char *line, void *query) {
+  if (!query) return false;
+
+  bench_timer_t s = time_start();
+	int passed = rapidjson_engine(*((json_query_t *)query), line, NULL);
+	double elapsed = time_stop(s);
+
+	parse_time += elapsed;
+	return passed;
 }
 
 double bench_sparser_engine(char *data,
@@ -77,19 +92,20 @@ double bench_sparser_engine(char *data,
     const char **preds,
     int num_preds) {
 
+  parse_time = 0;
   bench_timer_t s = time_start();
 
-  long doc_index = 1;
-  long matching = 0;
+  sparser_query_t *query = (sparser_query_t *)calloc(1, sizeof(sparser_query_t));
 
-  sparser_query_t *query = sparser_calibrate(data, length, preds, num_preds, _mison_parse_callback);
-  sparser_stats_t *stats = sparser_search(data, length, query, _mison_parse_callback, NULL);
+  sparser_add_query(query, "teln");
+  sparser_add_query(query, "9318");
+
+  //sparser_query_t *query = sparser_calibrate(data, length, preds, num_preds, _mison_parse_callback);
+  sparser_stats_t *stats = sparser_search(data, length, query, _rapidjson_parse_callback, &jquery);
 
   double elapsed = time_stop(s);
-  printf("Passing Elements: %ld of %ld records\n",
-      matching,
-      doc_index);
   printf("Query Execution Time: %f seconds\n", elapsed);
+	printf("Parsing Time: %f seconds\n", parse_time);
 
   assert(stats);
   printf("%s\n", sparser_format_stats(stats));
@@ -105,23 +121,20 @@ double bench_sparser_engine_naive(char *data,
     long length,
     json_query_t jquery) {
 
+  parse_time = 0;
   bench_timer_t s = time_start();
-
-  long doc_index = 1;
-  long matching = 0;
 
   sparser_query_t *query = (sparser_query_t *)calloc(1, sizeof(sparser_query_t));
 
   // We just grep for these terms offline to get this schedule...
   sparser_add_query(query, "teln");
   sparser_add_query(query, "bann");
-  sparser_stats_t *stats = sparser_search(data, length, query, _mison_parse_callback, NULL);
+  sparser_stats_t *stats = sparser_search(data, length, query, _rapidjson_parse_callback, &jquery);
 
   double elapsed = time_stop(s);
-  printf("Passing Elements: %ld of %ld records\n",
-      matching,
-      doc_index);
+
   printf("Query Execution Time: %f seconds\n", elapsed);
+	printf("Parsing Time: %f seconds\n", parse_time);
 
   assert(stats);
   printf("%s\n", sparser_format_stats(stats));
@@ -136,7 +149,8 @@ int main(int argc, char **argv) {
   char *raw;
   long length;
 
-  const char *filename = "/lfs/1/sparser/zakir-small.json";
+  const char *filename = "/lfs/1/sparser/zakir14g.json";
+  //const char *filename = "/lfs/1/sparser/zakir-small.json";
   length = read_all(filename, &raw);
 
   printf("----------------> Benchmarking Sparser\n");

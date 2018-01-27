@@ -1,12 +1,17 @@
 #ifndef _SPARSER_H_
 #define _SPARSER_H_
 
+
 #include <immintrin.h>
 
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <string.h>
 
 #include <arpa/inet.h>
@@ -46,6 +51,8 @@ typedef int (*sparser_searchfunc_t)(__m256i, const char *);
 typedef int (*sparser_callback_t)(const char *input, void *);
 
 typedef struct sparser_stats_ {
+		// Number of records processed.
+		long records;
     // Number of times the search query matched.
     long total_matches;
     // Number of records sparser passed.
@@ -1210,6 +1217,8 @@ sparser_stats_t *sparser_search(char *input, long length,
 		for (int i = 0; i < query->count; i++) {
 			 printf("Search string %d: %s\n", i+1, query->queries[i]);
 		}
+
+#if 0
     // Call into specializations if possible - it's much faster.
     if (query->count == 1 && query->lens[0] == 4) {
         fprintf(stderr, "Calling specialization 4\n");
@@ -1233,123 +1242,64 @@ sparser_stats_t *sparser_search(char *input, long length,
     }
 
     fprintf(stderr, "WARN: Calling general VFC-based runtime\n");
-
-    sparser_searchfunc_t searchfuncs[SPARSER_MAX_QUERY_COUNT];
-    __m256i reg[SPARSER_MAX_QUERY_COUNT];
+#endif
 
     sparser_stats_t stats;
     memset(&stats, 0, sizeof(stats));
 
-    for (int i = 0; i < query->count; i++) {
-        char *string = query->queries[i];
-        printf("Set string %s (index=%d, len=%zu)\n", string, i,
-               query->lens[i]);
-        switch (query->lens[i]) {
-            case 1: {
-                searchfuncs[i] = search_epi8;
-                uint8_t x = *((uint8_t *)string);
-                reg[i] = _mm256_set1_epi8(x);
-                break;
-            }
-            case 2: {
-                searchfuncs[i] = search_epi16;
-                uint16_t x = *((uint16_t *)string);
-                reg[i] = _mm256_set1_epi16(x);
-                break;
-            }
-            case 4: {
-                searchfuncs[i] = search_epi32;
-                uint32_t x = *((uint32_t *)string);
-                reg[i] = _mm256_set1_epi32(x);
-                break;
-            }
-            default: { return NULL; }
-        }
-    }
+		// Last byte in the data.
+		char *input_last_byte = input + length - 1;
 
-    // Bitmask designating which filters matched.
-    // Bit i is set if if the ith filter matched for the current record.
-    unsigned matchmask = 0;
+		// Points to the end of the current record.
+		char *current_record_end;
+		// Points to the start of the current record.
+		char *current_record_start;
+		//  Length of the current record.
+		size_t current_record_len;
 
-    char *endptr = strchr(input, '\n');
-    long end;
-    if (endptr) {
-        end = endptr - input;
-    } else {
-        end = length;
-    }
+		current_record_start = input;
 
-    for (long i = 0; i < length; i += VECSZ) {
-        if (i > end) {
-            char *endptr = strchr(input + i, '\n');
-            if (endptr) {
-                end = endptr - input;
-            } else {
-                end = length;
-            }
-            matchmask = 0;
-        }
+		while (current_record_start < input_last_byte) {
 
-        // Check each query.
-        for (int j = 0; j < query->count; j++) {
-            // Found this already.
-            if (IS_SET(matchmask, j)) {
-                continue;
-            }
+			stats.records++;
 
-            __m256i comparator = reg[j];
-            int shifts = query->lens[j];
-            sparser_searchfunc_t f = searchfuncs[j];
+			current_record_end = strchr(current_record_start, '\n');
+			if (!current_record_end) {
+				current_record_end = input_last_byte;
+				current_record_len = length;
+			} else {
+				current_record_len = current_record_end - current_record_start;
+			}
 
-            for (int k = 0; k < shifts; k++) {
-                // Returns the number of matches.
-                int matched = f(comparator, input + i + k);
-                if (matched > 0) {
-                    stats.total_matches += matched;
-                    // record that this query matched.
-                    matchmask |= (1 << j);
-                    // no need to check remaining shifts.
+			char tmp = *current_record_end;
+			*current_record_end = '\0';
 
-                    // Debug
-                    /*
-                    char a = input[i + k + VECSZ];
-                    input[i + k + VECSZ] = '\0';
-                    printf("%s in %s\n", query->queries[j], input + i + k);
-                    input[i + k + VECSZ] = a;
-                    */
-                    break;
-                }
-            }
-        }
+			int count = 0;
+			// Search for each of the prefilters.
+			for (int i = 0; i < query->count; i++) {
+				if (strstr(current_record_start, query->queries[i]) == NULL) {
+					break;	
+				}
 
-        unsigned allset = ((1u << query->count) - 1u);
-        // check if all the filters matched by checking if all the bits
-        // necessary were set in matchmask.
-        if ((matchmask & allset) == allset) {
-            stats.sparser_passed++;
+				stats.total_matches++;
+				count++;
+			}
 
-            // update start.
-            long start = i;
-            for (; start > 0 && input[start] != '\n'; start--)
-                ;
+			// If all prefilters matched...
+			if (count == query->count) {
+				stats.sparser_passed++;
 
-            stats.bytes_seeked_backward += (i - start);
+				if (callback(current_record_start, callback_ctx)) {
+					stats.callback_passed++;
+				}
 
-            // Pass the current line to a full parser.
-            char a = input[end];
-            input[end] = '\0';
-            if (callback(input + start, callback_ctx)) {
-                stats.callback_passed++;
-            }
-            input[end] = a;
+			}
 
-            // Reset record level state.
-            matchmask = 0;
+			*current_record_end = tmp;
 
-            // Done with this record - move on to the next one.
-            i = end + 1 - VECSZ;
-        }
-    }
+			// Update to point to the next record. The top of the loop will update the remaining variables.
+			current_record_start = current_record_end + 1;
+		}
 
     if (stats.sparser_passed > 0) {
         stats.fraction_passed_correct =
@@ -1367,13 +1317,15 @@ static char *sparser_format_stats(sparser_stats_t *stats) {
     static char buf[8192];
 
     snprintf(buf, sizeof(buf),
-             "Distinct Query matches: %ld\n\
+		"Records Processed: %ld\n\
+Distinct Query matches: %ld\n\
 Sparser Passed Records: %ld\n\
 Callback Passed Records: %ld\n\
 Bytes Seeked Forward: %ld\n\
 Bytes Seeked Backward: %ld\n\
 Fraction Passed Correctly: %f\n\
 Fraction False Positives: %f",
+						 stats->records,
              stats->total_matches, stats->sparser_passed,
              stats->callback_passed, stats->bytes_seeked_forward,
              stats->bytes_seeked_backward, stats->fraction_passed_correct,
