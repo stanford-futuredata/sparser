@@ -78,6 +78,32 @@ static const char **sparser_zakir_query1_mod(int *count) {
     return predicates;
 }
 
+static const int *sparser_zakir_query1_source(int *count) {
+    static const int _1 = 0;
+    static const int _2 = 1;
+    static const int _3 = 1;
+    static const int _4 = 1;
+    static const int _5 = 1;
+    static const int _6 = 2;
+    static const int _7 = 2;
+    static const int _8 = 2;
+    static const int _9 = 2;
+    static const int _10 = 3;
+    static const int _11 = 3;
+    static const int _12 = 3;
+    static const int _13 = 3;
+    static const int _14 = 3;
+    static const int _15 = 3;
+    static const int _16 = 3;
+    static const int _17 = 3;
+    static const int _18 = 4;
+    static const int _19 = 5;
+    static const int predicates[] = {_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19};
+
+    *count = 19;
+    return predicates;
+}
+
 
 
 //////////////////////////////////////////////////////////////////////
@@ -136,9 +162,30 @@ double bench_sparser_engine(char *data,
 
 #define MAX_LENGTH  3
 
-void run_sparser(char *data, long length, json_query_t jquery, const char **schedule, int num_preds) {
+void run_sparser(char *data, long length, json_query_t jquery, const char **schedule, const int *sched_source, int num_preds) {
+
+	char *buf = (char *)calloc(1, 2048);
+	for (int j = 0; j < num_preds; j++) {
+		strcat(buf, schedule[j]);
+		strcat(buf, " ");
+	}
+
+
 	parse_time = 0;
 	bench_timer_t s = time_start();
+
+	for (int i = 0; i < num_preds; i++) {
+		for (int j = 0; j < num_preds; j++) {
+			if (i == j) continue;
+			if (sched_source[i] == sched_source[j]) {
+				fprintf(stderr, "Skipping schedule %s due to overlap.\n", buf);
+				free(buf);
+				return;
+			}
+		}
+	}
+
+	fprintf(stderr, "Handling schedule %s\n", buf);
 
 	sparser_query_t *query = (sparser_query_t *)calloc(1, sizeof(sparser_query_t));
 
@@ -149,12 +196,9 @@ void run_sparser(char *data, long length, json_query_t jquery, const char **sche
 	sparser_stats_t *stats = sparser_search(data, length, query, _rapidjson_parse_callback, &jquery);
 
 	double elapsed = time_stop(s);
-	char *buf = (char *)calloc(1, 2048);
-	for (int j = 0; j < num_preds; j++) {
-		strcat(buf, schedule[j]);
-		strcat(buf, " ");
-	}
+
 	printf("%s: %f seconds\n", buf, elapsed);
+	fflush(stdout);
 
 	free(buf);
 	assert(stats);
@@ -165,26 +209,22 @@ void run_sparser(char *data, long length, json_query_t jquery, const char **sche
 
 /** Generates all combinations of up to length `len`. */
 void process_combinations(
-	const char **preds, const int preds_len,
+	const char **preds, const int preds_len, const int *preds_source,
 	int len, int start,
-	const char **result, const int result_len,
+	const char **result, const int result_len, int *result_source,
 	char *data, long data_length, json_query_t jquery) {
 
 	if (len == 0) {
-		fprintf(stderr, "Testing");
-		for (int j = 0; j < result_len; j++) {
-			fprintf(stderr, " %s", result[j]);
-		}
-		fprintf(stderr, "\n");
-		run_sparser(data, data_length, jquery, result, result_len);
+		run_sparser(data, data_length, jquery, result, result_source, result_len);
 		return;
 	}
 
 	for (int i = start; i <= preds_len - len; i++) {
 		result[result_len - len] = preds[i];
-		process_combinations(preds, preds_len,
+		result_source[result_len - len] = preds_source[i];
+		process_combinations(preds, preds_len, preds_source,
 			len - 1, i + 1,
-			result, result_len,
+			result, result_len, result_source,
 			data, data_length, jquery);
 	}
 }
@@ -193,14 +233,16 @@ void bench_sparser_engine_all_preds(char *data,
 		long data_length,
 		json_query_t jquery,
 		const char **preds,
+		const int *pred_source,
 		int num_preds) {
 
 	const char *schedule[MAX_LENGTH];
+	int schedule_source[MAX_LENGTH];
 
 	for (int sched_length = 1; sched_length <= MAX_LENGTH; sched_length++) {
-		process_combinations(preds, num_preds,
+		process_combinations(preds, num_preds, pred_source,
 				sched_length, 0,
-				schedule, sched_length,
+				schedule, sched_length, schedule_source,
 				data, data_length, jquery);
 	}
 }
@@ -239,10 +281,11 @@ int main(int argc, char **argv) {
   char *raw;
   long length;
 
-  //const char *filename = "/lfs/1/sparser/zakir14g.json";
-  const char *filename = "/lfs/1/sparser/zakir-small.json";
+  const char *filename = "/lfs/1/sparser/zakir14g.json";
+  //const char *filename = "/lfs/1/sparser/zakir-small.json";
   length = read_all(filename, &raw);
 
+// For the non-independence experiment.
 #if 0
   fprintf(stderr, "----------------> Benchmarking Sparser\n");
   int count = 0;
@@ -256,11 +299,15 @@ int main(int argc, char **argv) {
   fprintf(stderr, "----------------> Benchmarking Naive Sched.\n");
   bench_sparser_engine_naive(raw, length, jquery);
 #else
+  // For the "exhaustive schedule  search" experiment.
   int count = 0;
+  int count2 = 0;
   json_query_t jquery = zakir_query1_mod();
   const char ** preds = sparser_zakir_query1_mod(&count);
+  const int * pred_source = sparser_zakir_query1_source(&count2);
+  assert(count2 == count);
   fprintf(stderr, "----------------> Benchmarking All Schedules.\n");
-  bench_sparser_engine_all_preds(raw, length, jquery, preds, count);
+  bench_sparser_engine_all_preds(raw, length, jquery, preds, pred_source, count);
 #endif
 
 }
