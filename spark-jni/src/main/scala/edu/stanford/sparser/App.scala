@@ -17,6 +17,8 @@ object App {
       spark.sqlContext.setConf("spark.sql.sources.default", "json")
     } else if (filename.endsWith(".parquet")) {
       spark.sqlContext.setConf("spark.sql.sources.default", "parquet")
+    } else if (filename.endsWith(".avro")) {
+      spark.sqlContext.setConf("spark.sql.sources.default", "avro")
     } else {
       throw new RuntimeException(s"$filename has file format that is not supported")
     }
@@ -24,8 +26,8 @@ object App {
     val timeJob: () => Unit = {
       args(4).toLowerCase match {
         case "--sparser" =>
-          if (filename.endsWith(".parquet")) {
-            throw new RuntimeException("can't run Sparser on Parquet files yet")
+          if (filename.endsWith(".parquet") || filename.endsWith(".avro")) {
+            throw new RuntimeException("can't run Sparser on Parquet/Avro files yet")
           }
           val queryOp = Queries.queryStrToQuery(spark, queryStr)
           () => {
