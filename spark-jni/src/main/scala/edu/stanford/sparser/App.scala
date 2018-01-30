@@ -4,7 +4,6 @@ import org.apache.spark.sql.SparkSession
 
 object App {
 
-
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder.appName("Sparser Spark").getOrCreate()
     val numWorkers: Int = args(0).toInt
@@ -13,34 +12,37 @@ object App {
     val numTrials: Int = args(3).toInt
 
 
-    if (filename.endsWith(".json")) {
-      spark.sqlContext.setConf("spark.sql.sources.default", "json")
-    } else if (filename.endsWith(".parquet")) {
-      spark.sqlContext.setConf("spark.sql.sources.default", "parquet")
-    } else if (filename.endsWith(".avro")) {
-      spark.sqlContext.setConf("spark.sql.sources.default", "avro")
-    } else {
-      throw new RuntimeException(s"$filename has file format that is not supported")
+    val inputFormat: String = {
+      if (filename.endsWith(".json")) {
+        "json"
+      } else if (filename.endsWith(".parquet")) {
+        "parquet"
+      } else if (filename.endsWith(".avro")) {
+        "com.databricks.spark.avro"
+      } else {
+        throw new RuntimeException(s"$filename has file format that is not supported")
+      }
     }
 
+    val query = Query(inputFormat)
     val timeJob: () => Unit = {
       args(4).toLowerCase match {
         case "--sparser" =>
-          if (filename.endsWith(".parquet") || filename.endsWith(".avro")) {
+          if (inputFormat.equals("parquet") || inputFormat.equals("com.databricks.spark.avro")) {
             throw new RuntimeException("can't run Sparser on Parquet/Avro files yet")
           }
-          val queryOp = Queries.queryStrToQuery(spark, queryStr)
+          val queryOp = query.queryStrToQuery(spark, queryStr)
           () => {
             val df = spark.read.format("edu.stanford.sparser")
-              .schema(Queries.queryStrToSchema(queryStr))
-              .options(Map("query" -> Queries.sparserQueryMap(queryStr)))
+              .schema(query.queryStrToSchema(queryStr))
+              .options(Map("query" -> Query.sparserQueryMap(queryStr)))
               .load(filename)
             println("Num rows in query output: " + queryOp(df))
             println("Num partitions: " + df.rdd.getNumPartitions)
           }
         case "--spark" =>
-          val parserOp = Queries.queryStrToQueryParser(spark, queryStr)
-          val queryOp = Queries.queryStrToQuery(spark, queryStr)
+          val parserOp = query.queryStrToQueryParser(spark, queryStr)
+          val queryOp = query.queryStrToQuery(spark, queryStr)
           () => {
             val df = parserOp(filename)
             println("Num rows in query output: " + queryOp(df))
@@ -53,8 +55,8 @@ object App {
             println("Num partitions: " + rdd.getNumPartitions)
           }
         case "--query-only" =>
-          val parserOp = Queries.queryStrToQueryParser(spark, queryStr)
-          val queryOp = Queries.queryStrToQuery(spark, queryStr)
+          val parserOp = query.queryStrToQueryParser(spark, queryStr)
+          val queryOp = query.queryStrToQuery(spark, queryStr)
           () => {
             val df = parserOp(filename)
             df.cache()

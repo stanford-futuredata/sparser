@@ -121,7 +121,7 @@ private[sparser] class DefaultSource extends TextFileFormat with DataSourceRegis
         case _ =>
           throw new RuntimeException(field.dataType + " not supported in Sparser!")
       }
-    }.sum  + ((numFields >> 6) + 1) * 8 // Additional bytes to track null bits set at beginning of record
+    }.sum + ((numFields >> 6) + 1) * 8 // Additional bytes to track null bits set at beginning of record
     println("Record size: " + recordSizeInBytes)
 
     (file: PartitionedFile) => {

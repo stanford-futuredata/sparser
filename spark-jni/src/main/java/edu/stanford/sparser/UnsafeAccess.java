@@ -1,12 +1,12 @@
 package edu.stanford.sparser;
 
-import sun.misc.Unsafe;
-
 import java.lang.reflect.Field;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
+import sun.misc.Unsafe;
 
 class UnsafeAccess {
+
     private static Unsafe UNSAFE;
     private static long addressOffset;
 
