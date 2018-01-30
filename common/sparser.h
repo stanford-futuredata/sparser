@@ -29,7 +29,7 @@
 // Size of the register we use.
 const int VECSZ = 32;
 // Max size of a single search string.
-const int SPARSER_MAX_QUERY_LENGTH = 4 + 1;
+const int SPARSER_MAX_QUERY_LENGTH = 16;
 // Max number of search strings in a single query.
 const int SPARSER_MAX_QUERY_COUNT = 32;
 
@@ -136,12 +136,10 @@ sparser_query_t *sparser_new_query() {
     return (sparser_query_t *)calloc(sizeof(sparser_query_t), 1);
 }
 
-/* Adds a search term to the query. The search term is clipped at either 1, 2,
- * or
- * 4 bytes.
+/* Adds a search term to the query.
  *
  * @param query the query
- * @param string the search string, clipped to 1, 2, or 4 bytes.
+ * @param string the search string.
  *
  * @return 0 if successful, nonzero otherwise.
  */
@@ -150,16 +148,8 @@ int sparser_add_query(sparser_query_t *query, const char *string) {
         return -1;
     }
 
-    // Clip to the lowest multiple of 2.
-    size_t len = (strnlen(string, SPARSER_MAX_QUERY_LENGTH + 1) / 2) * 2;
-    if (len != 1 && len != 2 && len != 4) {
-        return 1;
-    }
-
-    strncpy(query->queries[query->count], string, len);
-    query->queries[query->count][len] = '\0';
-
-    query->lens[query->count] = len;
+    strncpy(query->queries[query->count], string, SPARSER_MAX_QUERY_LENGTH);
+    query->lens[query->count] = strnlen(string, SPARSER_MAX_QUERY_LENGTH);
     query->count++;
     return 0;
 }
@@ -1215,7 +1205,7 @@ sparser_stats_t *sparser_search(char *input, long length,
                                 void *callback_ctx) {
 
 		for (int i = 0; i < query->count; i++) {
-			 printf("Search string %d: %s\n", i+1, query->queries[i]);
+			 fprintf(stderr, "Search string %d: %s\n", i+1, query->queries[i]);
 		}
 
 #if 0

@@ -7,9 +7,12 @@
 
 #include "sparser.h"
 
+// Common: 30722
+// Rare:  3320
+
 // Modify this to vary the selectivity of the ASN.
-#define ASN_TO_SEARCH "9318"
-#define ASN_TO_SEARCH_INT 9318
+#define ASN_TO_SEARCH 	   "30722"
+#define ASN_TO_SEARCH_INT   30722
 
 /*
  * Benchmarks the sparser scheduler (sparser_calibrate) against a "naive" scheduler
@@ -43,24 +46,39 @@ json_passed_t zakir_q1_autonomoussystem_asn_mod(int64_t value, void *) {
 json_query_t zakir_query1_mod() {
     json_query_t query = json_query_new();
     json_query_add_string_filter(query, "p23.telnet.banner.banner",
-                                 zakir_q1_p23_telnet_banner_banner);
+                                 zakir_q1_p23_telnet_banner_banner_mod);
     json_query_add_integer_filter(query, "autonomous_system.asn",
-                                  zakir_q1_autonomoussystem_asn);
+                                  zakir_q1_autonomoussystem_asn_mod);
     return query;
 }
 
 static const char **sparser_zakir_query1_mod(int *count) {
     static const char *_1 = ASN_TO_SEARCH;
     static const char *_2 = "telnet";
-    static const char *_3 = "banner";
-    static const char *_4 = "autonomous_system";
-    static const char *_5 = "asn";
-    static const char *_6 = "p23";
-    static const char *predicates[] = {_1, _2, _3, _4, _5, _6, NULL};
+    static const char *_3 = "teln";
+    static const char *_4 = "elne";
+    static const char *_5 = "lnet";
+    static const char *_6 = "banner";
+    static const char *_7 = "bann";
+    static const char *_8 = "anne";
+    static const char *_9 = "nner";
+    static const char *_10 = "autonomous_system";
+    static const char *_11 = "auto";
+    static const char *_12 = "tono";
+    static const char *_13 = "omou";
+    static const char *_14 = "mous";
+    static const char *_15 = "_sys";
+    static const char *_16 = "syst";
+    static const char *_17 = "stem";
+    static const char *_18 = "asn";
+    static const char *_19 = "p23";
+    static const char *predicates[] = {_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19,NULL};
 
-    *count = 6;
+    *count = 19;
     return predicates;
 }
+
+
 
 //////////////////////////////////////////////////////////////////////
 
@@ -97,8 +115,8 @@ double bench_sparser_engine(char *data,
 
   sparser_query_t *query = (sparser_query_t *)calloc(1, sizeof(sparser_query_t));
 
+  sparser_add_query(query, ASN_TO_SEARCH);
   sparser_add_query(query, "teln");
-  sparser_add_query(query, "9318");
 
   //sparser_query_t *query = sparser_calibrate(data, length, preds, num_preds, _mison_parse_callback);
   sparser_stats_t *stats = sparser_search(data, length, query, _rapidjson_parse_callback, &jquery);
@@ -115,6 +133,78 @@ double bench_sparser_engine(char *data,
   return elapsed;
 }
 
+
+#define MAX_LENGTH  3
+
+void run_sparser(char *data, long length, json_query_t jquery, const char **schedule, int num_preds) {
+	parse_time = 0;
+	bench_timer_t s = time_start();
+
+	sparser_query_t *query = (sparser_query_t *)calloc(1, sizeof(sparser_query_t));
+
+	for (int i = 0; i < num_preds; i++) {
+		sparser_add_query(query, schedule[i]);
+	}
+
+	sparser_stats_t *stats = sparser_search(data, length, query, _rapidjson_parse_callback, &jquery);
+
+	double elapsed = time_stop(s);
+	char *buf = (char *)calloc(1, 2048);
+	for (int j = 0; j < num_preds; j++) {
+		strcat(buf, schedule[j]);
+		strcat(buf, " ");
+	}
+	printf("%s: %f seconds\n", buf, elapsed);
+
+	free(buf);
+	assert(stats);
+	fprintf(stderr, "%s\n", sparser_format_stats(stats));
+	free(stats);
+	free(query);
+}
+
+/** Generates all combinations of up to length `len`. */
+void process_combinations(
+	const char **preds, const int preds_len,
+	int len, int start,
+	const char **result, const int result_len,
+	char *data, long data_length, json_query_t jquery) {
+
+	if (len == 0) {
+		fprintf(stderr, "Testing");
+		for (int j = 0; j < result_len; j++) {
+			fprintf(stderr, " %s", result[j]);
+		}
+		fprintf(stderr, "\n");
+		run_sparser(data, data_length, jquery, result, result_len);
+		return;
+	}
+
+	for (int i = start; i <= preds_len - len; i++) {
+		result[result_len - len] = preds[i];
+		process_combinations(preds, preds_len,
+			len - 1, i + 1,
+			result, result_len,
+			data, data_length, jquery);
+	}
+}
+
+void bench_sparser_engine_all_preds(char *data,
+		long data_length,
+		json_query_t jquery,
+		const char **preds,
+		int num_preds) {
+
+	const char *schedule[MAX_LENGTH];
+
+	for (int sched_length = 1; sched_length <= MAX_LENGTH; sched_length++) {
+		process_combinations(preds, num_preds,
+				sched_length, 0,
+				schedule, sched_length,
+				data, data_length, jquery);
+	}
+}
+
 // Runs the first Zakir query with "ground truth" knowledge of the distribution of each
 // predicate, choosing the top two rarest ones for search.
 double bench_sparser_engine_naive(char *data,
@@ -127,8 +217,8 @@ double bench_sparser_engine_naive(char *data,
   sparser_query_t *query = (sparser_query_t *)calloc(1, sizeof(sparser_query_t));
 
   // We just grep for these terms offline to get this schedule...
+  sparser_add_query(query, "p23");
   sparser_add_query(query, "teln");
-  sparser_add_query(query, "bann");
   sparser_stats_t *stats = sparser_search(data, length, query, _rapidjson_parse_callback, &jquery);
 
   double elapsed = time_stop(s);
@@ -149,19 +239,28 @@ int main(int argc, char **argv) {
   char *raw;
   long length;
 
-  const char *filename = "/lfs/1/sparser/zakir14g.json";
-  //const char *filename = "/lfs/1/sparser/zakir-small.json";
+  //const char *filename = "/lfs/1/sparser/zakir14g.json";
+  const char *filename = "/lfs/1/sparser/zakir-small.json";
   length = read_all(filename, &raw);
 
-  printf("----------------> Benchmarking Sparser\n");
+#if 0
+  fprintf(stderr, "----------------> Benchmarking Sparser\n");
   int count = 0;
   json_query_t jquery = zakir_query1_mod();
   const char ** preds = sparser_zakir_query1_mod(&count);
-  printf("Running Zakir Query\n");
+  fprintf(stderr, "Running Zakir Query\n");
 
   bench_sparser_engine(raw, length, jquery, preds, count);
 
   // Hard code the schedule here based on knowledge of how common each predicate is.
-  printf("----------------> Benchmarking Naive Sched.\n");
+  fprintf(stderr, "----------------> Benchmarking Naive Sched.\n");
   bench_sparser_engine_naive(raw, length, jquery);
+#else
+  int count = 0;
+  json_query_t jquery = zakir_query1_mod();
+  const char ** preds = sparser_zakir_query1_mod(&count);
+  fprintf(stderr, "----------------> Benchmarking All Schedules.\n");
+  bench_sparser_engine_all_preds(raw, length, jquery, preds, count);
+#endif
+
 }
