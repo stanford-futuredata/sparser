@@ -19,6 +19,8 @@ use super::engine::RecordIteratorFn;
 /// The maximum number of samples to evaluate during calibration.
 pub const MAX_SAMPLES: usize = 64;
 
+pub const MAX_PREFILTERS_IN_SCHEDULE: usize = 4;
+
 /// Id of a prefilter set.
 type SetId = usize;
 
@@ -43,10 +45,11 @@ impl PreFilterEntry {
     }
 }
 
+/// An internal operator used by an `Optimizer`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Operator {
+enum Operator {
     PreFilter {
-        kind: PreFilterKind,
+        id: PreFilterId,
         on_true: Box<Operator>,
         on_false: Box<Operator>,
     },
@@ -55,12 +58,15 @@ pub enum Operator {
 }
 
 /// A plan is just a tree of operators.
-pub type Plan = Operator;
+type Plan = Operator;
 
 impl Plan {
     /// Computes the cost of a sparser plan, which is a tree of operators such as prefilters, parsing,
     /// or aborting the computation on the current record.
-    fn cost(&self, prefilters: &HashMap<PreFilterKind, PreFilterEntry>, parse_cost: f64) -> f64 {
+    fn cost(&self,
+            prefilters: &HashMap<PreFilterId, PreFilterEntry>,
+            prefilter_list: &Vec<PreFilterKind>,
+            parse_cost: f64) -> f64 {
         // Stack to track probabilities, used to compute joint probabilities and nodes in the tree.
         let ref mut stack = vec![];
         // Stores the probabilities of executing a prefilter.
@@ -72,7 +78,7 @@ impl Plan {
 
         let mut total_cost = 0.0;
         for (key, _) in prefilters.iter() {
-            total_cost += p_pfs.get(key).unwrap_or(&0.0) * key.cost(1000);
+            total_cost += p_pfs.get(key).unwrap_or(&0.0) * prefilter_list.get(*key).unwrap().cost(1000);
         }
         total_cost += *p_parse * parse_cost;
         total_cost
@@ -80,23 +86,23 @@ impl Plan {
 
     /// Internal recursive helper for `cost`.
     fn cost_internal(&self,
-                     prefilters: &HashMap<PreFilterKind, PreFilterEntry>,
+                     prefilters: &HashMap<PreFilterId, PreFilterEntry>,
                      stack: &mut Vec<BitVec>,
-                     p_pfs: &mut HashMap<PreFilterKind, f64>,
+                     p_pfs: &mut HashMap<PreFilterId, f64>,
                      p_parse: &mut f64) {
         use self::Operator::*;
         match *self {
-            PreFilter { ref kind, ref on_true, ref on_false } => {
+            PreFilter { ref id, ref on_true, ref on_false } => {
                 // Add the probability into the map.
                 // TODO memoize this.
                 let probability = joint_false_positive_rate(stack);
                 { // scope borrow of p_pfs
-                    let prob = p_pfs.entry(kind.clone()).or_insert(0.0);
+                    let prob = p_pfs.entry(*id).or_insert(0.0);
                     *prob += probability;
                 }
 
                 // Recurse.
-                let bitvec = prefilters.get(kind).unwrap().false_positives.clone();
+                let bitvec = prefilters.get(id).unwrap().false_positives.clone();
                 stack.push(bitvec);
                 on_true.cost_internal(prefilters, stack, p_pfs, p_parse);
                 let mut bitvec = stack.pop().unwrap();
@@ -253,18 +259,40 @@ impl Optimizer {
         }
     }
 
+    /// Internal implementation of `plans`, which recursively computes the permutations of the
+    /// candidate prefilters.
+    fn _plans_internal(&self, len: usize, start: usize, result: &mut Vec<Option<PreFilterId>>) {
+        if len == 0 {
+            // TODO prefilter from each filter set, convert the list into a Plan, and then evaluate it.
+            return;
+        }
+
+        for i in start..(self.prefilters.len() - len + 1) {
+            let result_length = result.len();
+            {
+                let elem = result.get_mut(result_length - len).unwrap();
+                *elem = Some(i as PreFilterId);
+            }
+            self._plans_internal(len - 1, start + i, result);
+        }
+    }
+
     /// Returns an iterator over generated plans.
-    fn plans(&self) -> vec::IntoIter<Plan> {
-        vec![].into_iter()
+    fn plans(&self, max_length: usize) -> vec::IntoIter<Plan> {
+        let mut result = vec![None; max_length];
+        self._plans_internal(max_length, 0, &mut result);
+
+        let x = vec![];
+        x.into_iter()
     }
 
     /// Generates plans and returns the best one based on the estimated cost.
     fn optimize(&mut self) -> Option<Plan> {
         let mut best_cost = std::f64::MAX;
         let mut best_plan = None;
-        for plan in self.plans() {
+        for plan in self.plans(std::cmp::max(self.set_map.len(), MAX_PREFILTERS_IN_SCHEDULE)) {
             // TODO change cost() to take new format of prefilter map.
-            let cost = plan.cost(&HashMap::new(), self.parse_cost.num_nanoseconds().unwrap() as f64);
+            let cost = plan.cost(&self.prefilter_map, &self.prefilters, self.parse_cost.num_nanoseconds().unwrap() as f64);
             if best_plan.is_none() || cost < best_cost {
                 best_plan = Some(plan);
                 best_cost = cost;
