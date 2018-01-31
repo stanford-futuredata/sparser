@@ -195,10 +195,11 @@ int sparser_add_query_binary(sparser_query_t *query, const void *term,
 sparser_query_t *sparser_calibrate(char *sample, long length,
                                    const char **predicates, int count,
                                    sparser_callback_t callback) {
+
     // Maximum number of samples to try.
     const int MAX_SAMPLES = 64;
     // Maximum number of substrings to try.
-    const int MAX_SUBSTRINGS = 64;
+    const int MAX_SUBSTRINGS = 32;
 
     // Stores false positive counts for each predicate.
     int false_positives[MAX_SUBSTRINGS];
