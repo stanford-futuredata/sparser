@@ -3,6 +3,7 @@
 
 #include "json_projection.h"
 #include "queries.h"
+#include "decompose.h"
 #include "common.h"
 
 #include "sparser.h"
@@ -170,7 +171,6 @@ void run_sparser(char *data, long length, json_query_t jquery, const char **sche
 		strcat(buf, " ");
 	}
 
-
 	parse_time = 0;
 	bench_timer_t s = time_start();
 
@@ -186,6 +186,9 @@ void run_sparser(char *data, long length, json_query_t jquery, const char **sche
 	}
 
 	fprintf(stderr, "Handling schedule %s\n", buf);
+
+	free(buf);
+	return;
 
 	sparser_query_t *query = (sparser_query_t *)calloc(1, sizeof(sparser_query_t));
 
@@ -281,8 +284,8 @@ int main(int argc, char **argv) {
   char *raw;
   long length;
 
-  const char *filename = "/lfs/1/sparser/zakir14g.json";
-  //const char *filename = "/lfs/1/sparser/zakir-small.json";
+  //const char *filename = "/lfs/1/sparser/zakir14g.json";
+  const char *filename = "/lfs/1/sparser/zakir-small.json";
   length = read_all(filename, &raw);
 
 // For the non-independence experiment.
@@ -299,15 +302,16 @@ int main(int argc, char **argv) {
   fprintf(stderr, "----------------> Benchmarking Naive Sched.\n");
   bench_sparser_engine_naive(raw, length, jquery);
 #else
+
   // For the "exhaustive schedule  search" experiment.
   int count = 0;
-  int count2 = 0;
   json_query_t jquery = zakir_query1_mod();
-  const char ** preds = sparser_zakir_query1_mod(&count);
-  const int * pred_source = sparser_zakir_query1_source(&count2);
-  assert(count2 == count);
+  const char **preds = sparser_zakir_query1(&count);
+
+	decomposed_t d = decompose(preds, count);
+
   fprintf(stderr, "----------------> Benchmarking All Schedules.\n");
-  bench_sparser_engine_all_preds(raw, length, jquery, preds, pred_source, count);
+  bench_sparser_engine_all_preds(raw, length, jquery, d.strings, d.sources, d.num_strings);
 #endif
 
 }

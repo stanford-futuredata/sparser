@@ -1,8 +1,8 @@
-#ifndef _DECOMPOSE_H_
-#define _DECOMPOSE_H_
-
 #include "decompose.h"
 #include "queries.h"
+
+#include <string.h>
+#include <stdlib.h>
 
 // The length of produced substrings.
 #define REGSZ 4

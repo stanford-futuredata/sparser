@@ -1,6 +1,9 @@
 #ifndef _DECOMPOSE_H_
 #define _DECOMPOSE_H_
 
+#include <string.h>
+#include <stdlib.h>
+
 // The length of produced substrings.
 #define REGSZ 4
 
@@ -25,7 +28,7 @@ decomposed_t decompose(const char **predicates, int num_predicates) {
 		int len = (int)strlen(predicates[i]);
 
 		// How many REGSZ-length substrings are possible from this string?
-		int possible_substrings = len - REGSZ > 0 ? len - REGSZ : 0;
+		int possible_substrings = len - REGSZ > 0 ? len - REGSZ + 1: 1;
 		// Include the full string in the count.
 		num_decomposed += possible_substrings + 1;
 
@@ -48,7 +51,7 @@ decomposed_t decompose(const char **predicates, int num_predicates) {
 		i++;
 		
 		int pred_length = strlen(predicates[j]);
-		for (int start = 0; start < pred_length - REGSZ; start++) {
+		for (int start = 0; start <= pred_length - REGSZ; start++) {
 			memcpy(region_ptr, predicates[j] + start, REGSZ);
 			region_ptr[REGSZ] = '\0';
 
