@@ -53,32 +53,6 @@ json_query_t zakir_query1_mod() {
     return query;
 }
 
-static const char **sparser_zakir_query1_mod(int *count) {
-    static const char *_1 = ASN_TO_SEARCH;
-    static const char *_2 = "telnet";
-    static const char *_3 = "teln";
-    static const char *_4 = "elne";
-    static const char *_5 = "lnet";
-    static const char *_6 = "banner";
-    static const char *_7 = "bann";
-    static const char *_8 = "anne";
-    static const char *_9 = "nner";
-    static const char *_10 = "autonomous_system";
-    static const char *_11 = "auto";
-    static const char *_12 = "tono";
-    static const char *_13 = "omou";
-    static const char *_14 = "mous";
-    static const char *_15 = "_sys";
-    static const char *_16 = "syst";
-    static const char *_17 = "stem";
-    static const char *_18 = "asn";
-    static const char *_19 = "p23";
-    static const char *predicates[] = {_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19,NULL};
-
-    *count = 19;
-    return predicates;
-}
-
 static const int *sparser_zakir_query1_source(int *count) {
     static const int _1 = 0;
     static const int _2 = 1;
@@ -186,9 +160,6 @@ void run_sparser(char *data, long length, json_query_t jquery, const char **sche
 	}
 
 	fprintf(stderr, "Handling schedule %s\n", buf);
-
-	free(buf);
-	return;
 
 	sparser_query_t *query = (sparser_query_t *)calloc(1, sizeof(sparser_query_t));
 

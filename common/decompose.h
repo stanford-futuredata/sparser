@@ -52,6 +52,9 @@ decomposed_t decompose(const char **predicates, int num_predicates) {
 		
 		int pred_length = strlen(predicates[j]);
 		for (int start = 0; start <= pred_length - REGSZ; start++) {
+
+			if (pred_length == REGSZ && start == 0) continue;
+
 			memcpy(region_ptr, predicates[j] + start, REGSZ);
 			region_ptr[REGSZ] = '\0';
 
