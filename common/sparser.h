@@ -78,7 +78,7 @@ typedef struct search_data {
 	// Number of records sampled.
 	double num_records;	
 	// The false positive masks for each sample.
-	bitmap_t *false_positives_mask;
+	bitmap_t *passthrough_masks;
 	// Cost of the full parser.
 	double full_parse_cost;
 	// Best cost so far.
@@ -150,19 +150,33 @@ void search_schedules(decomposed_t *predicates,
 		int *result,
 		const int result_len) {
 
+	static char printer[4096];
+
 	// Base case - compute the cost.
 	if (len == 0) {
+
+		assert(result_len > 0);
+
+		printer[0] = 0;
+		for (int i = 0; i < result_len; i++) {
+			strcat(printer, predicates->strings[result[i]]);	
+			strcat(printer, " ");
+		}
+		fprintf(stderr, "Considering schedule %s...", printer);
+
 		for (int i = 0; i < result_len; i++) {
 			for (int j = 0; j < result_len; j++) {
 				if (i != j && predicates->sources[result[i]] == predicates->sources[result[j]]) {
+					fprintf(stderr, "\x1b[0;33mskipped\x1b[0m due to duplicate source!\n");
 					return;
 				}
 			}
 		}
 
-		assert(result_len > 0);
+		fprintf(stderr, "\x1b[0;32mprocessing!\x1b[0m\n");
+
 		int first_index = result[0];
-		bitmap_t joint = bitmap_from(&sd->false_positives_mask[first_index]);
+		bitmap_t joint = bitmap_from(&sd->passthrough_masks[first_index]);
 
 		// First filter runs unconditionally.
 		double total_cost = pf_cost(predicates->strings[first_index]);
@@ -170,18 +184,22 @@ void search_schedules(decomposed_t *predicates,
 		for (int i = 1; i < result_len; i++) {
 			int index = result[i];
 			uint64_t joint_rate = bitmap_count(&joint);
+			fprintf(stderr, "\t popcnt: %lu\n", joint_rate);
 			double filter_cost = pf_cost(predicates->strings[index]);
 			double rate = ((double)joint_rate) / sd->num_records;
+			fprintf(stderr, "\t Rate after %s: %f\n", predicates->strings[result[i-1]], rate);
 			total_cost += filter_cost * rate;
 
-			bitmap_and(&joint, &joint, &sd->false_positives_mask[index]);	
+			bitmap_and(&joint, &joint, &sd->passthrough_masks[index]);	
 		}
 
 		// Account for full parser.
 		uint64_t joint_rate = bitmap_count(&joint);
 		double filter_cost = sd->full_parse_cost;
 		double rate = ((double)joint_rate) / sd->num_records;
+		fprintf(stderr, "\t Rate after %s (rate of full parse): %f\n", predicates->strings[result[result_len-1]], rate);
 		total_cost += filter_cost * rate;
+		fprintf(stderr, "\tCost: %f\n", total_cost);
 
 		if (total_cost < sd->best_cost) {
 			assert(result_len <= MAX_SCHEDULE_SIZE);
@@ -224,9 +242,9 @@ sparser_query_t *sparser_calibrate(char *sample,
     // Stores false positive mask for each predicate.
     // Bit `i` is set if the ith false positive record was *passed* by the
     // predicate.
-    bitmap_t false_positives_mask[MAX_SUBSTRINGS];
+    bitmap_t passthrough_masks[MAX_SUBSTRINGS];
     for (int i = 0; i < MAX_SUBSTRINGS; i++) {
-        false_positives_mask[i] = bitmap_new(MAX_SAMPLES);
+        passthrough_masks[i] = bitmap_new(MAX_SAMPLES);
     }
 
 		// The number of substrings to process.
@@ -235,9 +253,6 @@ sparser_query_t *sparser_calibrate(char *sample,
     // Counts number of records processed thus far.
     long records = 0;
 		long parsed_records = 0;
-
-    // The mask representing all predicates passed a record.
-    const uint64_t allset = (0x1L << num_substrings) - 1L;
     unsigned long parse_cost = 0;
 
     // Now search for each substring in up to MAX_SAMPLES records.
@@ -252,40 +267,25 @@ sparser_query_t *sparser_calibrate(char *sample,
         sample = newline + 1;
         remaining_length -= (sample - line);
 
-        uint64_t found = 0x0L;
         for (uint64_t i = 0; i < num_substrings; i++) {
             const char *predicate = predicates->strings[i];
+						fprintf(stderr, "grepping for %s...", predicate);
 
             if (strstr(line, predicate)) {
                 // Set this record to found for this substring.
-                bitmap_set(&false_positives_mask[i], records);
-                found |= (0x1L << i);
-            }
+                bitmap_set(&passthrough_masks[i], records);
+								fprintf(stderr, "found!\n");
+            } else {
+							fprintf(stderr, "not found.\n");
+						}
         }
 
-        // If any of the predicates failed OR all passed and the callback
-        // failed, we have a false positive from someone. Record the false positives.
-        if (allset != found) {
-            unsigned long start = rdtsc();
-            int passed = callback(line, NULL);
-            unsigned long end = rdtsc();
+				unsigned long start = rdtsc();
+				int passed = callback(line, NULL);
+				unsigned long end = rdtsc();
 
-            parse_cost += end - start;
-						parsed_records++;
-
-            if (!passed) {
-                while (found) {
-                    int index = ffsl(found) - 1;
-                    found &= ~(0x1L << index);
-                }
-            }
-        } else {
-            // It was an actual match, so don't record it as a false positive.
-            for (unsigned int i = 0; i < num_substrings; i++) {
-                bitmap_unset(&false_positives_mask[i], records);
-            }
-        }
-
+				parse_cost += (end - start);
+				parsed_records++;
         records++;
 
         // Undo what our strsep emulation did so the input is not mutated.
@@ -297,12 +297,14 @@ sparser_query_t *sparser_calibrate(char *sample,
         }
     }
 
+		fprintf(stderr, "%d passed\n", passed);
+
 		// The average parse cost.
 		parse_cost = parse_cost / parsed_records;
 
 		search_data_t sd;
 		sd.num_records = records;
-		sd.false_positives_mask = false_positives_mask;
+		sd.passthrough_masks = passthrough_masks;
 		sd.full_parse_cost = parse_cost;
 		sd.best_cost = 0xffffffff;
 		sd.schedule_len = 0;
@@ -315,6 +317,14 @@ sparser_query_t *sparser_calibrate(char *sample,
 				search_schedules(predicates, &sd, i, 0, result, i);
 		}
 
+		static char printer[4096];
+		printer[0] = 0;
+		for (int i = 0; i < sd.schedule_len; i++) {
+			strcat(printer, predicates->strings[sd.best_schedule[i]]);	
+			strcat(printer, " ");
+		}
+		fprintf(stderr, "Best schedule: %s\n", printer);
+
     sparser_query_t *squery = sparser_new_query();
     memset(squery, 0, sizeof(sparser_query_t));
 		for (int i = 0; i < sd.schedule_len; i++) {
@@ -322,7 +332,7 @@ sparser_query_t *sparser_calibrate(char *sample,
 		}
 
     for (int i = 0; i < MAX_SUBSTRINGS; i++) {
-        bitmap_free(&false_positives_mask[i]);
+        bitmap_free(&passthrough_masks[i]);
     }
     return squery;
 }

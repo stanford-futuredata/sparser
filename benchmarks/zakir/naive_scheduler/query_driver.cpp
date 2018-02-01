@@ -250,6 +250,16 @@ double bench_sparser_engine_naive(char *data,
   return elapsed;
 }
 
+void bench_sparser_engine_new(char *data, long length, json_query_t jquery, decomposed_t *d) {
+	sparser_query_t *query = sparser_calibrate(data, length, '\n', d, _rapidjson_parse_callback);
+  sparser_stats_t *stats = sparser_search(data, length, query, _rapidjson_parse_callback, &jquery);
+
+  assert(stats);
+  printf("%s\n", sparser_format_stats(stats));
+  free(stats);
+  free(query);
+}
+
 int main(int argc, char **argv) {
 
   char *raw;
@@ -281,8 +291,9 @@ int main(int argc, char **argv) {
 
 	decomposed_t d = decompose(preds, count);
 
-  fprintf(stderr, "----------------> Benchmarking All Schedules.\n");
-  bench_sparser_engine_all_preds(raw, length, jquery, d.strings, d.sources, d.num_strings);
+  //fprintf(stderr, "----------------> Benchmarking All Schedules.\n");
+  //bench_sparser_engine_all_preds(raw, length, jquery, d.strings, d.sources, d.num_strings);
+  bench_sparser_engine_new(raw, length, jquery, &d);
 #endif
 
 }
