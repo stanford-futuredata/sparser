@@ -37,9 +37,11 @@ const int SPARSER_MAX_QUERY_LENGTH = 16;
 // Max number of search strings in a single query.
 const int SPARSER_MAX_QUERY_COUNT = 32;
 
-const int  MAX_SUBSTRINGS = 32;
+const int MAX_SUBSTRINGS = 32;
 const int MAX_SAMPLES  = 64;
-const int  MAX_SCHEDULE_SIZE  = 4;
+const int MAX_SCHEDULE_SIZE  = 4;
+
+const int PARSER_MEASUREMENT_SAMPLES = 10;
 
 // Defines a sparser query.
 typedef struct sparser_query_ {
@@ -343,12 +345,15 @@ sparser_query_t *sparser_calibrate(char *sample,
 						}
         }
 
-				unsigned long start = rdtsc();
-				passed += callback(line, NULL);
-				unsigned long end = rdtsc();
+				// To estimate the full parser's cost.
+				if (records < PARSER_MEASUREMENT_SAMPLES) {
+					unsigned long start = rdtsc();
+					passed += callback(line, NULL);
+					unsigned long end = rdtsc();
+					parse_cost += (end - start);
+					parsed_records++;
+				}
 
-				parse_cost += (end - start);
-				parsed_records++;
         records++;
 
 				timing.cycles_per_parse_avg = parse_cost;
