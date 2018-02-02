@@ -96,7 +96,11 @@ typedef struct search_data {
 	// The joint bitmap (to prevent small repeated malloc's)
 	bitmap_t joint;
 
+	// number of schedules skipped.
+	long skipped;
+	// number of schedules processed.
 	long processed;
+	// Total cycles spent *processing and skipping*.
 	long total_cycles;
 
 } search_data_t;
@@ -186,6 +190,9 @@ void search_schedules(decomposed_t *predicates,
 			for (int j = 0; j < result_len; j++) {
 				if (i != j && predicates->sources[result[i]] == predicates->sources[result[j]]) {
 					DBG("\x1b[0;33mskipped\x1b[0m due to duplicate source!\n");
+					long end = rdtsc();
+					sd->skipped++;
+					sd->total_cycles += (end - start);
 					return;
 				}
 			}
@@ -246,6 +253,10 @@ struct calibrate_timing {
 	long cycles_per_schedule_avg;
 	long cycles_per_parse_avg;
 
+	// scheudles.
+	long processed;
+	long skipped;
+
 	double total;
 };
 
@@ -253,11 +264,13 @@ void print_timing(struct calibrate_timing *t) {
 	fprintf(stderr, "Sampling Total: %f\n\
 Searching Total: %f\n\
 Cycles/Schedule: %lu\n\
+%% Schedules Skipped: %f\n\
 Cycles/Parse: %lu\n\
 Total Time: %f\n",
 	t->sampling_total,
 	t->searching_total,
 	t->cycles_per_schedule_avg,
+	((double)t->skipped) / ((double)(t->processed + t->skipped)) * 100.0,
 	t->cycles_per_parse_avg,
 	t->total);
 }
@@ -375,6 +388,9 @@ sparser_query_t *sparser_calibrate(char *sample,
 
 		timing.searching_total = time_stop(start);
 		timing.cycles_per_schedule_avg = sd.total_cycles / sd.processed;
+
+		timing.processed = sd.processed;
+		timing.skipped = sd.skipped;
 
 		static char printer[4096];
 		printer[0] = 0;

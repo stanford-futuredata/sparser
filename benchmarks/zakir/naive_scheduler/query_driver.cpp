@@ -265,8 +265,8 @@ int main(int argc, char **argv) {
   char *raw;
   long length;
 
-  //const char *filename = "/lfs/1/sparser/zakir14g.json";
-  const char *filename = "/lfs/1/sparser/zakir-small.json";
+  const char *filename = "/lfs/1/sparser/zakir14g.json";
+  //const char *filename = "/lfs/1/sparser/zakir-small.json";
   length = read_all(filename, &raw);
 
 // For the non-independence experiment.
