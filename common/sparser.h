@@ -79,7 +79,6 @@ typedef struct sparser_stats_ {
     double fraction_passed_incorrect;
 } sparser_stats_t;
 
-
 typedef struct search_data {
 	// Number of records sampled.
 	double num_records;	
@@ -93,6 +92,13 @@ typedef struct search_data {
 	int best_schedule[MAX_SCHEDULE_SIZE];
 	// Length of the full parser.
 	int schedule_len;
+
+	// The joint bitmap (to prevent small repeated malloc's)
+	bitmap_t joint;
+
+	long processed;
+	long total_cycles;
+
 } search_data_t;
 
 sparser_query_t *sparser_new_query() {
@@ -156,18 +162,24 @@ void search_schedules(decomposed_t *predicates,
 		int *result,
 		const int result_len) {
 
+#ifdef DEBUG
 	static char printer[4096];
+#endif
 
 	// Base case - compute the cost.
 	if (len == 0) {
 
+		long start = rdtsc();
+
 		assert(result_len > 0);
 
+#ifdef DEBUG
 		printer[0] = 0;
 		for (int i = 0; i < result_len; i++) {
 			strcat(printer, predicates->strings[result[i]]);	
 			strcat(printer, " ");
 		}
+#endif
 		DBG("Considering schedule %s...", printer);
 
 		for (int i = 0; i < result_len; i++) {
@@ -182,24 +194,25 @@ void search_schedules(decomposed_t *predicates,
 		DBG("\x1b[0;32mprocessing!\x1b[0m\n");
 
 		int first_index = result[0];
-		bitmap_t joint = bitmap_from(&sd->passthrough_masks[first_index]);
+		bitmap_t *joint = &sd->joint;
+		bitmap_copy(joint, &sd->passthrough_masks[first_index]);
 
 		// First filter runs unconditionally.
 		double total_cost = pf_cost(predicates->strings[first_index]);
 
 		for (int i = 1; i < result_len; i++) {
 			int index = result[i];
-			uint64_t joint_rate = bitmap_count(&joint);
+			uint64_t joint_rate = bitmap_count(joint);
 			double filter_cost = pf_cost(predicates->strings[index]);
 			double rate = ((double)joint_rate) / sd->num_records;
 			DBG("\t Rate after %s: %f\n", predicates->strings[result[i-1]], rate);
 			total_cost += filter_cost * rate;
 
-			bitmap_and(&joint, &joint, &sd->passthrough_masks[index]);	
+			bitmap_and(joint, joint, &sd->passthrough_masks[index]);	
 		}
 
 		// Account for full parser.
-		uint64_t joint_rate = bitmap_count(&joint);
+		uint64_t joint_rate = bitmap_count(joint);
 		double filter_cost = sd->full_parse_cost;
 		double rate = ((double)joint_rate) / sd->num_records;
 		DBG("\t Rate after %s (rate of full parse): %f\n", predicates->strings[result[result_len-1]], rate);
@@ -212,8 +225,9 @@ void search_schedules(decomposed_t *predicates,
 			sd->schedule_len = result_len;
 		}
 
-		bitmap_free(&joint);
-
+		long end = rdtsc();
+		sd->processed++;
+		sd->total_cycles += end - start;
 		return;
 	}
 
@@ -223,6 +237,29 @@ void search_schedules(decomposed_t *predicates,
 		result[result_len - len] = i;
 		search_schedules(predicates, sd, len - 1, i + 1, result, result_len);
 	}
+}
+
+struct calibrate_timing {
+	double sampling_total;
+	double searching_total;
+
+	long cycles_per_schedule_avg;
+	long cycles_per_parse_avg;
+
+	double total;
+};
+
+void print_timing(struct calibrate_timing *t) {
+	printf("Sampling Total: %f\n\
+Searching Total: %f\n\
+Cycles/Schedule: %lu\n\
+Cycles/Parse: %lu\n\
+Total Time: %f\n",
+	t->sampling_total,
+	t->searching_total,
+	t->cycles_per_schedule_avg,
+	t->cycles_per_parse_avg,
+	t->total);
 }
 
 /** Returns a search query given a sample input and a set of predicates. The
@@ -244,6 +281,11 @@ sparser_query_t *sparser_calibrate(char *sample,
 		decomposed_t *predicates,
 		sparser_callback_t callback) {
 
+
+		struct calibrate_timing timing;
+		memset(&timing, 0, sizeof(timing));
+		bench_timer_t start_e2e = time_start();
+
     // Stores false positive mask for each predicate.
     // Bit `i` is set if the ith false positive record was *passed* by the
     // predicate.
@@ -260,6 +302,8 @@ sparser_query_t *sparser_calibrate(char *sample,
 		long parsed_records = 0;
 		long passed = 0;
     unsigned long parse_cost = 0;
+
+		bench_timer_t start = time_start();
 
     // Now search for each substring in up to MAX_SAMPLES records.
     char *line, *newline;
@@ -294,6 +338,8 @@ sparser_query_t *sparser_calibrate(char *sample,
 				parsed_records++;
         records++;
 
+				timing.cycles_per_parse_avg = parse_cost;
+
         // Undo what our strsep emulation did so the input is not mutated.
         if (sample) {
             assert(*(sample - 1) == '\0');
@@ -303,17 +349,21 @@ sparser_query_t *sparser_calibrate(char *sample,
         }
     }
 
+		timing.sampling_total = time_stop(start);
+		start = time_start();
+
 		DBG("%lu passed\n", passed);
 
 		// The average parse cost.
 		parse_cost = parse_cost / parsed_records;
 
 		search_data_t sd;
+		memset(&sd, 0, sizeof(sd));
 		sd.num_records = records;
 		sd.passthrough_masks = passthrough_masks;
 		sd.full_parse_cost = parse_cost;
 		sd.best_cost = 0xffffffff;
-		sd.schedule_len = 0;
+		sd.joint = bitmap_new(MAX_SAMPLES);
 
 		// temp buffer to store the result.
 		int result[MAX_SCHEDULE_SIZE];
@@ -322,6 +372,9 @@ sparser_query_t *sparser_calibrate(char *sample,
 		for (int i = 1; i <= MAX_SCHEDULE_SIZE; i++) {
 				search_schedules(predicates, &sd, i, 0, result, i);
 		}
+
+		timing.searching_total = time_stop(start);
+		timing.cycles_per_schedule_avg = sd.total_cycles / sd.processed;
 
 		static char printer[4096];
 		printer[0] = 0;
@@ -340,6 +393,12 @@ sparser_query_t *sparser_calibrate(char *sample,
     for (int i = 0; i < MAX_SUBSTRINGS; i++) {
         bitmap_free(&passthrough_masks[i]);
     }
+
+		timing.total = time_stop(start_e2e);
+		print_timing(&timing);
+
+		bitmap_free(&sd.joint);
+
     return squery;
 }
 

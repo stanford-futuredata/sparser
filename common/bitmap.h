@@ -42,6 +42,14 @@ bitmap_t bitmap_from(bitmap_t *bm) {
 	return m;
 }
 
+/** Copies a bitmap. */
+void bitmap_copy(bitmap_t *dst, bitmap_t *src) {
+	memcpy(dst->bits, src->bits, src->words * sizeof(uint64_t));
+	dst->words = src->words;
+	dst->capacity = src->capacity;
+	dst->count = src->count;
+}
+
 /** Free a bitmap. */
 void bitmap_free(bitmap_t *bm) {
   free(bm->bits);
