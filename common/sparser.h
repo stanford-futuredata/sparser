@@ -250,7 +250,7 @@ struct calibrate_timing {
 };
 
 void print_timing(struct calibrate_timing *t) {
-	printf("Sampling Total: %f\n\
+	fprintf(stderr, "Sampling Total: %f\n\
 Searching Total: %f\n\
 Cycles/Schedule: %lu\n\
 Cycles/Parse: %lu\n\
