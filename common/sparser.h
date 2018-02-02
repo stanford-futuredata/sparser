@@ -21,6 +21,12 @@
 #include "common.h"
 #include "rdtsc.h"
 
+#ifdef DEBUG
+#define DBG(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( false )
+#else
+#define DBG(...) do{ } while ( false )
+#endif
+
 // Checks if bit i is set in n.
 #define IS_SET(n, i) (n & (0x1L << i))
 
@@ -32,7 +38,7 @@ const int SPARSER_MAX_QUERY_LENGTH = 16;
 const int SPARSER_MAX_QUERY_COUNT = 32;
 
 const int  MAX_SUBSTRINGS = 32;
-const int MAX_SAMPLES  = 100;
+const int MAX_SAMPLES  = 64;
 const int  MAX_SCHEDULE_SIZE  = 4;
 
 // Defines a sparser query.
@@ -162,18 +168,18 @@ void search_schedules(decomposed_t *predicates,
 			strcat(printer, predicates->strings[result[i]]);	
 			strcat(printer, " ");
 		}
-		fprintf(stderr, "Considering schedule %s...", printer);
+		DBG("Considering schedule %s...", printer);
 
 		for (int i = 0; i < result_len; i++) {
 			for (int j = 0; j < result_len; j++) {
 				if (i != j && predicates->sources[result[i]] == predicates->sources[result[j]]) {
-					fprintf(stderr, "\x1b[0;33mskipped\x1b[0m due to duplicate source!\n");
+					DBG("\x1b[0;33mskipped\x1b[0m due to duplicate source!\n");
 					return;
 				}
 			}
 		}
 
-		fprintf(stderr, "\x1b[0;32mprocessing!\x1b[0m\n");
+		DBG("\x1b[0;32mprocessing!\x1b[0m\n");
 
 		int first_index = result[0];
 		bitmap_t joint = bitmap_from(&sd->passthrough_masks[first_index]);
@@ -184,10 +190,9 @@ void search_schedules(decomposed_t *predicates,
 		for (int i = 1; i < result_len; i++) {
 			int index = result[i];
 			uint64_t joint_rate = bitmap_count(&joint);
-			fprintf(stderr, "\t popcnt: %lu\n", joint_rate);
 			double filter_cost = pf_cost(predicates->strings[index]);
 			double rate = ((double)joint_rate) / sd->num_records;
-			fprintf(stderr, "\t Rate after %s: %f\n", predicates->strings[result[i-1]], rate);
+			DBG("\t Rate after %s: %f\n", predicates->strings[result[i-1]], rate);
 			total_cost += filter_cost * rate;
 
 			bitmap_and(&joint, &joint, &sd->passthrough_masks[index]);	
@@ -197,9 +202,9 @@ void search_schedules(decomposed_t *predicates,
 		uint64_t joint_rate = bitmap_count(&joint);
 		double filter_cost = sd->full_parse_cost;
 		double rate = ((double)joint_rate) / sd->num_records;
-		fprintf(stderr, "\t Rate after %s (rate of full parse): %f\n", predicates->strings[result[result_len-1]], rate);
+		DBG("\t Rate after %s (rate of full parse): %f\n", predicates->strings[result[result_len-1]], rate);
 		total_cost += filter_cost * rate;
-		fprintf(stderr, "\tCost: %f\n", total_cost);
+		DBG("\tCost: %f\n", total_cost);
 
 		if (total_cost < sd->best_cost) {
 			assert(result_len <= MAX_SCHEDULE_SIZE);
@@ -253,6 +258,7 @@ sparser_query_t *sparser_calibrate(char *sample,
     // Counts number of records processed thus far.
     long records = 0;
 		long parsed_records = 0;
+		long passed = 0;
     unsigned long parse_cost = 0;
 
     // Now search for each substring in up to MAX_SAMPLES records.
@@ -269,19 +275,19 @@ sparser_query_t *sparser_calibrate(char *sample,
 
         for (uint64_t i = 0; i < num_substrings; i++) {
             const char *predicate = predicates->strings[i];
-						fprintf(stderr, "grepping for %s...", predicate);
+						DBG("grepping for %s...", predicate);
 
             if (strstr(line, predicate)) {
                 // Set this record to found for this substring.
                 bitmap_set(&passthrough_masks[i], records);
-								fprintf(stderr, "found!\n");
+								DBG("found!\n");
             } else {
-							fprintf(stderr, "not found.\n");
+							DBG("not found.\n");
 						}
         }
 
 				unsigned long start = rdtsc();
-				int passed = callback(line, NULL);
+				passed += callback(line, NULL);
 				unsigned long end = rdtsc();
 
 				parse_cost += (end - start);
@@ -297,7 +303,7 @@ sparser_query_t *sparser_calibrate(char *sample,
         }
     }
 
-		fprintf(stderr, "%d passed\n", passed);
+		DBG("%lu passed\n", passed);
 
 		// The average parse cost.
 		parse_cost = parse_cost / parsed_records;
@@ -323,7 +329,7 @@ sparser_query_t *sparser_calibrate(char *sample,
 			strcat(printer, predicates->strings[sd.best_schedule[i]]);	
 			strcat(printer, " ");
 		}
-		fprintf(stderr, "Best schedule: %s\n", printer);
+		DBG("Best schedule: %s\n", printer);
 
     sparser_query_t *squery = sparser_new_query();
     memset(squery, 0, sizeof(sparser_query_t));
@@ -356,7 +362,7 @@ sparser_stats_t *sparser_search(char *input, long length,
                                 void *callback_ctx) {
 
 		for (int i = 0; i < query->count; i++) {
-			 fprintf(stderr, "Search string %d: %s\n", i+1, query->queries[i]);
+			 DBG("Search string %d: %s\n", i+1, query->queries[i]);
 		}
 
     sparser_stats_t stats;
