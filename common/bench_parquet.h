@@ -1,5 +1,5 @@
-#ifndef _BENCH_AVRO_H_
-#define _BENCH_AVRO_H_
+#ifndef _BENCH_PARQUET_H_
+#define _BENCH_PARQUET_H_
 
 #include <errno.h>
 #include <math.h>
@@ -15,6 +15,62 @@
 #else
 #define QUICKSTOP_CODEC "null"
 #endif
+
+/**
+static constexpr int64_t DEFAULT_FOOTER_READ_SIZE = 64 * 1024;
+static constexpr uint32_t FOOTER_SIZE = 8;
+static constexpr uint8_t PARQUET_MAGIC[4] = {'P', 'A', 'R', '1'};
+
+void ParseMetaData() {
+  // number of bytes in file
+  int64_t file_size = source_->Size();
+
+  if (file_size < FOOTER_SIZE) {
+    throw ParquetException("Corrupted file, smaller than file footer");
+  }
+
+  uint8_t footer_buffer[DEFAULT_FOOTER_READ_SIZE];
+  int64_t footer_read_size = std::min(file_size, DEFAULT_FOOTER_READ_SIZE);
+  int64_t bytes_read =
+    // seek to file_size - footer_read_size, and read footer_read_size bytes into footer_buffer
+      source_->ReadAt(file_size - footer_read_size, footer_read_size, footer_buffer);
+
+  // Check if all bytes are read. Check if last 4 bytes read have the magic bits
+  if (bytes_read != footer_read_size ||
+      memcmp(footer_buffer + footer_read_size - 4, PARQUET_MAGIC, 4) != 0) {
+    throw ParquetException("Invalid parquet file. Corrupt footer.");
+  }
+
+  // this is really strange, but this somehow gets cast to a pointer that contains the length of the metadata
+  uint32_t metadata_len =
+      *reinterpret_cast<uint32_t*>(footer_buffer + footer_read_size - FOOTER_SIZE);
+  int64_t metadata_start = file_size - FOOTER_SIZE - metadata_len;
+  if (FOOTER_SIZE + metadata_len > file_size) {
+    throw ParquetException(
+        "Invalid parquet file. File is less than "
+        "file metadata size.");
+  }
+
+  std::shared_ptr<PoolBuffer> metadata_buffer =
+      AllocateBuffer(properties_.memory_pool(), metadata_len);
+
+  // Check if the footer_buffer contains the entire metadata
+  if (footer_read_size >= (metadata_len + FOOTER_SIZE)) {
+    memcpy(metadata_buffer->mutable_data(),
+           footer_buffer + (footer_read_size - metadata_len - FOOTER_SIZE),
+           metadata_len);
+  } else {
+    bytes_read =
+        source_->ReadAt(metadata_start, metadata_len, metadata_buffer->mutable_data());
+    if (bytes_read != metadata_len) {
+      throw ParquetException("Invalid parquet file. Could not read metadata bytes.");
+    }
+  }
+
+  file_metadata_ = FileMetaData::Make(metadata_buffer->data(), &metadata_len);
+}
+*/
+
 
 enum avro_type_t {
     AVRO_STRING,
@@ -293,13 +349,11 @@ int single_record_contains(char **prev_ptr, avro_context_t *ctx) {
             case AVRO_STRING: {
                 int64_t str_length;
                 read_int64(&ptr, &str_length);
+                // char printbuf[str_length + 1];
+                // strncpy(printbuf, ptr, str_length);
+                // printbuf[str_length] = '\0';
+                // printf("%s\n", printbuf);
                 if (i == query_field_index) {
-#ifdef DEBUG
-                    char printbuf[str_length + 1];
-                    strncpy(printbuf, ptr, str_length);
-                    printbuf[str_length] = '\0';
-                    printf("%d: %s\n", i, printbuf);
-#endif
                     // for string fields, we implement "CONTAINS" checks
                     char *tmp = (char *)memmem(ptr, str_length, query_str,
                                                query_str_length);
@@ -369,13 +423,11 @@ int single_record_contains(char **prev_ptr, avro_context_t *ctx) {
                 ctx_copy.query_str = ctx->query_str;
                 ctx_copy.num_schema_elems = elem.num_children;
                 ctx_copy.schema = elem.children;
-                ctx_copy.query_field_index = ctx->query_field_index % elem.num_children;
+                ctx_copy.query_field_index = ctx->query_field_index;
                 // we copy the current avro context, but change the schema to
                 // be the schema of the sub-record
                 const int val = single_record_contains(&ptr, &ctx_copy);
-                if (val > 0) {
-                    // if we found what we're looking for in the sub-record,
-                    // we're done
+                if (i == query_field_index) {
                     ret = val;
                 }
                 break;
@@ -477,8 +529,7 @@ int record_contains(avro_context_t *ctx, const char *line) {
                     ctx_copy.query_str = ctx->query_str;
                     ctx_copy.num_schema_elems = elem.num_children;
                     ctx_copy.schema = elem.children;
-                    ctx_copy.query_field_index =
-                        ctx->query_field_index % elem.num_children;
+                    ctx_copy.query_field_index = ctx->query_field_index;
                     int val = record_contains(&ctx_copy, line);
                     // update the current pointer to wherever we reached
                     // in the sub-record
@@ -503,7 +554,7 @@ int record_contains(avro_context_t *ctx, const char *line) {
         prev_record = itr->ptr;
     }
     if (check) {
-        return single_record_contains(&prev_record, ctx);
+      return single_record_contains(&prev_record, ctx);
     }
     return 0;
 }
@@ -546,9 +597,7 @@ int verify_avro(const char *line, void *thunk) {
 void verify_avro_loop(avro_context_t *ctx) {
     long count = 0;
     long total = 0;
-#ifdef DEBUG
-    printf("Begin loop\n");
-#endif
+
     avro_iterator_t *itr = ctx->itr;
 
     do {
