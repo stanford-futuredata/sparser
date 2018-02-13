@@ -1,7 +1,7 @@
 #ifndef _TWITTER_SCHEMA_H_
 #define _TWITTER_SCHEMA_H_
 
-#include "bench_avro.h"
+#include "bench_parquet.h"
 
 static const schema_elem_t *twitter_schema(int *total_count) {
     // {"name":"contributors", "type":["string","null"]},

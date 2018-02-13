@@ -1,616 +1,225 @@
 #ifndef _BENCH_PARQUET_H_
 #define _BENCH_PARQUET_H_
 
-#include <errno.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <parquet/api/reader.h>
+#include <parquet/api/writer.h>
 #include <string.h>
+#include <vector>
 #include "common.h"
 #include "portable_endian.h"
 #include "sparser.h"
 
-#ifdef DEFLATE_CODEC
-#define QUICKSTOP_CODEC "deflate"
-#else
-#define QUICKSTOP_CODEC "null"
-#endif
+using namespace parquet;
+using std::cout;
+using std::endl;
 
-/**
-static constexpr int64_t DEFAULT_FOOTER_READ_SIZE = 64 * 1024;
-static constexpr uint32_t FOOTER_SIZE = 8;
-static constexpr uint8_t PARQUET_MAGIC[4] = {'P', 'A', 'R', '1'};
+typedef struct parquet_iterator {
+    std::unique_ptr<ParquetFileReader> parquet_reader;
+    int64_t curr_byte_offset;
+    int curr_row_group;
+    int num_rows_so_far;
+    const uint8_t *prev_value_ptr;
+    parquet::ByteArrayReader *ba_reader;
+    std::shared_ptr<ColumnReader> column_reader;
+    char *start;
+} parquet_iterator_t;
 
-void ParseMetaData() {
-  // number of bytes in file
-  int64_t file_size = source_->Size();
-
-  if (file_size < FOOTER_SIZE) {
-    throw ParquetException("Corrupted file, smaller than file footer");
-  }
-
-  uint8_t footer_buffer[DEFAULT_FOOTER_READ_SIZE];
-  int64_t footer_read_size = std::min(file_size, DEFAULT_FOOTER_READ_SIZE);
-  int64_t bytes_read =
-    // seek to file_size - footer_read_size, and read footer_read_size bytes into footer_buffer
-      source_->ReadAt(file_size - footer_read_size, footer_read_size, footer_buffer);
-
-  // Check if all bytes are read. Check if last 4 bytes read have the magic bits
-  if (bytes_read != footer_read_size ||
-      memcmp(footer_buffer + footer_read_size - 4, PARQUET_MAGIC, 4) != 0) {
-    throw ParquetException("Invalid parquet file. Corrupt footer.");
-  }
-
-  // this is really strange, but this somehow gets cast to a pointer that contains the length of the metadata
-  uint32_t metadata_len =
-      *reinterpret_cast<uint32_t*>(footer_buffer + footer_read_size - FOOTER_SIZE);
-  int64_t metadata_start = file_size - FOOTER_SIZE - metadata_len;
-  if (FOOTER_SIZE + metadata_len > file_size) {
-    throw ParquetException(
-        "Invalid parquet file. File is less than "
-        "file metadata size.");
-  }
-
-  std::shared_ptr<PoolBuffer> metadata_buffer =
-      AllocateBuffer(properties_.memory_pool(), metadata_len);
-
-  // Check if the footer_buffer contains the entire metadata
-  if (footer_read_size >= (metadata_len + FOOTER_SIZE)) {
-    memcpy(metadata_buffer->mutable_data(),
-           footer_buffer + (footer_read_size - metadata_len - FOOTER_SIZE),
-           metadata_len);
-  } else {
-    bytes_read =
-        source_->ReadAt(metadata_start, metadata_len, metadata_buffer->mutable_data());
-    if (bytes_read != metadata_len) {
-      throw ParquetException("Invalid parquet file. Could not read metadata bytes.");
-    }
-  }
-
-  file_metadata_ = FileMetaData::Make(metadata_buffer->data(), &metadata_len);
-}
-*/
-
-
-enum avro_type_t {
-    AVRO_STRING,
-    AVRO_BYTES,
-    AVRO_INT32,
-    AVRO_INT64,
-    AVRO_FLOAT,
-    AVRO_DOUBLE,
-    AVRO_BOOLEAN,
-    AVRO_NULL,
-    AVRO_RECORD,
-    AVRO_ENUM,
-    AVRO_FIXED,
-    AVRO_MAP,
-    AVRO_ARRAY,
-    AVRO_UNION,
-    AVRO_LINK
-};
-
-float int_bits_to_float(const uint32_t bits) {
-    const int sign = ((bits >> 31) == 0) ? 1 : -1;
-    const int exponent = ((bits >> 23) & 0xff);
-    const int mantissa =
-        (exponent == 0) ? (bits & 0x7fffff) << 1 : (bits & 0x7fffff) | 0x800000;
-    return (sign * mantissa * pow(2, exponent - 150));
-}
-
-double long_bits_to_double(const uint64_t bits) {
-    const int sign = ((bits >> 63) == 0) ? 1 : -1;
-    const int exponent = (int)((bits >> 52) & 0x7ffL);
-    const long mantissa = (exponent == 0)
-                              ? (bits & 0xfffffffffffffL) << 1
-                              : (bits & 0xfffffffffffffL) | 0x10000000000000L;
-    return (sign * mantissa * pow(2, exponent - 1075));
-}
-
-#define MAX_VARINT_BUF_SIZE 10
-int encode_long(char *outer_buf, int64_t l) {
-    char buf[MAX_VARINT_BUF_SIZE];
-    uint8_t bytes_written = 0;
-    uint64_t n = (l << 1) ^ (l >> 63);
-    while (n & ~0x7F) {
-        buf[bytes_written++] = (char)((((uint8_t)n) & 0x7F) | 0x80);
-        n >>= 7;
-    }
-    buf[bytes_written++] = (char)n;
-    strncpy(outer_buf, buf, bytes_written);
-    return 0;
-}
-
-uint32_t read_little_endian_four_bytes(char **outer_buf) {
-    uint32_t *valptr = (uint32_t *)*outer_buf;
-    uint32_t value = *valptr;
-    *outer_buf = (char *)(valptr + 1);
-    return htole32(value);
-}
-
-uint64_t read_little_endian_eight_bytes(char **outer_buf) {
-    uint64_t *valptr = (uint64_t *)*outer_buf;
-    uint64_t value = *valptr;
-    *outer_buf = (char *)(valptr + 1);
-    return htole64(value);
-}
-
-int read_int64(char **outer_buf, int64_t *l) {
-    char *buf = *outer_buf;
-    uint64_t value = 0;
-    uint8_t b;
-    int offset = 0;
-    do {
-        if (offset == MAX_VARINT_BUF_SIZE) {
-            /*
-             * illegal byte sequence
-             */
-            return EILSEQ;
-        }
-        b = (uint8_t)*buf;
-        ++buf;
-        value |= (int64_t)(b & 0x7F) << (7 * offset);
-        ++offset;
-    } while (b & 0x80);
-    *l = ((value >> 1) ^ -(value & 1));
-    *outer_buf = buf;
-    return 0;
-}
-
-void read_boolean(char **outer_buf, bool *b) {
-    uint8_t *buf = (uint8_t *)*outer_buf;
-    *b = (*buf++ == 1) ? true : false;
-    *outer_buf = (char *)buf;
-}
-
-void skip_array(char **outer_buf, avro_type_t *types) {
-    char *buf = *outer_buf;
-    size_t i;         /* index within the current block */
-    size_t index = 0; /* index within the entire array */
-    int64_t block_count;
-    int64_t block_size = -1;
-
-    read_int64(&buf, &block_count);
-
-    while (block_count != 0) {
-        if (block_count < 0) {
-            block_count = block_count * -1;
-            read_int64(&buf, &block_size);
-        }
-
-        if (block_size > 0) {
-            buf += block_size;
-        } else {
-            for (i = 0; i < (size_t)block_count; i++, index++) {
-                int64_t type_index;
-                read_int64(&buf, &type_index);
-                const avro_type_t curr_type = types[type_index];
-                switch (curr_type) {
-                    case AVRO_STRING:
-                        int64_t str_length;
-                        read_int64(&buf, &str_length);
-                        buf += str_length;
-                        break;
-                    case AVRO_DOUBLE:
-                        buf += 8;
-                        break;
-                    case AVRO_INT64:
-                        int64_t dummy;
-                        read_int64(&buf, &dummy);
-                        // printf("%ld\n", dummy);
-                        break;
-                    case AVRO_NULL:
-                    default:;
-                        // do nothing
-                }
-            }
-        }
-        read_int64(&buf, &block_count);
-    }
-    *outer_buf = buf;
-}
-
-void skip_array_long(char **outer_buf) {
-    char *buf = *outer_buf;
-    size_t i;         /* index within the current block */
-    size_t index = 0; /* index within the entire array */
-    int64_t block_count;
-    int64_t block_size = -1;
-
-    read_int64(&buf, &block_count);
-
-    while (block_count != 0) {
-        if (block_count < 0) {
-            block_count = block_count * -1;
-            read_int64(&buf, &block_size);
-        }
-
-        if (block_size > 0) {
-            buf += block_size;
-        } else {
-            for (i = 0; i < (size_t)block_count; i++, index++) {
-                int64_t dummy;
-                read_int64(&buf, &dummy);
-                // printf("%ld\n", dummy);
-            }
-        }
-        read_int64(&buf, &block_count);
-    }
-    *outer_buf = buf;
-}
-
-void skip_array_double(char **outer_buf) {
-    char *buf = *outer_buf;
-    size_t i;         /* index within the current block */
-    size_t index = 0; /* index within the entire array */
-    int64_t block_count;
-    int64_t block_size = -1;
-
-    read_int64(&buf, &block_count);
-
-    while (block_count != 0) {
-        if (block_count < 0) {
-            block_count = block_count * -1;
-            read_int64(&buf, &block_size);
-        }
-
-        if (block_size > 0) {
-            buf += block_size;
-        } else {
-            for (i = 0; i < (size_t)block_count; i++, index++) {
-                buf += 8;
-            }
-        }
-        read_int64(&buf, &block_count);
-    }
-    *outer_buf = buf;
-}
-
-void skip_array_string(char **outer_buf) {
-    char *buf = *outer_buf;
-    size_t i;         /* index within the current block */
-    size_t index = 0; /* index within the entire array */
-    int64_t block_count;
-    int64_t block_size = -1;
-
-    read_int64(&buf, &block_count);
-
-    while (block_count != 0) {
-        if (block_count < 0) {
-            block_count = block_count * -1;
-            read_int64(&buf, &block_size);
-        }
-
-        if (block_size > 0) {
-            buf += block_size;
-        } else {
-            for (i = 0; i < (size_t)block_count; i++, index++) {
-                int64_t str_length;
-                read_int64(&buf, &str_length);
-                buf += str_length;
-            }
-        }
-        read_int64(&buf, &block_count);
-    }
-    *outer_buf = buf;
-}
-
-typedef struct avro_iterator {
-    int64_t num_records;
-    int64_t num_bytes;
-    char *prev_header;
-    char *ptr;
-    char *eof;
-    int curr_record_index;
-} avro_iterator_t;
-
-typedef struct schema_elem {
-    avro_type_t types[2];  // hardcode it to be up to 2 for now
-    uint32_t num_types;
-    schema_elem *children;
-    uint32_t num_children;
-} schema_elem_t;
-
-typedef struct avro_context {
-    avro_iterator_t *itr;
-    const schema_elem_t *schema;
-    int num_schema_elems;
+typedef struct parquet_context {
+    parquet_iterator_t *itr;
     int query_field_index;
     const char *query_str;
-} avro_context_t;
+} parquet_context_t;
 
-void read_schema(const schema_elem_t *elem, char **ptr, avro_type_t *ret_type) {
-    if (elem->num_types == 1) {
-        *ret_type = elem->types[0];
-    } else {
-        int64_t type_index;
-        read_int64(ptr, &type_index);
-        *ret_type = elem->types[type_index];
-    }
-}
-
-int single_record_contains(char **prev_ptr, avro_context_t *ctx) {
-    char *ptr = *prev_ptr;
-    const char *query_str = ctx->query_str;
-    const size_t query_str_length = strlen(ctx->query_str);
-    const int num_schema_elems = ctx->num_schema_elems;
-    const schema_elem_t *schema = ctx->schema;
-    const int query_field_index = ctx->query_field_index;
-
-    int ret = 0;
-
-    avro_type_t curr_type;
-    for (int i = 0; i < num_schema_elems; ++i) {
-        const schema_elem_t elem = schema[i];
-        read_schema(&elem, &ptr, &curr_type);
-        switch (curr_type) {
-            // For all cases: if we're not yet at the field we care about
-            // (`query_field_index`) then we skip over the field
-            case AVRO_STRING: {
-                int64_t str_length;
-                read_int64(&ptr, &str_length);
-                // char printbuf[str_length + 1];
-                // strncpy(printbuf, ptr, str_length);
-                // printbuf[str_length] = '\0';
-                // printf("%s\n", printbuf);
-                if (i == query_field_index) {
-                    // for string fields, we implement "CONTAINS" checks
-                    char *tmp = (char *)memmem(ptr, str_length, query_str,
-                                               query_str_length);
-                    ret = (tmp != NULL);
-                }
-                ptr += str_length;
-                break;
-            }
-            case AVRO_INT32:
-            case AVRO_INT64: {
-                // we can't skip over ints and longs, since they're
-                // variable-length encoded
-                int64_t val;
-                read_int64(&ptr, &val);
-                // printf("%ld\n", val);
-                if (i == query_field_index) {
-                    // for int and long fields, we implement full equality
-                    // checks
-                    ret = (val == (int64_t)query_str);
-                }
-                break;
-            }
-            case AVRO_DOUBLE: {
-                if (i == query_field_index) {
-                    ret = strncmp(ptr, query_str, 8) == 0;
-                }
-                ptr += 8;
-                break;
-            }
-            case AVRO_FLOAT: {
-                if (i == query_field_index) {
-                    ret = strncmp(ptr, query_str, 4) == 0;
-                }
-                ptr += 4;
-                break;
-            }
-            case AVRO_BOOLEAN: {
-                bool val;
-                read_boolean(&ptr, &val);
-                // printf("%s\n", val ? "true" : "false");
-                if (i == query_field_index) {
-                    ret = val;
-                }
-                break;
-            }
-            case AVRO_ARRAY: {
-                // read schema entry of first (and only child)
-                if (elem.children[0].num_types == 2) {
-                    skip_array(&ptr, elem.children[0].types);
-                } else {
-                    avro_type_t array_type;
-                    read_schema(&elem.children[0], &ptr, &array_type);
-                    // for now, we don't support looking in an array, only
-                    // skipping an array
-                    if (array_type == AVRO_INT64) {
-                        skip_array_long(&ptr);
-                    } else if (array_type == AVRO_DOUBLE) {
-                        skip_array_double(&ptr);
-                    } else if (array_type == AVRO_STRING) {
-                        skip_array_string(&ptr);
-                    }
-                }
-                break;
-            }
-            case AVRO_RECORD: {
-                avro_context_t ctx_copy;
-                ctx_copy.query_str = ctx->query_str;
-                ctx_copy.num_schema_elems = elem.num_children;
-                ctx_copy.schema = elem.children;
-                ctx_copy.query_field_index = ctx->query_field_index;
-                // we copy the current avro context, but change the schema to
-                // be the schema of the sub-record
-                const int val = single_record_contains(&ptr, &ctx_copy);
-                if (i == query_field_index) {
-                    ret = val;
-                }
-                break;
-            }
-            case AVRO_NULL:
-            default:;
-                // do nothing
-        }
-    }
-    // if, somehow, we reach this point (the query_field_index was larger
-    // than the number of fields) return false
-    *prev_ptr = ptr;
-    return ret;
-}
-
-/**
- * Determine if a record contains a match for `ctx->query_str`. `line` should
- * fall somewhere in between the middle of a record; we assume that
- * `ctx->itr` points to the beginning of an Avro record, according to the schema
- * defined in `ctx->schema. If we find the record that contains `line` and it
- * also matches the `query_str`, return True; else return False.
- **/
-int record_contains(avro_context_t *ctx, const char *line) {
-    const int num_schema_elems = ctx->num_schema_elems;
-    const schema_elem_t *schema = ctx->schema;
-    avro_iterator_t *itr = ctx->itr;
-
-    // First, find the record we need to check. Traverse through each record,
-    // until we pass `line`.  Once we pass it, that means the record we just
-    // processed needs to checked; go back and check it.
-    char *prev_record = itr->ptr;
-    bool check = false;
-    avro_type_t curr_type;
-    while (itr->curr_record_index < itr->num_records) {
-        for (int i = 0; i < num_schema_elems; ++i) {
-            const schema_elem_t elem = schema[i];
-            read_schema(&elem, &itr->ptr, &curr_type);
-            // don't read values for now, just skip over them
-            switch (curr_type) {
-                case AVRO_STRING: {
-                    int64_t str_length;
-                    read_int64(&itr->ptr, &str_length);
-                    itr->ptr += str_length;
-                    break;
-                }
-                case AVRO_INT32:
-                case AVRO_INT64: {
-                    // we can't skip over ints and longs, since they're
-                    // variable-length encoded
-                    int64_t val;
-                    read_int64(&itr->ptr, &val);
-                    break;
-                }
-                case AVRO_BOOLEAN: {
-                    itr->ptr += 1;
-                    break;
-                }
-                case AVRO_DOUBLE: {
-                    itr->ptr += 8;
-                    break;
-                }
-                case AVRO_FLOAT: {
-                    itr->ptr += 4;
-                    break;
-                }
-                case AVRO_ARRAY: {
-                    if (elem.children[0].num_types == 2) {
-                        skip_array(&itr->ptr, elem.children[0].types);
-                    } else {
-                        // read schema entry of first (and only child)
-                        avro_type_t array_type;
-                        read_schema(&elem.children[0], &itr->ptr, &array_type);
-                        // for now, we don't support looking in an array, only
-                        // skipping an array
-                        if (array_type == AVRO_INT64) {
-                            skip_array_long(&itr->ptr);
-                        } else if (array_type == AVRO_DOUBLE) {
-                            skip_array_double(&itr->ptr);
-                        } else if (array_type == AVRO_STRING) {
-                            skip_array_string(&itr->ptr);
-                        }
-                    }
-                    break;
-                }
-                case AVRO_RECORD: {
-                    avro_context_t ctx_copy;
-                    avro_iterator_t itr_copy;
-                    // first we copy the iterator: we're only going
-                    // to iterate over a single record (the sub-record),
-                    // but we need to start where the current pointer is
-                    itr_copy.num_records = 1;
-                    itr_copy.curr_record_index = 0;
-                    itr_copy.ptr = itr->ptr;
-                    ctx_copy.itr = &itr_copy;
-
-                    // copy everything else, but also update the schema
-                    // to be the schema of the sub-record, just like in
-                    // `single_record_contains`
-                    ctx_copy.query_str = ctx->query_str;
-                    ctx_copy.num_schema_elems = elem.num_children;
-                    ctx_copy.schema = elem.children;
-                    ctx_copy.query_field_index = ctx->query_field_index;
-                    int val = record_contains(&ctx_copy, line);
-                    // update the current pointer to wherever we reached
-                    // in the sub-record
-                    itr->ptr = itr_copy.ptr;
-                    if (val > 0) {
-                        // if we found what we're looking for in the sub-record,
-                        // we're done
-                        return val;
-                    }
-                    break;
-                }
-                case AVRO_NULL:
-                default:;
-                    // do nothing
-            }
-        }
-        itr->curr_record_index++;
-        if (itr->ptr > line) {
-            check = true;
-            break;
-        }
-        prev_record = itr->ptr;
-    }
-    if (check) {
-      return single_record_contains(&prev_record, ctx);
-    }
-    return 0;
-}
-
-int advance_iterator(avro_iterator_t *itr) {
-    itr->ptr = itr->prev_header + itr->num_bytes;
-    itr->ptr += 16;  // skip over 16-byte magic string
-    if (itr->ptr >= itr->eof) {
-        return 0;
-    }
-    read_int64(&itr->ptr, &itr->num_records);
-    read_int64(&itr->ptr, &itr->num_bytes);
-    itr->prev_header = itr->ptr;
-    itr->curr_record_index = 0;
-    return 1;
-}
-
-int verify_avro(const char *line, void *thunk) {
-    if (!thunk) return 0;
-
-    avro_context_t *ctx = (avro_context_t *)thunk;
-    avro_iterator_t *itr = ctx->itr;
-
-    // Case 1: line is behind current packet, which is weird. Abort.
-    intptr_t diff = (intptr_t)line - (intptr_t)itr->ptr;
-    if (diff < 0) {
-        fprintf(stderr, "current packet is behind line!\n");
-        return 0;
-    }
-
-    // Case 2: line is ahead of current packet. Skip forward until we
-    // encapsulate that packet, and then parse it.
-    while (itr->prev_header + itr->num_bytes < line) {
-        advance_iterator(itr);
-    }
-
-    return record_contains(ctx, line);
-}
-
-void verify_avro_loop(avro_context_t *ctx) {
+void verify_parquet_loop(parquet_context_t *ctx) {
     long count = 0;
     long total = 0;
 
-    avro_iterator_t *itr = ctx->itr;
+    parquet_iterator_t *itr = ctx->itr;
+    std::shared_ptr<FileMetaData> file_metadata =
+        itr->parquet_reader->metadata();
+    for (int r = 0; r < file_metadata->num_row_groups(); ++r) {
+        const auto group_metadata = file_metadata->RowGroup(r);
+        const auto row_group_reader = itr->parquet_reader->RowGroup(r);
+        const int c = ctx->query_field_index;
+        auto column_chunk = group_metadata->ColumnChunk(c);
 
-    do {
-        while (itr->curr_record_index < itr->num_records) {
-            if (single_record_contains(&itr->ptr, ctx)) {
+        std::shared_ptr<ColumnReader> column_reader =
+            row_group_reader->Column(c);
+        parquet::ByteArrayReader *ba_reader =
+            static_cast<parquet::ByteArrayReader *>(column_reader.get());
+        parquet::ByteArray value;
+        while (ba_reader->HasNext()) {
+            int64_t values_read;
+            try {
+                ba_reader->ReadBatch(1, nullptr, nullptr, &value, &values_read);
+            } catch (const std::exception &e) {
+                std::cerr << "Parquet read error: " << e.what() << std::endl;
+                printf("%s count - %ld\n", ctx->query_str, count);
+                printf("total count - %ld\n", total);
+                return;
+            }
+#ifdef DEBUG
+            char printbuf[value.len + 1];
+            strncpy(printbuf, (char *)value.ptr, value.len);
+            printbuf[value.len] = '\0';
+            printf("%s\n", printbuf);
+#endif
+            // check value to see if it contains query string
+            char *tmp = (char *)memmem(value.ptr, value.len, ctx->query_str,
+                                       strlen(ctx->query_str));
+            if (tmp != NULL) {
                 count++;
             }
-            itr->curr_record_index++;
             total++;
         }
-    } while (advance_iterator(itr));
+    }
     printf("%s count - %ld\n", ctx->query_str, count);
     printf("total count - %ld\n", total);
+}
+
+int verify_parquet(const char *str, void *thunk) {
+    if (!thunk) return 0;
+
+    parquet_context_t *ctx = (parquet_context_t *)thunk;
+    parquet_iterator_t *itr = ctx->itr;
+    auto start = itr->start;
+
+    const int64_t byte_offset_of_str =
+        (int64_t)((intptr_t)str - (intptr_t)start);
+
+    // Case 1: str is behind current packet, which is weird. Abort.
+    if (byte_offset_of_str < itr->curr_byte_offset) {
+        fprintf(stderr, "current packet is behind str!\n");
+        return 0;
+    }
+
+    // Get the File MetaData
+    std::shared_ptr<FileMetaData> file_metadata =
+        itr->parquet_reader->metadata();
+
+    for (int r = itr->curr_row_group; r < file_metadata->num_row_groups();
+         ++r) {
+        // First, find the row group that contains `str`
+        if (r != itr->curr_row_group) {
+            itr->curr_row_group = r;
+            itr->num_rows_so_far = 0;
+            itr->prev_value_ptr = nullptr;
+        }
+        const auto group_metadata = file_metadata->RowGroup(r);
+        const auto row_group_size = group_metadata->total_byte_size();
+        const auto row_group_reader = itr->parquet_reader->RowGroup(r);
+
+        if (itr->curr_byte_offset <= byte_offset_of_str &&
+            byte_offset_of_str <= itr->curr_byte_offset + row_group_size) {
+            // We found the row group
+            const int c = ctx->query_field_index;
+            auto column_chunk = group_metadata->ColumnChunk(c);
+
+#ifdef DEBUG
+            cout << "Found row: " << r << ", col: " << c << endl;
+#endif
+
+            if (itr->num_rows_so_far == 0) {
+                // row group must have changed, so we need to update the
+                // iterator's current byte offset
+                itr->curr_byte_offset =
+                    column_chunk->data_page_offset() +
+                    15;  // some weird padding, perhaps the page header
+                itr->column_reader = row_group_reader->Column(c);
+                itr->ba_reader = static_cast<parquet::ByteArrayReader *>(
+                    itr->column_reader.get());
+            }
+
+            int64_t values_read;
+            const int64_t batch_size = 1;
+            parquet::ByteArray value;
+#ifdef DEBUG
+            assert(itr->curr_byte_offset < byte_offset_of_str);
+#endif
+            while (itr->ba_reader->HasNext()) {
+                if (itr->num_rows_so_far >= column_chunk->num_values()) {
+                    break;
+                }
+                if (itr->curr_byte_offset > byte_offset_of_str) {
+                    // we must have passed it in the previous iteration, so
+                    // stop searching
+                    break;
+                }
+// Read one value at a time. (See `batch_size`). The number
+// of rows read is returned. `values_read` contains the
+// number of non-null rows
+#ifdef DEBUG
+                int64_t rows_read;
+                try {
+                    rows_read = itr->ba_reader->ReadBatch(
+                        batch_size, nullptr, nullptr, &value, &values_read);
+                } catch (const std::exception &e) {
+                    std::cerr << "Parquet read error: " << e.what()
+                              << std::endl;
+                    return 0;
+                }
+                // Ensure only one value is read
+                assert(rows_read == batch_size);
+                assert(values_read == batch_size);
+                cout << "Num rows so far: " << itr->num_rows_so_far << endl;
+                char printbuf[value.len + 1];
+                strncpy(printbuf, (char *)value.ptr, value.len);
+                printbuf[value.len] = '\0';
+                printf("%s\n", printbuf);
+                if (value.ptr > itr->prev_value_ptr) {
+                    char *test = (char *)memmem(
+                        value.ptr, value.len, start + itr->curr_byte_offset + 4,
+                        value.len);
+                    assert(test != NULL);
+                }
+#else
+                try {
+                    itr->ba_reader->ReadBatch(batch_size, nullptr, nullptr,
+                                              &value, &values_read);
+                } catch (const std::exception &e) {
+                    std::cerr << "Parquet read error: " << e.what()
+                              << std::endl;
+                    return 0;
+                }
+#endif
+                int ret = 0;
+                if (itr->curr_byte_offset + 4 + value.len >
+                    byte_offset_of_str) {
+                    // we check the value to see if it's correct once the
+                    // curr_byte_offset
+                    // reaches the offset of str
+                    char *tmp =
+                        (char *)memmem(value.ptr, value.len, ctx->query_str,
+                                       strlen(ctx->query_str));
+                    ret = (tmp != NULL);
+                }
+                itr->num_rows_so_far += batch_size;
+                // advance curr_byte_offset if the value pointer also
+                // advanced (if it did not,
+                // we just visited a previous value)
+                if (value.ptr > itr->prev_value_ptr) {
+                    itr->curr_byte_offset +=
+                        4 + value.len;  // each byte array (string) is 4 bytes
+                                        // little endian (which encodes the
+                                        // length of the string) followed by the
+                                        // string itself.
+                    itr->prev_value_ptr = value.ptr;
+                }
+                if (ret == 1) {
+                    return ret;
+                }
+            }
+            return 0;
+        }
+    }
+
+    // Case 2: str is ahead of current packet. Skip forward until we
+    // encapsulate that packet, and then parse it.
+    // while (itr->prev_header + itr->num_bytes < str) {
+    //     advance_iterator(itr);
+    // }
+
+    return 0;
 }
 
 #endif

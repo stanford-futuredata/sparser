@@ -1,0 +1,12 @@
+File length: 6397945
+Distinct Query matches: 0
+Sparser Passed Records: 0
+Callback Passed Records: 0
+Bytes Seeked Forward: 0
+Bytes Seeked Backward: 0
+Fraction Passed Correctly: 0.000000
+Fraction False Positives: 0.000000
+Total Runtime: 3e-06 seconds
+msa count - 0
+total count - 10000
+Loop Runtime: 0.000558 seconds

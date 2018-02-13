@@ -1,0 +1,12 @@
+File length: 6397945
+Distinct Query matches: 0
+Sparser Passed Records: 9
+Callback Passed Records: 5
+Bytes Seeked Forward: 0
+Bytes Seeked Backward: 0
+Fraction Passed Correctly: 0.555556
+Fraction False Positives: 0.444444
+Total Runtime: 0.002063 seconds
+Donald Trump count - 6
+total count - 10000
+Loop Runtime: 0.002745 seconds

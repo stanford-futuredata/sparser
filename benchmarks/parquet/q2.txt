@@ -1,0 +1,12 @@
+File length: 6397945
+Distinct Query matches: 0
+Sparser Passed Records: 14
+Callback Passed Records: 14
+Bytes Seeked Forward: 0
+Bytes Seeked Backward: 0
+Fraction Passed Correctly: 1.000000
+Fraction False Positives: 0.000000
+Total Runtime: 0.00167 seconds
+Obama count - 25
+total count - 10000
+Loop Runtime: 0.002299 seconds
