@@ -22,7 +22,8 @@ int main(int, char *argv[]) {
     ctx.itr = &itr;
 
     itr.eof = raw + file_length;
-    // skip schema, null character, and magic 16-byte string
+    // skip schema (which is null-terminated), null character, and magic 16-byte
+    // string
     raw += strlen(raw) + 1 + 16;
     char *after_header = raw;
     read_int64(&raw, &itr.num_records);
@@ -43,7 +44,7 @@ int main(int, char *argv[]) {
     double parse_time = time_stop(s);
 
     printf("%s\n", sparser_format_stats(stats));
-    printf("Total Runtime: %f seconds\n", parse_time);
+    printf("Sparser Runtime: %f seconds\n", parse_time);
 
     // Reinitialize iterator at the beginning of the file
     raw = after_header;
@@ -58,7 +59,7 @@ int main(int, char *argv[]) {
     printf("Loop Runtime: %f seconds\n", parse_time);
 
     free(query);
-    // free(stats);
+    free(stats);
     free(init);
 
     return 0;

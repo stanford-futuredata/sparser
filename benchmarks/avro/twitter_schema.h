@@ -94,50 +94,28 @@ static const schema_elem_t *twitter_schema(int *total_count) {
     // {"name":"lang","type":["string","null"]},
     static const schema_elem_t _16 = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
 
-    // {"name" : "limit",
-    //  "type" : [ {
-    //    "type" : "record",
-    //    "name" : "limit",
-    //    "namespace" : ".limit",
-    //    "fields" : [ {
-    //      "name" : "timestamp_ms",
-    //      "type" : [ "string", "null" ]
-    //    }, {
-    //      "name" : "track",
-    //      "type" : [ "long", "null" ]
-    //    } ]
-    //  }, "null" ]
-    // }
-    static schema_elem_t _17 = {{AVRO_RECORD, AVRO_NULL}, 2, NULL, 2};
-    _17.children =
-        (schema_elem *)malloc(sizeof(schema_elem) * _17.num_children);
-    // {"name":"timestamp_ms","type":["string","null"]},
-    _17.children[0] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
-    // {"name":"track","type":["long","null"]},
-    _17.children[1] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
-
     // {"name":"possibly_sensitive","type":["boolean","null"]},
-    static const schema_elem_t _18 = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _17 = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"quote_count","type":["long","null"]},
-    static const schema_elem_t _19 = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _18 = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"quoted_status_id","type":["long","null"]},
-    static const schema_elem_t _20 = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _19 = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"quoted_status_id_str","type":["string","null"]},
-    static const schema_elem_t _21 = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _20 = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"reply_count","type":["long","null"]},
-    static const schema_elem_t _22 = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _21 = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"retweet_count","type":["long","null"]},
-    static const schema_elem_t _23 = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _22 = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"retweeted","type":["boolean","null"]},
-    static const schema_elem_t _24 = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _23 = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"source","type":["string","null"]},
-    static const schema_elem_t _25 = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _24 = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"text","type":["string","null"]},
-    static const schema_elem_t _26 = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _25 = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"timestamp_ms","type":["string","null"]},
-    static const schema_elem_t _27 = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _26 = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"truncated","type":["boolean","null"]},
-    static const schema_elem_t _28 = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    static const schema_elem_t _27 = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
 
     // {"name" : "user", "type" : ["record","null"]}
     // {"name" : "user",
@@ -148,102 +126,100 @@ static const schema_elem_t *twitter_schema(int *total_count) {
     //      ....
     //     }, "null" ]
     // }
-    static schema_elem_t _29 = {{AVRO_RECORD, AVRO_NULL}, 2, NULL, 39};
-    _29.children =
-        (schema_elem *)malloc(sizeof(schema_elem) * _29.num_children);
+    static schema_elem_t _28 = {{AVRO_RECORD, AVRO_NULL}, 2, NULL, 39};
+    _28.children =
+        (schema_elem *)malloc(sizeof(schema_elem) * _28.num_children);
 
     // {"name":"contributors_enabled","type":["boolean","null"]}
-    _29.children[0] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    _28.children[0] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"created_at","type":["string","null"]}
-    _29.children[1] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[1] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"default_profile","type":["boolean","null"]}
-    _29.children[2] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    _28.children[2] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"default_profile_image","type":["boolean","null"]}
-    _29.children[3] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    _28.children[3] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"description","type":["string","null"]}
-    _29.children[4] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[4] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"favourites_count","type":["long","null"]}
-    _29.children[5] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    _28.children[5] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"follow_request_sent","type":["string","null"]}
-    _29.children[6] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[6] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"followers_count","type":["long","null"]}
-    _29.children[7] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    _28.children[7] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"following","type":["string","null"]}
-    _29.children[8] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[8] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"friends_count","type":["long","null"]}
-    _29.children[9] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    _28.children[9] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"geo_enabled","type":["boolean","null"]}
-    _29.children[10] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    _28.children[10] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"id","type":["long","null"]}
-    _29.children[11] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    _28.children[11] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"id_str","type":["string","null"]}
-    _29.children[12] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[12] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"is_translator","type":["boolean","null"]}
-    _29.children[13] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    _28.children[13] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"lang","type":["string","null"]}
-    _29.children[14] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[14] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"listed_count","type":["long","null"]}
-    _29.children[15] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    _28.children[15] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"location","type":["string","null"]}
-    _29.children[16] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[16] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"name","type":["string","null"]}
-    _29.children[17] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[17] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"notifications","type":["string","null"]}
-    _29.children[18] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[18] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_background_color","type":["string","null"]}
-    _29.children[19] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[19] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_background_image_url","type":["string","null"]}
-    _29.children[20] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[20] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_background_image_url_https","type":["string","null"]}
-    _29.children[21] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[21] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_background_title","type":["boolean","null"]}
-    _29.children[22] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    _28.children[22] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_banner_url","type":["string","null"]}
-    _29.children[23] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[23] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_image_url","type":["string","null"]}
-    _29.children[24] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[24] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_image_url_https","type":["string","null"]}
-    _29.children[25] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[25] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_link_color","type":["string","null"]}
-    _29.children[26] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[26] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_sidebar_border_color","type":["string","null"]}
-    _29.children[27] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[27] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_sidebar_fill_color","type":["string","null"]}
-    _29.children[28] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[28] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_text_color","type":["string","null"]}
-    _29.children[29] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[29] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"profile_use_background_image","type":["boolean","null"]}
-    _29.children[30] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    _28.children[30] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"protected","type":["boolean","null"]}
-    _29.children[31] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    _28.children[31] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"screen_name","type":["string","null"]}
-    _29.children[32] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[32] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"statuses_count","type":["long","null"]}
-    _29.children[33] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    _28.children[33] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"time_zone","type":["string","null"]}
-    _29.children[34] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[34] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"translator_type","type":["string","null"]}
-    _29.children[35] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[35] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"url","type":["string","null"]}
-    _29.children[36] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    _28.children[36] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
     // {"name":"utc_offset","type":["long","null"]}
-    _29.children[37] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
+    _28.children[37] = {{AVRO_INT64, AVRO_NULL}, 2, NULL, 0};
     // {"name":"verified","type":["boolean","null"]}
-    _29.children[38] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
+    _28.children[38] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
 
-    // {"name":"withheld_copyright","type":["boolean","null"]}
-    static const schema_elem_t _30 = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"withheld_in_countries","type":[{"type":"array","items":["string","null"]},"null"]}
-    static schema_elem_t _31 = {{AVRO_ARRAY, AVRO_NULL}, 2, NULL, 1};
-    _31.children =
-        (schema_elem *)malloc(sizeof(schema_elem) * _31.num_children);
-    _31.children[0] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    static schema_elem_t _29 = {{AVRO_ARRAY, AVRO_NULL}, 2, NULL, 1};
+    _29.children =
+        (schema_elem *)malloc(sizeof(schema_elem) * _29.num_children);
+    _29.children[0] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
 
     static const schema_elem_t schema[] = {
         _0,  _1,  _2,  _3,  _4,  _5,  _6,  _7,  _8,  _9,  _10,
         _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21,
-        _22, _23, _24, _25, _26, _27, _28, _29, _30, _31};
-    *total_count = 32;
+        _22, _23, _24, _25, _26, _27, _28, _29};
+    *total_count = 30;
     return schema;
 }
 
