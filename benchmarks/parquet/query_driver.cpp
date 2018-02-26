@@ -82,7 +82,7 @@ int main(int, char *argv[]) {
     global_stats.fraction_passed_incorrect =
         1.0 - global_stats.fraction_passed_correct;
     cout << sparser_format_stats(&global_stats) << endl;
-    cout << "Total Runtime: " << parse_time << " seconds" << endl;
+    cout << "Sparser Runtime: " << parse_time << " seconds" << endl;
 
     s = time_start();
     verify_parquet_loop(&ctx);

@@ -5,7 +5,7 @@ Bytes Seeked Forward: 0
 Bytes Seeked Backward: 0
 Fraction Passed Correctly: 0.943913
 Fraction False Positives: 0.056087
-Total Runtime: 0.102718 seconds
+Sparser Runtime: 0.102718 seconds
 Obama count - 4342
 total count - 2566455
 Loop Runtime: 0.138437 seconds

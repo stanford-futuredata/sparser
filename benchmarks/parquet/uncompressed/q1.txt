@@ -5,7 +5,7 @@ Bytes Seeked Forward: 0
 Bytes Seeked Backward: 0
 Fraction Passed Correctly: 0.520204
 Fraction False Positives: 0.479796
-Total Runtime: 0.093265 seconds
+Sparser Runtime: 0.093265 seconds
 Donald Trump count - 1532
 total count - 2566455
 Loop Runtime: 0.149313 seconds
