@@ -1,5 +1,5 @@
-#ifndef _ZAKIR_QUERIES_H_
-#define _ZAKIR_QUERIES_H_
+#ifndef _QUERIES_H_
+#define _QUERIES_H_
 
 #include "json_projection.h"
 

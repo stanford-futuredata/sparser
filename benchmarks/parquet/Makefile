@@ -1,9 +1,9 @@
 CC=clang++
 CFLAGS=-std=c++11 -march=native -Wall -Wno-unused-function
-INCLUDES_DEBUG=-I.. -I../../common -I../../common/rapidjson/include -I../../common/parquet-cpp/src -I../../common/parquet-cpp-debug/build/debug/include
-INCLUDES=-I.. -I../../common -I../../common/rapidjson/include -I../../common/parquet-cpp/src -I../../common/parquet-cpp/build/release/include
-LDFLAGS_DEBUG=-L../../common/parquet-cpp-debug/build/debug -lparquet -larrow
-LDFLAGS=-L../../common/parquet-cpp/build/release -lparquet -larrow
+INCLUDES_DEBUG=-I.. -I../../common -I../../common/rapidjson/include -I../../common/parquet-cpp-firas/src -I../../common/parquet-cpp-firas/build/debug/include
+INCLUDES=-I.. -I../../common -I../../common/rapidjson/include -I../../common/parquet-cpp-firas/src -I../../common/parquet-cpp-firas/build/release/include
+LDFLAGS_DEBUG=-L../../common/parquet-cpp-firas/build/debug -lparquet -larrow
+LDFLAGS=-L../../common/parquet-cpp-firas/build/release -lparquet -larrow
 
 .PHONY: all debug asm clean
 

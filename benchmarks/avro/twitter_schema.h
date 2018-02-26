@@ -93,7 +93,6 @@ static const schema_elem_t *twitter_schema(int *total_count) {
     static const schema_elem_t _15 = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"lang","type":["string","null"]},
     static const schema_elem_t _16 = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
-
     // {"name":"possibly_sensitive","type":["boolean","null"]},
     static const schema_elem_t _17 = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"quote_count","type":["long","null"]},
@@ -209,17 +208,19 @@ static const schema_elem_t *twitter_schema(int *total_count) {
     // {"name":"verified","type":["boolean","null"]}
     _28.children[38] = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
 
+    // {"name":"withheld_copyright","type":["boolean","null"]},
+    static const schema_elem_t _29 = {{AVRO_BOOLEAN, AVRO_NULL}, 2, NULL, 0};
     // {"name":"withheld_in_countries","type":[{"type":"array","items":["string","null"]},"null"]}
-    static schema_elem_t _29 = {{AVRO_ARRAY, AVRO_NULL}, 2, NULL, 1};
-    _29.children =
-        (schema_elem *)malloc(sizeof(schema_elem) * _29.num_children);
-    _29.children[0] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
+    static schema_elem_t _30 = {{AVRO_ARRAY, AVRO_NULL}, 2, NULL, 1};
+    _30.children =
+        (schema_elem *)malloc(sizeof(schema_elem) * _30.num_children);
+    _30.children[0] = {{AVRO_STRING, AVRO_NULL}, 2, NULL, 0};
 
     static const schema_elem_t schema[] = {
         _0,  _1,  _2,  _3,  _4,  _5,  _6,  _7,  _8,  _9,  _10,
         _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21,
-        _22, _23, _24, _25, _26, _27, _28, _29};
-    *total_count = 30;
+        _22, _23, _24, _25, _26, _27, _28, _29, _30};
+    *total_count = 31;
     return schema;
 }
 

@@ -1,11 +1,11 @@
 Distinct Query matches: 0
-Sparser Passed Records: 1488
-Callback Passed Records: 459
+Sparser Passed Records: 6204
+Callback Passed Records: 1532
 Bytes Seeked Forward: 0
 Bytes Seeked Backward: 0
-Fraction Passed Correctly: 0.308468
-Fraction False Positives: 0.691532
-Sparser Runtime: 0.083434 seconds
-Donald Trump count - 459
-total count - 461363
-Loop Runtime: 0.314101 seconds
+Fraction Passed Correctly: 0.246937
+Fraction False Positives: 0.753063
+Sparser Runtime: 0.329125 seconds
+Donald Trump count - 1532
+total count - 2566439
+Loop Runtime: 1.258893 seconds

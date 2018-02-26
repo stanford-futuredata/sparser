@@ -252,7 +252,7 @@ typedef struct schema_elem {
     avro_type_t types[2];  // hardcode it to be up to 2 for now
     uint32_t num_types;
     schema_elem *children;
-    uint32_t num_children;
+    int num_children;
 } schema_elem_t;
 
 typedef struct avro_context {
@@ -369,8 +369,14 @@ int single_record_contains(char **prev_ptr, avro_context_t *ctx) {
                 ctx_copy.query_str = ctx->query_str;
                 ctx_copy.num_schema_elems = elem.num_children;
                 ctx_copy.schema = elem.children;
-                ctx_copy.query_field_index = ctx->query_field_index % elem.num_children;
-                // we copy the current avro context, but change the schema to
+                if (ctx->query_field_index > elem.num_children) {
+                    ctx_copy.query_field_index =
+                        ctx->query_field_index % elem.num_children;
+                } else {
+                    ctx_copy.query_field_index = -1;
+                }
+                // we copy the current avro context, but change the schema
+                // to
                 // be the schema of the sub-record
                 const int val = single_record_contains(&ptr, &ctx_copy);
                 if (val > 0) {
@@ -385,8 +391,7 @@ int single_record_contains(char **prev_ptr, avro_context_t *ctx) {
                 // do nothing
         }
     }
-    // if, somehow, we reach this point (the query_field_index was larger
-    // than the number of fields) return false
+    // if, somehow, we reach this point, return false
     *prev_ptr = ptr;
     return ret;
 }
@@ -477,15 +482,19 @@ int record_contains(avro_context_t *ctx, const char *line) {
                     ctx_copy.query_str = ctx->query_str;
                     ctx_copy.num_schema_elems = elem.num_children;
                     ctx_copy.schema = elem.children;
-                    ctx_copy.query_field_index =
-                        ctx->query_field_index % elem.num_children;
+                    if (ctx->query_field_index > elem.num_children) {
+                        ctx_copy.query_field_index =
+                            ctx->query_field_index % elem.num_children;
+                    } else {
+                        ctx_copy.query_field_index = -1;
+                    }
                     int val = record_contains(&ctx_copy, line);
                     // update the current pointer to wherever we reached
                     // in the sub-record
                     itr->ptr = itr_copy.ptr;
                     if (val > 0) {
-                        // if we found what we're looking for in the sub-record,
-                        // we're done
+                        // if we found what we're looking for in the
+                        // sub-record, we're done
                         return val;
                     }
                     break;

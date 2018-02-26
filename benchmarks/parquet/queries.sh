@@ -1,15 +1,29 @@
 #! /usr/bin/env bash
 
-PARQUET_INPUT="/lfs/1/sparser/tweets-10000-single-no-limit-uncompressed-projected.parquet"
+SNAPPY_INPUT="/lfs/1/sparser/tweets23g-single-no-limit-snappy-projected-text-unique.parquet"
+UNCOMPRESSED_INPUT="/lfs/1/sparser/tweets23g-single-no-limit-uncompressed-projected-text-unique.parquet"
 
-if [ "$#" -gt 0 ]; then
-  PARQUET_INPUT=$1
+if [ "$#" -eq 0 ]; then
+  echo "Usage: ./queries.sh [--snappy|--uncompressed]"
+  exit 1
 fi
+
+if [ $1 == "--snappy" ]; then
+  INPUT=$SNAPPY_INPUT
+  OUTPUT_DIR=snappy
+elif [ $1 == "--uncompressed" ]; then
+  INPUT=$UNCOMPRESSED_INPUT
+  OUTPUT_DIR=uncompressed
+else
+  echo "Usage: ./queries.sh [--snappy|--uncompressed]"
+  exit 1
+fi
+
+mkdir -p $OUTPUT_DIR
 
 set -x
 
-./bench $PARQUET_INPUT  27 "Donald Trump" "ld T" > q1.txt
-./bench $PARQUET_INPUT  27 "Obama" "Obam" > q2.txt
-./bench $PARQUET_INPUT  44 "msa" "msa" > q3.txt
-./bench $PARQUET_INPUT  27 "realDonaldTrump" "ldTr" > q4.txt
+./bench $INPUT 27 "Donald Trump" "ld T" > ${OUTPUT_DIR}/q1.txt
+./bench $INPUT  27 "Obama" "Obam" > ${OUTPUT_DIR}/q2.txt
+./bench $INPUT  27 "realDonaldTrump" "ldTr" > ${OUTPUT_DIR}/q4.txt
 
