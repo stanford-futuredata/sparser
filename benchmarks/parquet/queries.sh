@@ -24,6 +24,7 @@ mkdir -p $OUTPUT_DIR
 set -x
 
 ./bench $INPUT 27 "Donald Trump" "ld T" > ${OUTPUT_DIR}/q1.txt
-./bench $INPUT  27 "Obama" "Obam" > ${OUTPUT_DIR}/q2.txt
-./bench $INPUT  27 "realDonaldTrump" "ldTr" > ${OUTPUT_DIR}/q4.txt
+./bench $INPUT 27 "Obama" "Obam" > ${OUTPUT_DIR}/q2.txt
+./bench $INPUT 51 "msa" "msa" > ${OUTPUT_DIR}/q3.txt
+./bench $INPUT 27 "realDonaldTrump" "ldTr" > ${OUTPUT_DIR}/q4.txt
 
