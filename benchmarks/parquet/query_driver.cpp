@@ -30,7 +30,7 @@ int main(int, char *argv[]) {
     // Add the query
     sparser_query_t *query =
         (sparser_query_t *)calloc(sizeof(sparser_query_t), 1);
-    sparser_add_query_binary(query, query_substr, 4);
+    sparser_add_query_binary(query, query_substr, strlen(query_substr));
 
     std::shared_ptr<FileMetaData> file_metadata =
         itr.parquet_reader->metadata();

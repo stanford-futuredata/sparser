@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 SNAPPY_INPUT="/lfs/1/sparser/tweets23g-single-no-limit-snappy-projected-text-unique.parquet"
-UNCOMPRESSED_INPUT="/lfs/1/sparser/tweets23g-single-no-limit-uncompressed-projected-text-unique.parquet"
+UNCOMPRESSED_INPUT="/lfs/1/sparser/tweets23g-single-no-limit-uncompressed-projected-text-unique-plain-encoded.parquet"
 
 if [ "$#" -eq 0 ]; then
   echo "Usage: ./queries.sh [--snappy|--uncompressed]"
@@ -25,6 +25,6 @@ set -x
 
 ./bench $INPUT 27 "Donald Trump" "ld T" > ${OUTPUT_DIR}/q1.txt
 ./bench $INPUT 27 "Obama" "Obam" > ${OUTPUT_DIR}/q2.txt
-./bench $INPUT 51 "msa" "msa" > ${OUTPUT_DIR}/q3.txt
+./bench $INPUT 44 "msa" "ms" > ${OUTPUT_DIR}/q3.txt # Note: change to sparser_search2_binary in query_driver.cpp
 ./bench $INPUT 27 "realDonaldTrump" "ldTr" > ${OUTPUT_DIR}/q4.txt
 
