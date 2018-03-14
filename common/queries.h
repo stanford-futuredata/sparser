@@ -86,10 +86,14 @@ json_query_t zakir_query2() {
 }
 
 static const char **sparser_zakir_query2(int *count) {
-    static const char *_1 = "WordPress 4.0";
-    static const char *predicates[] = {_1, NULL};
+    static const char *_1 = "content=\"WordPress 4.0";
+    static const char *_2 = "p80";
+    static const char *_3 = "http";
+    static const char *_4 = "get";
+    static const char *_5 = "body";
+    static const char *predicates[] = {_1, _2, _3, _4, _5, NULL};
 
-    *count = 1;
+    *count = 5;
     return predicates;
 }
 
@@ -113,9 +117,11 @@ json_query_t zakir_query3() {
 
 static const char **sparser_zakir_query3(int *count) {
     static const char *_1 = "2516";
-    static const char *predicates[] = {_1, NULL};
+    static const char *_2 = "autonomous_system";
+    static const char *_3 = "asn";
+    static const char *predicates[] = {_1, _2, _3, NULL};
 
-    *count = 1;
+    *count = 3;
     return predicates;
 }
 
@@ -147,10 +153,15 @@ json_query_t zakir_query4() {
 
 static const char **sparser_zakir_query4(int *count) {
     static const char *_1 = "Chile";
-    static const char *_2 = "status_code";
-    static const char *predicates[] = {_1, _2, NULL};
+    static const char *_2 = "location";
+    static const char *_3 = "country";
+    static const char *_4 = "p80";
+    static const char *_5 = "http";
+    static const char *_6 = "get";
+    static const char *_7 = "status_code";
+    static const char *predicates[] = {_1, _2, _3, _4, _5, _6, _7, NULL};
 
-    *count = 2;
+    *count = 7;
     return predicates;
 }
 
@@ -174,9 +185,14 @@ json_query_t zakir_query5() {
 
 static const char **sparser_zakir_query5(int *count) {
     static const char *_1 = "DIR-300";
-    static const char *predicates[] = {_1, NULL};
+    static const char *_2 = "p80";
+    static const char *_3 = "http";
+    static const char *_4 = "get";
+    static const char *_5 = "headers";
+    static const char *_6 = "server";
+    static const char *predicates[] = {_1, _2, _3, _4, _5, _6, NULL};
 
-    *count = 1;
+    *count = 6;
     return predicates;
 }
 
@@ -231,9 +247,12 @@ json_query_t zakir_query7() {
 
 static const char **sparser_zakir_query7(int *count) {
     static const char *_1 = "Seagate Central Shared";
-    static const char *predicates[] = {_1, NULL};
+    static const char *_2 = "p21";
+    static const char *_3 = "ftp";
+    static const char *_4 = "banner";
+    static const char *predicates[] = {_1, _2, _3, _4, NULL};
 
-    *count = 1;
+    *count = 4;
     return predicates;
 }
 
@@ -314,9 +333,12 @@ json_query_t zakir_query9() {
 
 static const char **sparser_zakir_query9(int *count) {
     static const char *_1 = "Verizon";
-    static const char *predicates[] = {_1, NULL};
+    static const char *_2 = "autonomous_system";
+    static const char *_3 = "name";
+    static const char *_4 = "ipint";
+    static const char *predicates[] = {_1, _2, _3, _4, NULL};
 
-    *count = 1;
+    *count = 4;
     return predicates;
 }
 
@@ -559,14 +581,10 @@ static const char **sparser_twitter_query4(int *count) {
 // ************** All the queries we want to test **************
 const zakir_query_t queries[] = {zakir_query1,   zakir_query2,   zakir_query3,
                                  zakir_query4,   zakir_query5,   zakir_query6,
-                                 zakir_query7,   zakir_query8,   zakir_query9,
-                                 zakir_query10,  twitter_query1, twitter_query2,
-                                 twitter_query3, twitter_query4, NULL};
+                                 zakir_query7,   zakir_query8,   zakir_query9, NULL };
 const sparser_zakir_query_preds_t squeries[] = {
     sparser_zakir_query1,   sparser_zakir_query2,   sparser_zakir_query3,
     sparser_zakir_query4,   sparser_zakir_query5,   sparser_zakir_query6,
-    sparser_zakir_query7,   sparser_zakir_query8,   sparser_zakir_query9,
-    sparser_zakir_query10,  sparser_twitter_query1, sparser_twitter_query2,
-    sparser_twitter_query3, sparser_twitter_query4, NULL};
+    sparser_zakir_query7,   sparser_zakir_query8,   sparser_zakir_query9, NULL };
 
 #endif

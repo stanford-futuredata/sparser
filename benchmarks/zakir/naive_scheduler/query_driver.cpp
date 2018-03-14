@@ -251,7 +251,7 @@ double bench_sparser_engine_naive(char *data,
 }
 
 void bench_sparser_engine_new(char *data, long length, json_query_t jquery, decomposed_t *d) {
-	sparser_query_t *query = sparser_calibrate(data, length, '\n', d, _rapidjson_parse_callback);
+	sparser_query_t *query = sparser_calibrate(data, length, '\n', d, _rapidjson_parse_callback, &jquery);
   sparser_stats_t *stats = sparser_search(data, length, query, _rapidjson_parse_callback, &jquery);
 
   assert(stats);

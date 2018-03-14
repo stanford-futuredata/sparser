@@ -38,7 +38,7 @@ const int SPARSER_MAX_QUERY_LENGTH = 16;
 const int SPARSER_MAX_QUERY_COUNT = 32;
 
 const int MAX_SUBSTRINGS = 32;
-const int MAX_SAMPLES  = 64;
+const int MAX_SAMPLES  = 1000;
 const int MAX_SCHEDULE_SIZE  = 4;
 
 const int PARSER_MEASUREMENT_SAMPLES = 10;
@@ -251,6 +251,7 @@ void search_schedules(decomposed_t *predicates,
 struct calibrate_timing {
 	double sampling_total;
 	double searching_total;
+	double grepping_total;
 
 	long cycles_per_schedule_avg;
 	long cycles_per_parse_avg;
@@ -263,14 +264,16 @@ struct calibrate_timing {
 };
 
 void print_timing(struct calibrate_timing *t) {
-	fprintf(stderr, "Sampling Total: %f\n\
-Searching Total: %f\n\
+	printf("Calibrate Sampling Total: %f\n\
+Calibrate Searching Total: %f\n\
+Calibrate Grepping Total: %f\n\
 Cycles/Schedule: %lu\n\
 %% Schedules Skipped: %f\n\
 Cycles/Parse: %lu\n\
 Total Time: %f\n",
 	t->sampling_total,
 	t->searching_total,
+	t->grepping_total,
 	t->cycles_per_schedule_avg,
 	((double)t->skipped) / ((double)(t->processed + t->skipped)) * 100.0,
 	t->cycles_per_parse_avg,
@@ -294,7 +297,8 @@ sparser_query_t *sparser_calibrate(char *sample,
 		long length,
 		char delimiter,
 		decomposed_t *predicates,
-		sparser_callback_t callback) {
+		sparser_callback_t callback,
+		void *callback_arg) {
 
 
 		struct calibrate_timing timing;
@@ -332,11 +336,12 @@ sparser_query_t *sparser_calibrate(char *sample,
         sample = newline + 1;
         remaining_length -= (sample - line);
 
+				bench_timer_t grep_timer = time_start();
         for (uint64_t i = 0; i < num_substrings; i++) {
             const char *predicate = predicates->strings[i];
 						DBG("grepping for %s...", predicate);
 
-            if (strstr(line, predicate)) {
+            if (memmem(line, newline - line, predicate, predicates->lens[i])) {
                 // Set this record to found for this substring.
                 bitmap_set(&passthrough_masks[i], records);
 								DBG("found!\n");
@@ -344,11 +349,13 @@ sparser_query_t *sparser_calibrate(char *sample,
 							DBG("not found.\n");
 						}
         }
+				double grep_time = time_stop(grep_timer);
+				timing.grepping_total += grep_time;
 
 				// To estimate the full parser's cost.
 				if (records < PARSER_MEASUREMENT_SAMPLES) {
 					unsigned long start = rdtsc();
-					passed += callback(line, NULL);
+					passed += callback(line, callback_arg);
 					unsigned long end = rdtsc();
 					parse_cost += (end - start);
 					parsed_records++;

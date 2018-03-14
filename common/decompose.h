@@ -12,6 +12,7 @@ typedef struct decomposed {
 	const char **strings;
 	// The source of the string.
 	const int *sources;
+	const int *lens;
 	// Region where strings are allocated.
 	char *region;
 	// Number of strings created.
@@ -37,6 +38,7 @@ decomposed_t decompose(const char **predicates, int num_predicates) {
 
 	const char **result = (const char **)malloc(sizeof(char *) * num_decomposed);
 	int *sources = (int *)malloc(sizeof(int) * num_decomposed);
+	int *lens = (int *)malloc(sizeof(int) * num_decomposed);
 	char *region = (char *)malloc(sizeof(char) * region_bytes); 
 
 	// index into result.
@@ -47,6 +49,7 @@ decomposed_t decompose(const char **predicates, int num_predicates) {
 	for (int j = 0; j < num_predicates; j++) {
 		// Add the first string.
 		result[i] = predicates[j];	
+		lens[i] = strlen(predicates[j]);
 		sources[i] = j;
 		i++;
 		
@@ -60,6 +63,7 @@ decomposed_t decompose(const char **predicates, int num_predicates) {
 
 			result[i] = region_ptr;
 			sources[i] = j;
+			lens[i] = REGSZ;
 
 			region_ptr += 5;
 			i++;
@@ -69,6 +73,7 @@ decomposed_t decompose(const char **predicates, int num_predicates) {
 	decomposed_t d;
 	d.strings = result;
 	d.sources = sources;
+	d.lens = lens;
 	d.region = region;
 	d.num_strings = i;
 
