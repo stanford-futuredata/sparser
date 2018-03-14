@@ -20,7 +20,8 @@ set -x
   # --conf "spark.dynamicAllocation.enabled=false" \
   # --num-executors 2 \
 
-$SPARK_HOME/bin/spark-submit --class edu.stanford.sparser.App \
+$SPARK_HOME/bin/spark-submit --packages com.databricks:spark-avro_2.11:4.0.0 \
+  --class edu.stanford.sparser.App \
   --master $MASTER target/sparser-1.0.jar \
    10 \
   ${@:2}

@@ -10,7 +10,7 @@ class Sparser(val numFields: Int = 1, val recordSizeInBytes: Long = 16, val maxR
   val spNative = new SparserNative()
   var rawAddress: Long = 0L
   var recordsParsed: Long = 0L
-  val buf: ByteBuffer = ByteBuffer.allocateDirect((maxRecords*recordSizeInBytes).toInt)
+  val buf: ByteBuffer = ByteBuffer.allocateDirect((maxRecords * recordSizeInBytes).toInt)
   buf.order(ByteOrder.nativeOrder())
 
   def parseJson(jsonFilename: String, start: Long, length: Long, queryIndex: Int): Unit = {

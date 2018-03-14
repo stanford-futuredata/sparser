@@ -18,11 +18,13 @@ package edu.stanford.sparser
 import org.apache.spark.sql.{DataFrame, DataFrameReader}
 
 package object sparser {
+
   /**
-   * Adds a method, `sparser`, to DataFrameReader that allows you to read CSV/JSON files using
-   * Sparser combined with the DataFileReader
-   */
+    * Adds a method, `sparser`, to DataFrameReader that allows you to read CSV/JSON files using
+    * Sparser combined with the DataFileReader
+    */
   implicit class SparserDataFrameReader(reader: DataFrameReader) {
     def sparser: String => DataFrame = reader.format("edu.stanford.sparser").load
   }
+
 }
