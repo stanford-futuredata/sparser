@@ -264,7 +264,7 @@ struct calibrate_timing {
 };
 
 void print_timing(struct calibrate_timing *t) {
-	printf("Calibrate Sampling Total: %f\n\
+	DBG("Calibrate Sampling Total: %f\n\
 Calibrate Searching Total: %f\n\
 Calibrate Grepping Total: %f\n\
 Cycles/Schedule: %lu\n\
@@ -410,7 +410,7 @@ sparser_query_t *sparser_calibrate(char *sample,
 			strcat(printer, predicates->strings[sd.best_schedule[i]]);	
 			strcat(printer, " ");
 		}
-		fprintf(stderr, "Best schedule: %s\n", printer);
+		DBG("Best schedule: %s\n", printer);
 
     sparser_query_t *squery = sparser_new_query();
     memset(squery, 0, sizeof(sparser_query_t));
