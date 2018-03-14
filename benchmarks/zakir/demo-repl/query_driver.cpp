@@ -102,13 +102,32 @@ static int getLine (const char *prmpt, char *buff, size_t sz) {
 	return OK;
 }
 
+void process_query(char *raw, long length, int query_index) {
+	printf("Running query:\n ---------------------\x1b[1;31m%s\x1b[0m\n ---------------------\n", demo_query_strings[query_index]);
+
+	int count = 0;
+	json_query_t jquery = demo_queries[query_index]();
+	const char ** preds = sdemo_queries[query_index](&count);
+	decomposed_t d = decompose(preds, count);
+	bench_sparser_engine(raw, length, jquery, &d, query_index);
+
+	json_query_t query = demo_queries[query_index]();
+	bench_rapidjson_engine(raw, length, query, query_index);
+}
+
+void print_queries(int num_queries) {
+	for (int i = 0; i < num_queries; i++) {
+		printf("\x1b[1;34mQuery %d:\x1b[0m -------------\x1b[1;31m%s\x1b[0m\n ---------------------\n", i+1, demo_query_strings[i]);
+	}
+}
+
 int main(int argc, char **argv) {
 
   char *raw;
   long length;
 
 	// Read in the data beforehand.
-  const char *filename = "/lfs/1/sparser/tweets23g.json";
+  const char *filename = "/lfs/1/sparser/zakir-small.json";
 
 	printf("Reading data...");
 	fflush(stdout);
@@ -136,6 +155,12 @@ int main(int argc, char **argv) {
 				continue;
     }
 
+		if (strcmp(buff, "queries") == 0) {
+			printf("Dataset: %s (%f GB)\n", filename, (double)length / 1e9);
+			print_queries(num_queries);
+			continue;
+		}
+
 		char *endptr;
 		long query_index = strtoul(buff, &endptr, 10);
 		if (endptr == buff || query_index > num_queries) {
@@ -144,15 +169,7 @@ int main(int argc, char **argv) {
 		}
 
 		query_index--;
-		printf("Running query:\n ---------------------\x1b[1;31m%s\x1b[0m\n ---------------------\n", demo_query_strings[query_index]);
+		process_query(raw, length, query_index);
 
-		int count = 0;
-		json_query_t jquery = demo_queries[query_index]();
-		const char ** preds = sdemo_queries[query_index](&count);
-		decomposed_t d = decompose(preds, count);
-		bench_sparser_engine(raw, length, jquery, &d, query_index);
-
-		json_query_t query = demo_queries[query_index]();
-		bench_rapidjson_engine(raw, length, query, query_index);
 	}
 }
