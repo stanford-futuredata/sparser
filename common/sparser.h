@@ -1,32 +1,47 @@
 #ifndef _SPARSER_H_
 #define _SPARSER_H_
 
+
 #include <immintrin.h>
 
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <string.h>
 
 #include <arpa/inet.h>
 
+#include "decompose.h"
 #include "bitmap.h"
 #include "common.h"
 #include "rdtsc.h"
 
+#ifdef DEBUG
+#define DBG(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( false )
+#else
+#define DBG(...) do{ } while ( false )
+#endif
+
 // Checks if bit i is set in n.
 #define IS_SET(n, i) (n & (0x1L << i))
-
-// Uncomment to show timing information for calibration phase.
-#define CALIBRATE_TIMING
 
 // Size of the register we use.
 const int VECSZ = 32;
 // Max size of a single search string.
-const int SPARSER_MAX_QUERY_LENGTH = 4 + 1;
+const int SPARSER_MAX_QUERY_LENGTH = 16;
 // Max number of search strings in a single query.
 const int SPARSER_MAX_QUERY_COUNT = 32;
+
+const int MAX_SUBSTRINGS = 32;
+const int MAX_SAMPLES  = 1000;
+const int MAX_SCHEDULE_SIZE  = 4;
+
+const int PARSER_MEASUREMENT_SAMPLES = 10;
 
 // Defines a sparser query.
 typedef struct sparser_query_ {
@@ -46,6 +61,8 @@ typedef int (*sparser_searchfunc_t)(__m256i, const char *);
 typedef int (*sparser_callback_t)(const char *input, void *);
 
 typedef struct sparser_stats_ {
+		// Number of records processed.
+		long records;
     // Number of times the search query matched.
     long total_matches;
     // Number of records sparser passed.
@@ -64,77 +81,40 @@ typedef struct sparser_stats_ {
     double fraction_passed_incorrect;
 } sparser_stats_t;
 
-/** Search for an 8-bit search string.
- *
- * @param reg the register filled with the search value
- * @param base the data to search. Should be at least 32 bytes long.
- *
- * @return the number of matches found.
- */
-int search_epi8(__m256i reg, const char *base) {
-    int count = 0;
-    __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-    unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi8(reg, val));
-    while (mask) {
-        int index = ffs(mask) - 1;
-        mask &= ~(1 << index);
-        count++;
-    }
-    return count;
-}
+typedef struct search_data {
+	// Number of records sampled.
+	double num_records;	
+	// The false positive masks for each sample.
+	bitmap_t *passthrough_masks;
+	// Cost of the full parser.
+	double full_parse_cost;
+	// Best cost so far.
+	double best_cost;
+	// Best schedule (indexes into decomposed_t).
+	int best_schedule[MAX_SCHEDULE_SIZE];
+	// Length of the full parser.
+	int schedule_len;
 
-/** Search for an 16-bit search string.
- *
- * @param reg the register filled with the search value
- * @param base the data to search. Should be at least 32 bytes long.
- *
- * @return the number of matches found.
- */
-int search_epi16(__m256i reg, const char *base) {
-    int count = 0;
-    __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-    unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(reg, val));
-    mask &= 0x55555555;
+	// The joint bitmap (to prevent small repeated malloc's)
+	bitmap_t joint;
 
-    while (mask) {
-        int index = ffs(mask) - 1;
-        mask &= ~(1 << index);
-        count++;
-    }
-    return count;
-}
+	// number of schedules skipped.
+	long skipped;
+	// number of schedules processed.
+	long processed;
+	// Total cycles spent *processing and skipping*.
+	long total_cycles;
 
-/** Search for an 32-bit search string.
- *
- * @param reg the register filled with the search value
- * @param base the data to search. Should be at least 32 bytes long.
- *
- * @return the number of matches found.
- */
-int search_epi32(__m256i reg, const char *base) {
-    int count = 0;
-    __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-    unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(reg, val));
-    mask &= 0x11111111;
-
-    while (mask) {
-        int index = ffs(mask) - 1;
-        mask &= ~(1 << index);
-        count++;
-    }
-    return count;
-}
+} search_data_t;
 
 sparser_query_t *sparser_new_query() {
     return (sparser_query_t *)calloc(sizeof(sparser_query_t), 1);
 }
 
-/* Adds a search term to the query. The search term is clipped at either 1, 2,
- * or
- * 4 bytes.
+/* Adds a search term to the query.
  *
  * @param query the query
- * @param string the search string, clipped to 1, 2, or 4 bytes.
+ * @param string the search string.
  *
  * @return 0 if successful, nonzero otherwise.
  */
@@ -143,16 +123,8 @@ int sparser_add_query(sparser_query_t *query, const char *string) {
         return -1;
     }
 
-    // Clip to the lowest multiple of 2.
-    size_t len = (strnlen(string, SPARSER_MAX_QUERY_LENGTH + 1) / 2) * 2;
-    if (len != 1 && len != 2 && len != 4) {
-        return 1;
-    }
-
-    strncpy(query->queries[query->count], string, len);
-    query->queries[query->count][len] = '\0';
-
-    query->lens[query->count] = len;
+    strncpy(query->queries[query->count], string, SPARSER_MAX_QUERY_LENGTH);
+    query->lens[query->count] = strnlen(string, SPARSER_MAX_QUERY_LENGTH);
     query->count++;
     return 0;
 }
@@ -182,6 +154,132 @@ int sparser_add_query_binary(sparser_query_t *query, const void *term,
     return 0;
 }
 
+
+/** Cost of a prefilter which searches for word. */
+double pf_cost(const char *word) {
+	return strlen(word) * 8.0;
+}
+
+/** Searches through combinations of prefilters to evaluate the best schedule. */
+void search_schedules(decomposed_t *predicates,
+		search_data_t *sd,
+		int len,
+		int start,
+		int *result,
+		const int result_len) {
+
+#ifdef DEBUG
+	static char printer[4096];
+#endif
+
+	// Base case - compute the cost.
+	if (len == 0) {
+
+		long start = rdtsc();
+
+		assert(result_len > 0);
+
+#ifdef DEBUG
+		printer[0] = 0;
+		for (int i = 0; i < result_len; i++) {
+			strcat(printer, predicates->strings[result[i]]);	
+			strcat(printer, " ");
+		}
+#endif
+		DBG("Considering schedule %s...", printer);
+
+		for (int i = 0; i < result_len; i++) {
+			for (int j = 0; j < result_len; j++) {
+				if (i != j && predicates->sources[result[i]] == predicates->sources[result[j]]) {
+					DBG("\x1b[0;33mskipped\x1b[0m due to duplicate source!\n");
+					long end = rdtsc();
+					sd->skipped++;
+					sd->total_cycles += (end - start);
+					return;
+				}
+			}
+		}
+
+		DBG("\x1b[0;32mprocessing!\x1b[0m\n");
+
+		int first_index = result[0];
+		bitmap_t *joint = &sd->joint;
+		bitmap_copy(joint, &sd->passthrough_masks[first_index]);
+
+		// First filter runs unconditionally.
+		double total_cost = pf_cost(predicates->strings[first_index]);
+
+		for (int i = 1; i < result_len; i++) {
+			int index = result[i];
+			uint64_t joint_rate = bitmap_count(joint);
+			double filter_cost = pf_cost(predicates->strings[index]);
+			double rate = ((double)joint_rate) / sd->num_records;
+			DBG("\t Rate after %s: %f\n", predicates->strings[result[i-1]], rate);
+			total_cost += filter_cost * rate;
+
+			bitmap_and(joint, joint, &sd->passthrough_masks[index]);	
+		}
+
+		// Account for full parser.
+		uint64_t joint_rate = bitmap_count(joint);
+		double filter_cost = sd->full_parse_cost;
+		double rate = ((double)joint_rate) / sd->num_records;
+		DBG("\t Rate after %s (rate of full parse): %f\n", predicates->strings[result[result_len-1]], rate);
+		total_cost += filter_cost * rate;
+		DBG("\tCost: %f\n", total_cost);
+
+		if (total_cost < sd->best_cost) {
+			assert(result_len <= MAX_SCHEDULE_SIZE);
+			memcpy(sd->best_schedule, result, sizeof(int) * result_len);
+			sd->schedule_len = result_len;
+		}
+
+		long end = rdtsc();
+		sd->processed++;
+		sd->total_cycles += end - start;
+		return;
+	}
+
+	// Recursively find schedules.
+	for (int i = start; i <= predicates->num_strings - len; i++) {
+		// Just record the index into predicates.
+		result[result_len - len] = i;
+		search_schedules(predicates, sd, len - 1, i + 1, result, result_len);
+	}
+}
+
+struct calibrate_timing {
+	double sampling_total;
+	double searching_total;
+	double grepping_total;
+
+	long cycles_per_schedule_avg;
+	long cycles_per_parse_avg;
+
+	// scheudles.
+	long processed;
+	long skipped;
+
+	double total;
+};
+
+void print_timing(struct calibrate_timing *t) {
+	DBG("Calibrate Sampling Total: %f\n\
+Calibrate Searching Total: %f\n\
+Calibrate Grepping Total: %f\n\
+Cycles/Schedule: %lu\n\
+%% Schedules Skipped: %f\n\
+Cycles/Parse: %lu\n\
+Total Time: %f\n",
+	t->sampling_total,
+	t->searching_total,
+	t->grepping_total,
+	t->cycles_per_schedule_avg,
+	((double)t->skipped) / ((double)(t->processed + t->skipped)) * 100.0,
+	t->cycles_per_parse_avg,
+	t->total);
+}
+
 /** Returns a search query given a sample input and a set of predicates. The
  * returned search query
  * attempts to jointly minimize the search time and false positive rate.
@@ -195,998 +293,141 @@ int sparser_add_query_binary(sparser_query_t *query, const void *term,
  * @return a search query, or NULL if an error occurred. The returned query
  * should be returned with free().
  */
-sparser_query_t *sparser_calibrate(char *sample, long length,
-                                   const char **predicates, int count,
-                                   sparser_callback_t callback) {
-    // Maximum number of samples to try.
-    const int MAX_SAMPLES = 64;
-    // Maximum number of substrings to try.
-    const int MAX_SUBSTRINGS = 64;
+sparser_query_t *sparser_calibrate(char *sample,
+		long length,
+		char delimiter,
+		decomposed_t *predicates,
+		sparser_callback_t callback,
+		void *callback_arg) {
 
-    // Stores false positive counts for each predicate.
-    int false_positives[MAX_SUBSTRINGS];
-    memset(false_positives, 0, sizeof(false_positives));
+
+		struct calibrate_timing timing;
+		memset(&timing, 0, sizeof(timing));
+		bench_timer_t start_e2e = time_start();
 
     // Stores false positive mask for each predicate.
     // Bit `i` is set if the ith false positive record was *passed* by the
     // predicate.
-    bitmap_t false_positives_mask[MAX_SUBSTRINGS];
+    bitmap_t passthrough_masks[MAX_SUBSTRINGS];
     for (int i = 0; i < MAX_SUBSTRINGS; i++) {
-        false_positives_mask[i] = bitmap_new(MAX_SAMPLES);
+        passthrough_masks[i] = bitmap_new(MAX_SAMPLES);
     }
 
-    // Store the substring source (i.e., which predicate it is derived from).
-    int substring_source[MAX_SUBSTRINGS];
-    // Store the length of the substring.
-    size_t substring_lengths[MAX_SUBSTRINGS];
+		// The number of substrings to process.
+		int num_substrings = predicates->num_strings > MAX_SUBSTRINGS ? MAX_SUBSTRINGS : predicates->num_strings;
 
     // Counts number of records processed thus far.
     long records = 0;
-
-    // Used to construct and store substrings to try for each predicate. These
-    // are the possible
-    // return values.
-    char substr_buf[8192];
-    unsigned long buf_offset = 0;
-    unsigned long num_substrings = 0;
-    char **predicate_substrings =
-        (char **)malloc(sizeof(char *) * MAX_SUBSTRINGS);
-    memset(predicate_substrings, 0, sizeof(char *) * MAX_SUBSTRINGS);
-
-#ifdef CALIBRATE_TIMING
-    double total_elapsed = 0.0;
-    bench_timer_t start = time_start();
-#endif
-
-    // Create a buffer of all the substring combinations we want to try.
-    // TODO do something smarter here, e.g., using the letter frequency to
-    // decide (?).
-    fprintf(stderr, "Candidates:\n");
-    for (int i = 0; i < count; i++) {
-        const char *substring = predicates[i];
-        size_t len = strlen(substring);
-        int max_substring_length;
-
-        // Use the biggest possible size, up to 4 bytes.
-        if (len >= 4) {
-            max_substring_length = 4;
-        } else if (len >= 2) {
-            max_substring_length = 2;
-        } else if (len >= 1) {
-            max_substring_length = 1;
-        } else {
-            fprintf(stderr, "%s: empty predicate\n", __func__);
-            // TODO leak!
-            return NULL;
-        }
-        // shifts = len - max_substring_length + 1;
-
-        for (int k = 2; k <= max_substring_length; k++) {
-            //  test only 1, 2, 4
-            if (k == 3) continue;
-            unsigned int substring_length = k;
-            int shifts = len - substring_length + 1;
-
-            // Add the shifts for the substrings into the predicate_substrings
-            // array.
-            for (int j = 0; j < shifts; j++) {
-                if (num_substrings >= MAX_SUBSTRINGS ||
-                    buf_offset + substring_length >= sizeof(substr_buf)) {
-                    break;
-                }
-                strncpy(substr_buf + buf_offset, substring + j,
-                        substring_length);
-                substr_buf[buf_offset + substring_length] = '\0';
-                predicate_substrings[num_substrings] = substr_buf + buf_offset;
-                fprintf(stderr, "%ld. %s\n", num_substrings + 1,
-                        predicate_substrings[num_substrings]);
-                substring_source[num_substrings] = i;
-                substring_lengths[num_substrings] = substring_length;
-                buf_offset += substring_length + 1;
-                num_substrings++;
-            }
-        }
-    }
-
-#ifdef CALIBRATE_TIMING
-    double candidategen_elapsed = time_stop(start);
-    total_elapsed += candidategen_elapsed;
-    fprintf(stderr, "%s Candidate Generation Time - %f\n", __func__,
-            candidategen_elapsed);
-    start = time_start();
-#endif
-
-    // The mask representing all predicates passed a record.
-    const uint64_t allset = (0x1L << num_substrings) - 1L;
+		long parsed_records = 0;
+		long passed = 0;
     unsigned long parse_cost = 0;
 
-#ifdef CALIBRATE_TIMING
-    double strstr_elapsed = 0;
-    double callback_elapsed = 0;
-#endif
+		bench_timer_t start = time_start();
 
     // Now search for each substring in up to MAX_SAMPLES records.
     char *line, *newline;
     size_t remaining_length = length;
     while (records < MAX_SAMPLES &&
-           (newline = (char *)memchr(sample, '\n', remaining_length)) != NULL) {
+           (newline = (char *)memchr(sample, delimiter, remaining_length)) != NULL) {
+
         // Emulates behavior of strsep, but uses memchr's faster implementation.
         *newline = '\0';
         line = sample;
         sample = newline + 1;
         remaining_length -= (sample - line);
 
-        uint64_t found = 0x0L;
+				bench_timer_t grep_timer = time_start();
         for (uint64_t i = 0; i < num_substrings; i++) {
-            char *predicate = predicate_substrings[i];
-#ifdef CALIBRATE_TIMING
-            bench_timer_t start1 = time_start();
-#endif
-            // TODO accelerate this -- it's slow!
-            if (strstr(line, predicate)) {
-                // Set this record to found for this substring.
-                bitmap_set(&false_positives_mask[i], records);
-                found |= (0x1L << i);
-            }
-#ifdef CALIBRATE_TIMING
-            strstr_elapsed += time_stop(start1);
-#endif
-        }
+            const char *predicate = predicates->strings[i];
+						DBG("grepping for %s...", predicate);
 
-        // If any of the predicates failed OR all passed and the callback
-        // failed, we have a false
-        // positive from someone. Record the false positives.
-        if (allset != found) {
-#ifdef CALIBRATE_TIMING
-            bench_timer_t start1 = time_start();
-#endif
-            unsigned long start = rdtsc();
-            int passed = callback(line, NULL);
-            unsigned long end = rdtsc();
-#ifdef CALIBRATE_TIMING
-            callback_elapsed += time_stop(start1);
-#endif
-            // TODO Take an average or something.
-            parse_cost = end - start;
-            if (!passed) {
-                while (found) {
-                    int index = ffsl(found) - 1;
-                    false_positives[index]++;
-                    found &= ~(0x1L << index);
-                }
-            }
-        } else {
-            // It was an actual match, so don't record it as a false positive.
-            for (unsigned int i = 0; i < num_substrings; i++) {
-                bitmap_unset(&false_positives_mask[i], records);
-            }
+            if (memmem(line, newline - line, predicate, predicates->lens[i])) {
+                // Set this record to found for this substring.
+                bitmap_set(&passthrough_masks[i], records);
+								DBG("found!\n");
+            } else {
+							DBG("not found.\n");
+						}
         }
+				double grep_time = time_stop(grep_timer);
+				timing.grepping_total += grep_time;
+
+				// To estimate the full parser's cost.
+				if (records < PARSER_MEASUREMENT_SAMPLES) {
+					unsigned long start = rdtsc();
+					passed += callback(line, callback_arg);
+					unsigned long end = rdtsc();
+					parse_cost += (end - start);
+					parsed_records++;
+				}
 
         records++;
+
+				timing.cycles_per_parse_avg = parse_cost;
 
         // Undo what our strsep emulation did so the input is not mutated.
         if (sample) {
             assert(*(sample - 1) == '\0');
             sample--;
-            *sample = '\n';
+            *sample = delimiter;
             sample++;
         }
     }
 
-#ifdef CALIBRATE_TIMING
-    double sample_elapsed = time_stop(start);
-    total_elapsed += sample_elapsed;
-    fprintf(stderr, "%s Sample Colection Time - %f\n", __func__,
-            sample_elapsed);
-    fprintf(stderr, "\t(strstr Time - %f)\n", strstr_elapsed);
-    fprintf(stderr, "\t(callback Time - %f)\n", callback_elapsed);
-    fprintf(stderr, "\t(summed Time - %f)\n",
-            strstr_elapsed + callback_elapsed);
-#endif
+		timing.sampling_total = time_stop(start);
+		start = time_start();
 
-    fprintf(stderr, "%s Averge Parse Time - %ld\n", __func__, parse_cost);
+		DBG("%lu passed\n", passed);
 
-#ifdef CALIBRATE_TIMING
-    start = time_start();
-#endif
+		// The average parse cost.
+		parse_cost = parse_cost / parsed_records;
 
-    // TODO how to generalize this to N filters?
-    // Now, check combinations of two filters - this ANDs the masks of each of
-    // the predicates together.
-    // Each 1 represents a false positive in the joint predicate, so we want to
-    // *minimize* the
-    // number of 1s.
-    long idx1 = -1;
-    long idx2 = -1;
-    double min = LONG_MAX;
-    const double bitlength = (double)records;
-    bitmap_t joint = bitmap_new(MAX_SAMPLES);
-    for (unsigned int i = 0; i < num_substrings; i++) {
-        for (unsigned int j = 0; j < num_substrings; j++) {
-            // Don't compare substrings sourced from the same value. Check i ==
-            // j to check single substrings.
-            if (i != j && substring_source[i] == substring_source[j]) {
-                // fprintf(stderr, "Skipping %s and %s\n",
-                // predicate_substrings[i], predicate_substrings[j]);
-                continue;
-            }
+		search_data_t sd;
+		memset(&sd, 0, sizeof(sd));
+		sd.num_records = records;
+		sd.passthrough_masks = passthrough_masks;
+		sd.full_parse_cost = parse_cost;
+		sd.best_cost = 0xffffffff;
+		sd.joint = bitmap_new(MAX_SAMPLES);
 
-            bitmap_and(&joint, &false_positives_mask[i],
-                       &false_positives_mask[j]);
-            uint64_t joint_rate = bitmap_count(&joint);
+		// temp buffer to store the result.
+		int result[MAX_SCHEDULE_SIZE];
 
-            double filter_cost = substring_lengths[i];
-            if (i != j) {
-                filter_cost += substring_lengths[j];
-            }
-            // Rough number of instructions per filter length unit.
-            filter_cost *= 8.0;
+		// Get the best schedule.
+		for (int i = 1; i <= MAX_SCHEDULE_SIZE; i++) {
+				search_schedules(predicates, &sd, i, 0, result, i);
+		}
 
-            // The percentage of samples that have false positives.
-            double rate = ((double)joint_rate) / bitlength;
-            double cost = filter_cost + (rate * (double)parse_cost);
+		timing.searching_total = time_stop(start);
+		timing.cycles_per_schedule_avg = sd.total_cycles / sd.processed;
 
-            // fprintf(stderr, "Joint rate of %s and %s: %llu (cost=%f
-            // ,best=%f)\n", predicate_substrings[i], predicate_substrings[j],
-            // joint_rate, cost, min);
+		timing.processed = sd.processed;
+		timing.skipped = sd.skipped;
 
-            // Does the joint query improve performance?
-            if (cost < min) {
-                idx1 = i;
-                idx2 = j;
-                min = cost;
-            }
+		static char printer[4096];
+		printer[0] = 0;
+		for (int i = 0; i < sd.schedule_len; i++) {
+			strcat(printer, predicates->strings[sd.best_schedule[i]]);	
+			strcat(printer, " ");
+		}
+		DBG("Best schedule: %s\n", printer);
 
-#if DEBUG
-            fprintf(stderr, "%s\t%d\n", predicate_substrings[i],
-                    false_positives[i]);
-#endif
-        }
-    }
-
-#ifdef CALIBRATE_TIMING
-    double combine_elapsed = time_stop(start);
-    fprintf(stderr, "%s Filter Combination Time - %f\n", __func__,
-            combine_elapsed);
-#endif
-
-    bitmap_free(&joint);
-
-    assert(idx1 >= 0 && idx2 >= 0);
-
-    sparser_query_t *squery =
-        (sparser_query_t *)malloc(sizeof(sparser_query_t));
+    sparser_query_t *squery = sparser_new_query();
     memset(squery, 0, sizeof(sparser_query_t));
-    sparser_add_query(squery, predicate_substrings[idx1]);
-    fprintf(stderr, "%s Added Predicate: %s\n", __func__,
-            predicate_substrings[idx1]);
-    if (idx1 != idx2) {
-        sparser_add_query(squery, predicate_substrings[idx2]);
-        fprintf(stderr, "%s Added Predicate: %s\n", __func__,
-                predicate_substrings[idx2]);
-    }
+		for (int i = 0; i < sd.schedule_len; i++) {
+			sparser_add_query(squery, predicates->strings[sd.best_schedule[i]]);
+		}
 
     for (int i = 0; i < MAX_SUBSTRINGS; i++) {
-        bitmap_free(&false_positives_mask[i]);
+        bitmap_free(&passthrough_masks[i]);
     }
-    free(predicate_substrings);
 
-#ifdef CALIBRATE_TIMING
-    fprintf(stderr, "%s Calibration Total Elapsed - %f\n", __func__,
-            total_elapsed);
-#endif
+		timing.total = time_stop(start_e2e);
+		print_timing(&timing);
+
+		bitmap_free(&sd.joint);
 
     return squery;
-}
-
-sparser_stats_t *sparser_search2(char *input, long length,
-                                 sparser_query_t *query,
-                                 sparser_callback_t callback,
-                                 void *callback_ctx) {
-    assert(query->count == 1);
-    assert(query->lens[0] >= 2);
-
-    sparser_stats_t stats;
-    memset(&stats, 0, sizeof(stats));
-
-    uint16_t x = *((uint16_t *)query->queries[0]);
-    __m256i q1 = _mm256_set1_epi16(x);
-    // Bitmask designating which filters matched.
-    // Bit i is set if if the ith filter matched for the current record.
-    unsigned matchmask = 0;
-
-    char *endptr = strchr(input, '\n');
-    long end;
-    if (endptr) {
-        end = endptr - input;
-    } else {
-        end = length;
-    }
-
-    for (long i = 0; i < length; i += VECSZ) {
-        if (i > end) {
-            char *endptr = strchr(input + i, '\n');
-            if (endptr) {
-                end = endptr - input;
-            } else {
-                end = length;
-            }
-            matchmask = 0;
-        }
-
-        if (!IS_SET(matchmask, 0)) {
-            const char *base = input + i;
-            __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-            unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(val, q1));
-
-            __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val2, q1));
-
-            __m256i val3 = _mm256_loadu_si256((__m256i const *)(base + 2));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val3, q1));
-
-            __m256i val4 = _mm256_loadu_si256((__m256i const *)(base + 3));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val4, q1));
-            mask &= 0x55555555;
-
-            unsigned matched = _mm_popcnt_u32(mask);
-            if (matched > 0) {
-                stats.total_matches += matched;
-                matchmask |= 0x1;
-            }
-        }
-
-        unsigned allset = ((1u << query->count) - 1u);
-        // check if all the filters matched by checking if all the bits
-        // necessary were set in matchmask.
-        if ((matchmask & allset) == allset) {
-            stats.sparser_passed++;
-
-            // update start.
-            long start = i;
-            for (; start > 0 && input[start] != '\n'; start--)
-                ;
-
-            stats.bytes_seeked_backward += (i - start);
-
-            // Pass the current line to a full parser.
-            char a = input[end];
-            input[end] = '\0';
-            if (callback(input + start, callback_ctx)) {
-                stats.callback_passed++;
-            }
-            input[end] = a;
-
-            // Reset record level state.
-            matchmask = 0;
-
-            // Done with this record - move on to the next one.
-            i = end + 1 - VECSZ;
-        }
-    }
-
-    if (stats.sparser_passed > 0) {
-        stats.fraction_passed_correct =
-            (double)stats.callback_passed / (double)stats.sparser_passed;
-        stats.fraction_passed_incorrect = 1.0 - stats.fraction_passed_correct;
-    }
-
-    sparser_stats_t *ret = (sparser_stats_t *)malloc(sizeof(sparser_stats_t));
-    memcpy(ret, &stats, sizeof(stats));
-
-    return ret;
-}
-
-// TODO fold this into the others...
-sparser_stats_t *sparser_search2_binary(char *input, long length,
-                                        sparser_query_t *query,
-                                        sparser_callback_t callback,
-                                        void *callback_ctx) {
-    assert(query->count == 1);
-    assert(query->lens[0] >= 2);
-
-    sparser_stats_t stats;
-    memset(&stats, 0, sizeof(stats));
-
-    uint16_t x = *((uint16_t *)query->queries[0]);
-    __m256i q1 = _mm256_set1_epi16(x);
-
-    for (long i = 0; i < length - VECSZ; i += VECSZ) {
-        const char *base = input + i;
-        __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-        unsigned mask =
-            _mm256_movemask_epi8(_mm256_cmpeq_epi16(val, q1)) & 0x55555555;
-        __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
-        mask |=
-            (_mm256_movemask_epi8(_mm256_cmpeq_epi16(val2, q1)) & 0xAAAAAAAA);
-
-        // These designate positions where matches occurred.
-        if (mask > 0) {
-            stats.sparser_passed++;
-            while (mask) {
-                unsigned match_index = ffs(mask) - 1;
-                // This is the site of the match.
-                unsigned long offset = i + match_index;
-                if (callback(input + offset, callback_ctx)) {
-                    stats.callback_passed++;
-                }
-                mask &= ~(1 << match_index);
-            }
-        }
-    }
-
-    if (stats.sparser_passed > 0) {
-        stats.fraction_passed_correct =
-            (double)stats.callback_passed / (double)stats.sparser_passed;
-        stats.fraction_passed_incorrect = 1.0 - stats.fraction_passed_correct;
-    }
-
-    sparser_stats_t *ret = (sparser_stats_t *)malloc(sizeof(sparser_stats_t));
-    memcpy(ret, &stats, sizeof(stats));
-
-    return ret;
-}
-
-// TODO fold this into the others...
-sparser_stats_t *sparser_search4_binary(char *input, long length,
-                                        sparser_query_t *query,
-                                        sparser_callback_t callback,
-                                        void *callback_ctx) {
-    assert(query->count == 1);
-    assert(query->lens[0] >= 4);
-
-    sparser_stats_t stats;
-    memset(&stats, 0, sizeof(stats));
-
-    uint32_t x = *((uint32_t *)query->queries[0]);
-    __m256i q1 = _mm256_set1_epi32(x);
-
-    for (long i = 0; i < length - VECSZ; i += VECSZ) {
-        const char *base = input + i;
-        __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-        unsigned mask =
-            _mm256_movemask_epi8(_mm256_cmpeq_epi32(val, q1)) & 0x11111111;
-        __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
-        mask |=
-            (_mm256_movemask_epi8(_mm256_cmpeq_epi32(val2, q1)) & 0x22222222);
-        __m256i val3 = _mm256_loadu_si256((__m256i const *)(base + 2));
-        mask |=
-            (_mm256_movemask_epi8(_mm256_cmpeq_epi32(val3, q1)) & 0x44444444);
-        __m256i val4 = _mm256_loadu_si256((__m256i const *)(base + 3));
-        mask |=
-            (_mm256_movemask_epi8(_mm256_cmpeq_epi32(val4, q1)) & 0x88888888);
-
-        // These designate positions where matches occurred.
-        if (mask > 0) {
-            stats.sparser_passed++;
-
-            while (mask) {
-                unsigned match_index = ffs(mask) - 1;
-                // This is the site of the match.
-                unsigned long offset = i + match_index;
-                if (callback(input + offset, callback_ctx)) {
-                    stats.callback_passed++;
-                }
-                mask &= ~(1 << match_index);
-            }
-        }
-    }
-
-    if (stats.sparser_passed > 0) {
-        stats.fraction_passed_correct =
-            (double)stats.callback_passed / (double)stats.sparser_passed;
-        stats.fraction_passed_incorrect = 1.0 - stats.fraction_passed_correct;
-    }
-
-    sparser_stats_t *ret = (sparser_stats_t *)malloc(sizeof(sparser_stats_t));
-    memcpy(ret, &stats, sizeof(stats));
-
-    return ret;
-}
-
-sparser_stats_t *sparser_search4(char *input, long length,
-                                 sparser_query_t *query,
-                                 sparser_callback_t callback,
-                                 void *callback_ctx) {
-    assert(query->count == 1);
-    assert(query->lens[0] >= 4);
-
-    sparser_stats_t stats;
-    memset(&stats, 0, sizeof(stats));
-
-    uint32_t x = *((uint32_t *)query->queries[0]);
-    __m256i q1 = _mm256_set1_epi32(x);
-
-    // Bitmask designating which filters matched.
-    // Bit i is set if if the ith filter matched for the current record.
-    unsigned matchmask = 0;
-
-    char *endptr = strchr(input, '\n');
-    long end;
-    if (endptr) {
-        end = endptr - input;
-    } else {
-        end = length;
-    }
-
-    for (long i = 0; i < length; i += VECSZ) {
-        if (i > end) {
-            char *endptr = strchr(input + i, '\n');
-            if (endptr) {
-                end = endptr - input;
-            } else {
-                end = length;
-            }
-            matchmask = 0;
-        }
-
-        if (!IS_SET(matchmask, 0)) {
-            const char *base = input + i;
-            __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-            unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(val, q1));
-
-            __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val2, q1));
-
-            __m256i val3 = _mm256_loadu_si256((__m256i const *)(base + 2));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val3, q1));
-
-            __m256i val4 = _mm256_loadu_si256((__m256i const *)(base + 3));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val4, q1));
-            mask &= 0x11111111;
-
-            unsigned matched = _mm_popcnt_u32(mask);
-            if (matched > 0) {
-                stats.total_matches += matched;
-                matchmask |= 0x1;
-            }
-        }
-
-        unsigned allset = ((1u << query->count) - 1u);
-        // check if all the filters matched by checking if all the bits
-        // necessary were set in matchmask.
-        if ((matchmask & allset) == allset) {
-            stats.sparser_passed++;
-
-            // update start.
-            long start = i;
-            for (; start > 0 && input[start] != '\n'; start--)
-                ;
-
-            stats.bytes_seeked_backward += (i - start);
-
-            // Pass the current line to a full parser.
-            char a = input[end];
-            input[end] = '\0';
-            if (callback(input + start, callback_ctx)) {
-                stats.callback_passed++;
-            }
-            input[end] = a;
-
-            // Reset record level state.
-            matchmask = 0;
-
-            // Done with this record - move on to the next one.
-            i = end + 1 - VECSZ;
-        }
-    }
-
-    if (stats.sparser_passed > 0) {
-        stats.fraction_passed_correct =
-            (double)stats.callback_passed / (double)stats.sparser_passed;
-        stats.fraction_passed_incorrect = 1.0 - stats.fraction_passed_correct;
-    }
-
-    sparser_stats_t *ret = (sparser_stats_t *)malloc(sizeof(sparser_stats_t));
-    memcpy(ret, &stats, sizeof(stats));
-
-    return ret;
-}
-
-sparser_stats_t *sparser_search2_2(char *input, long length,
-                                   sparser_query_t *query,
-                                   sparser_callback_t callback,
-                                   void *callback_ctx) {
-    assert(query->count == 2);
-    assert(query->lens[0] >= 2);
-    assert(query->lens[1] >= 2);
-
-    sparser_stats_t stats;
-    memset(&stats, 0, sizeof(stats));
-
-    uint16_t x = *((uint16_t *)query->queries[0]);
-    __m256i q1 = _mm256_set1_epi16(x);
-
-    x = *((uint16_t *)query->queries[1]);
-    __m256i q2 = _mm256_set1_epi16(x);
-
-    // Bitmask designating which filters matched.
-    // Bit i is set if if the ith filter matched for the current record.
-    unsigned matchmask = 0;
-
-    char *endptr = strchr(input, '\n');
-    long end;
-    if (endptr) {
-        end = endptr - input;
-    } else {
-        end = length;
-    }
-
-    for (long i = 0; i < length; i += VECSZ) {
-        if (i > end) {
-            char *endptr = strchr(input + i, '\n');
-            if (endptr) {
-                end = endptr - input;
-            } else {
-                end = length;
-            }
-            matchmask = 0;
-        }
-
-        if (!IS_SET(matchmask, 0) || !IS_SET(matchmask, 1)) {
-            const char *base = input + i;
-            __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-            unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(val, q1));
-
-            __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val2, q1));
-
-            __m256i val3 = _mm256_loadu_si256((__m256i const *)(base + 2));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val3, q1));
-
-            __m256i val4 = _mm256_loadu_si256((__m256i const *)(base + 3));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val4, q1));
-            mask &= 0x55555555;
-
-            unsigned matched = _mm_popcnt_u32(mask);
-            if (matched > 0) {
-                stats.total_matches += matched;
-                matchmask |= 0x1;
-            }
-
-            if (!IS_SET(matchmask, 1)) {
-                mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(val, q2));
-                mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val2, q2));
-                mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val3, q2));
-                mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val4, q2));
-                mask &= 0x55555555;
-
-                matched = _mm_popcnt_u32(mask);
-                if (matched > 0) {
-                    stats.total_matches += matched;
-                    matchmask |= (0x1 << 1);
-                }
-            }
-        }
-
-        unsigned allset = ((1u << query->count) - 1u);
-        // check if all the filters matched by checking if all the bits
-        // necessary were set in matchmask.
-        if ((matchmask & allset) == allset) {
-            stats.sparser_passed++;
-
-            // update start.
-            long start = i;
-            for (; start > 0 && input[start] != '\n'; start--)
-                ;
-
-            stats.bytes_seeked_backward += (i - start);
-
-            // Pass the current line to a full parser.
-            char a = input[end];
-            input[end] = '\0';
-            if (callback(input + start, callback_ctx)) {
-                stats.callback_passed++;
-            }
-            input[end] = a;
-
-            // Reset record level state.
-            matchmask = 0;
-
-            // Done with this record - move on to the next one.
-            i = end + 1 - VECSZ;
-        }
-    }
-
-    if (stats.sparser_passed > 0) {
-        stats.fraction_passed_correct =
-            (double)stats.callback_passed / (double)stats.sparser_passed;
-        stats.fraction_passed_incorrect = 1.0 - stats.fraction_passed_correct;
-    }
-
-    sparser_stats_t *ret = (sparser_stats_t *)malloc(sizeof(sparser_stats_t));
-    memcpy(ret, &stats, sizeof(stats));
-
-    return ret;
-}
-
-sparser_stats_t *sparser_search2_4(char *input, long length,
-                                   sparser_query_t *query,
-                                   sparser_callback_t callback,
-                                   void *callback_ctx) {
-    assert(query->count == 2);
-    assert((query->lens[0] >= 2 && query->lens[1] >= 4) ||
-           (query->lens[0] >= 4 && query->lens[1] >= 2));
-
-    sparser_stats_t stats;
-    memset(&stats, 0, sizeof(stats));
-
-    uint16_t x;
-    uint32_t y;
-    __m256 q1, q2;
-
-    if (query->lens[0] >= 2 && query->lens[1] >= 4) {
-        x = *((uint16_t *)query->queries[0]);
-        y = *((uint32_t *)query->queries[1]);
-        q1 = _mm256_set1_epi16(x);
-        q2 = _mm256_set1_epi32(y);
-    } else {
-        x = *((uint16_t *)query->queries[1]);
-        y = *((uint32_t *)query->queries[0]);
-        q1 = _mm256_set1_epi16(x);
-        q2 = _mm256_set1_epi32(y);
-    }
-
-    // Bitmask designating which filters matched.
-    // Bit i is set if if the ith filter matched for the current record.
-    unsigned matchmask = 0;
-
-    char *endptr = strchr(input, '\n');
-    long end;
-    if (endptr) {
-        end = endptr - input;
-    } else {
-        end = length;
-    }
-
-    for (long i = 0; i < length; i += VECSZ) {
-        if (i > end) {
-            char *endptr = strchr(input + i, '\n');
-            if (endptr) {
-                end = endptr - input;
-            } else {
-                end = length;
-            }
-            matchmask = 0;
-        }
-
-        if (!IS_SET(matchmask, 0) || !IS_SET(matchmask, 1)) {
-            const char *base = input + i;
-            __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-            unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi16(val, q1));
-
-            __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val2, q1));
-
-            __m256i val3 = _mm256_loadu_si256((__m256i const *)(base + 2));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val3, q1));
-
-            __m256i val4 = _mm256_loadu_si256((__m256i const *)(base + 3));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi16(val4, q1));
-            mask &= 0x55555555;
-
-            unsigned matched = _mm_popcnt_u32(mask);
-            if (matched > 0) {
-                stats.total_matches += matched;
-                matchmask |= 0x1;
-            }
-
-            if (!IS_SET(matchmask, 1)) {
-                mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(val, q2));
-                mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val2, q2));
-                mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val3, q2));
-                mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val4, q2));
-                mask &= 0x11111111;
-
-                matched = _mm_popcnt_u32(mask);
-                if (matched > 0) {
-                    stats.total_matches += matched;
-                    matchmask |= (0x1 << 1);
-                }
-            }
-        }
-
-        unsigned allset = ((1u << query->count) - 1u);
-        // check if all the filters matched by checking if all the bits
-        // necessary were set in matchmask.
-        if ((matchmask & allset) == allset) {
-            stats.sparser_passed++;
-
-            // update start.
-            long start = i;
-            for (; start > 0 && input[start] != '\n'; start--)
-                ;
-
-            stats.bytes_seeked_backward += (i - start);
-
-            // Pass the current line to a full parser.
-            char a = input[end];
-            input[end] = '\0';
-            if (callback(input + start, callback_ctx)) {
-                stats.callback_passed++;
-            }
-            input[end] = a;
-
-            // Reset record level state.
-            matchmask = 0;
-
-            // Done with this record - move on to the next one.
-            i = end + 1 - VECSZ;
-        }
-    }
-
-    if (stats.sparser_passed > 0) {
-        stats.fraction_passed_correct =
-            (double)stats.callback_passed / (double)stats.sparser_passed;
-        stats.fraction_passed_incorrect = 1.0 - stats.fraction_passed_correct;
-    }
-
-    sparser_stats_t *ret = (sparser_stats_t *)malloc(sizeof(sparser_stats_t));
-    memcpy(ret, &stats, sizeof(stats));
-
-    return ret;
-}
-
-sparser_stats_t *sparser_search4_4(char *input, long length,
-                                   sparser_query_t *query,
-                                   sparser_callback_t callback,
-                                   void *callback_ctx) {
-    assert(query->count == 2);
-    assert(query->lens[0] >= 4);
-    assert(query->lens[1] >= 4);
-
-    sparser_stats_t stats;
-    memset(&stats, 0, sizeof(stats));
-
-    uint32_t x = *((uint32_t *)query->queries[0]);
-    __m256i q1 = _mm256_set1_epi32(x);
-
-    x = *((uint32_t *)query->queries[1]);
-    __m256i q2 = _mm256_set1_epi32(x);
-
-    // Bitmask designating which filters matched.
-    // Bit i is set if if the ith filter matched for the current record.
-    unsigned matchmask = 0;
-
-    char *endptr = strchr(input, '\n');
-    long end;
-    if (endptr) {
-        end = endptr - input;
-    } else {
-        end = length;
-    }
-
-    const unsigned allset = ((1u << query->count) - 1u);
-
-#ifdef MEASURE_CYCLES
-    long measure_count = 0;
-    long measure_sum = 0;
-#endif
-
-    for (long i = 0; i < length; i += VECSZ) {
-        if (i > end) {
-            char *endptr = strchr(input + i, '\n');
-            if (endptr) {
-                end = endptr - input;
-            } else {
-                end = length;
-            }
-            matchmask = 0;
-        }
-
-#ifdef MEASURE_CYCLES
-        long start = rdtsc();
-#endif
-
-        if (matchmask != allset) {
-            const char *base = input + i;
-            __m256i val = _mm256_loadu_si256((__m256i const *)(base));
-            unsigned mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(val, q1));
-            //__m256 vmask =_mm256_cmpeq_epi32(val, q1);
-
-            __m256i val2 = _mm256_loadu_si256((__m256i const *)(base + 1));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val2, q1));
-            // vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val2, q1));
-
-            __m256i val3 = _mm256_loadu_si256((__m256i const *)(base + 2));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val3, q1));
-            // vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val3, q1));
-
-            __m256i val4 = _mm256_loadu_si256((__m256i const *)(base + 3));
-            mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val4, q1));
-            // vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val4, q1));
-
-            // unsigned mask = _mm256_movemask_epi8(vmask);
-            mask &= 0x11111111;
-
-            if (mask > 0) {
-                unsigned matched = _mm_popcnt_u32(mask);
-                stats.total_matches += matched;
-                matchmask |= 0x1;
-            }
-
-            if (!IS_SET(matchmask, 1)) {
-                mask = _mm256_movemask_epi8(_mm256_cmpeq_epi32(val, q2));
-                mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val2, q2));
-                mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val3, q2));
-                mask |= _mm256_movemask_epi8(_mm256_cmpeq_epi32(val4, q2));
-                /*
-                vmask = _mm256_cmpeq_epi32(val, q2);
-                vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val2, q2));
-                vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val3, q2));
-                vmask = _mm256_or_si256(vmask, _mm256_cmpeq_epi32(val4, q2));
-                mask = _mm256_movemask_epi8(vmask);
-                */
-                mask &= 0x11111111;
-
-                if (mask) {
-                    unsigned matched = _mm_popcnt_u32(mask);
-                    stats.total_matches += matched;
-                    matchmask |= (0x1 << 1);
-                }
-            }
-        }
-
-        // check if all the filters matched by checking if all the bits
-        // necessary were set in matchmask.
-        if (matchmask == allset) {
-            stats.sparser_passed++;
-
-            // update start. Using vectors here seems to only make a marginal
-            // performance difference.
-            long start = i;
-            __m256i nl = _mm256_set1_epi8('\n');
-            for (; start >= 32; start -= 32) {
-                __m256i tmp =
-                    _mm256_loadu_si256((__m256i *)(input + start - 32));
-                if (_mm256_movemask_epi8(_mm256_cmpeq_epi8(tmp, nl))) {
-                    start -= 32;
-                    break;
-                }
-            }
-            while (input[start] != '\n') start++;
-            assert(input[start] == '\n');
-
-            stats.bytes_seeked_backward += (i - start);
-
-            // Pass the current line to a full parser.
-            char a = input[end];
-            input[end] = '\0';
-            if (callback(input + start, callback_ctx)) {
-                stats.callback_passed++;
-            }
-            input[end] = a;
-
-            // Reset record level state.
-            matchmask = 0;
-
-            // Done with this record - move on to the next one.
-            i = end + 1 - VECSZ;
-        }
-
-#ifdef MEASURE_CYCLES
-        long end = rdtsc();
-        measure_sum += end - start;
-        measure_count++;
-        if (measure_count > 1000000) {
-            fprintf(stderr, "%s: %ld cycles/iter\n", __func__,
-                    measure_sum / measure_count);
-            measure_count = 0;
-            measure_sum = 0;
-        }
-#endif
-    }
-
-    if (stats.sparser_passed > 0) {
-        stats.fraction_passed_correct =
-            (double)stats.callback_passed / (double)stats.sparser_passed;
-        stats.fraction_passed_incorrect = 1.0 - stats.fraction_passed_correct;
-    }
-
-    sparser_stats_t *ret = (sparser_stats_t *)malloc(sizeof(sparser_stats_t));
-    memcpy(ret, &stats, sizeof(stats));
-
-    return ret;
 }
 
 /* Performs the sparser search given a compiled search query and a buffer.
@@ -1206,146 +447,67 @@ sparser_stats_t *sparser_search(char *input, long length,
                                 sparser_query_t *query,
                                 sparser_callback_t callback,
                                 void *callback_ctx) {
-    // Call into specializations if possible - it's much faster.
-    if (query->count == 1 && query->lens[0] == 4) {
-        fprintf(stderr, "Calling specialization 4\n");
-        return sparser_search4(input, length, query, callback, callback_ctx);
-    } else if (query->count == 2 && query->lens[0] == 4 &&
-               query->lens[1] == 4) {
-        fprintf(stderr, "Calling specialization 4_4\n");
-        return sparser_search4_4(input, length, query, callback, callback_ctx);
-    } else if (query->count == 2 && query->lens[0] == 2 &&
-               query->lens[1] == 2) {
-        fprintf(stderr, "Calling specialization 2_2\n");
-        return sparser_search2_2(input, length, query, callback, callback_ctx);
-    } else if (query->count == 1 && query->lens[0] == 2) {
-        fprintf(stderr, "Calling specialization 2\n");
-        return sparser_search2(input, length, query, callback, callback_ctx);
-    } else if (query->count == 2 &&
-               ((query->lens[0] == 2 && query->lens[1] == 4) ||
-                (query->lens[1] == 2 && query->lens[0] == 4))) {
-        fprintf(stderr, "Calling specialization 2_4\n");
-        return sparser_search2_4(input, length, query, callback, callback_ctx);
-    }
 
-    fprintf(stderr, "WARN: Calling general VFC-based runtime\n");
-
-    sparser_searchfunc_t searchfuncs[SPARSER_MAX_QUERY_COUNT];
-    __m256i reg[SPARSER_MAX_QUERY_COUNT];
+		for (int i = 0; i < query->count; i++) {
+			 DBG("Search string %d: %s\n", i+1, query->queries[i]);
+		}
 
     sparser_stats_t stats;
     memset(&stats, 0, sizeof(stats));
 
-    for (int i = 0; i < query->count; i++) {
-        char *string = query->queries[i];
-        printf("Set string %s (index=%d, len=%zu)\n", string, i,
-               query->lens[i]);
-        switch (query->lens[i]) {
-            case 1: {
-                searchfuncs[i] = search_epi8;
-                uint8_t x = *((uint8_t *)string);
-                reg[i] = _mm256_set1_epi8(x);
-                break;
-            }
-            case 2: {
-                searchfuncs[i] = search_epi16;
-                uint16_t x = *((uint16_t *)string);
-                reg[i] = _mm256_set1_epi16(x);
-                break;
-            }
-            case 4: {
-                searchfuncs[i] = search_epi32;
-                uint32_t x = *((uint32_t *)string);
-                reg[i] = _mm256_set1_epi32(x);
-                break;
-            }
-            default: { return NULL; }
-        }
-    }
+		// Last byte in the data.
+		char *input_last_byte = input + length - 1;
 
-    // Bitmask designating which filters matched.
-    // Bit i is set if if the ith filter matched for the current record.
-    unsigned matchmask = 0;
+		// Points to the end of the current record.
+		char *current_record_end;
+		// Points to the start of the current record.
+		char *current_record_start;
+		//  Length of the current record.
+		size_t current_record_len;
 
-    char *endptr = strchr(input, '\n');
-    long end;
-    if (endptr) {
-        end = endptr - input;
-    } else {
-        end = length;
-    }
+		current_record_start = input;
 
-    for (long i = 0; i < length; i += VECSZ) {
-        if (i > end) {
-            char *endptr = strchr(input + i, '\n');
-            if (endptr) {
-                end = endptr - input;
-            } else {
-                end = length;
-            }
-            matchmask = 0;
-        }
+		while (current_record_start < input_last_byte) {
 
-        // Check each query.
-        for (int j = 0; j < query->count; j++) {
-            // Found this already.
-            if (IS_SET(matchmask, j)) {
-                continue;
-            }
+			stats.records++;
 
-            __m256i comparator = reg[j];
-            int shifts = query->lens[j];
-            sparser_searchfunc_t f = searchfuncs[j];
+			current_record_end = strchr(current_record_start, '\n');
+			if (!current_record_end) {
+				current_record_end = input_last_byte;
+				current_record_len = length;
+			} else {
+				current_record_len = current_record_end - current_record_start;
+			}
 
-            for (int k = 0; k < shifts; k++) {
-                // Returns the number of matches.
-                int matched = f(comparator, input + i + k);
-                if (matched > 0) {
-                    stats.total_matches += matched;
-                    // record that this query matched.
-                    matchmask |= (1 << j);
-                    // no need to check remaining shifts.
+			char tmp = *current_record_end;
+			*current_record_end = '\0';
 
-                    // Debug
-                    /*
-                    char a = input[i + k + VECSZ];
-                    input[i + k + VECSZ] = '\0';
-                    printf("%s in %s\n", query->queries[j], input + i + k);
-                    input[i + k + VECSZ] = a;
-                    */
-                    break;
-                }
-            }
-        }
+			int count = 0;
+			// Search for each of the prefilters.
+			for (int i = 0; i < query->count; i++) {
+				if (strstr(current_record_start, query->queries[i]) == NULL) {
+					break;	
+				}
 
-        unsigned allset = ((1u << query->count) - 1u);
-        // check if all the filters matched by checking if all the bits
-        // necessary were set in matchmask.
-        if ((matchmask & allset) == allset) {
-            stats.sparser_passed++;
+				stats.total_matches++;
+				count++;
+			}
 
-            // update start.
-            long start = i;
-            for (; start > 0 && input[start] != '\n'; start--)
-                ;
+			// If all prefilters matched...
+			if (count == query->count) {
+				stats.sparser_passed++;
 
-            stats.bytes_seeked_backward += (i - start);
+				if (callback(current_record_start, callback_ctx)) {
+					stats.callback_passed++;
+				}
 
-            // Pass the current line to a full parser.
-            char a = input[end];
-            input[end] = '\0';
-            if (callback(input + start, callback_ctx)) {
-                stats.callback_passed++;
-            }
-            input[end] = a;
+			}
 
-            // Reset record level state.
-            matchmask = 0;
+			*current_record_end = tmp;
 
-            // Done with this record - move on to the next one.
-            i = end + 1 - VECSZ;
-        }
-    }
+			// Update to point to the next record. The top of the loop will update the remaining variables.
+			current_record_start = current_record_end + 1;
+		}
 
     if (stats.sparser_passed > 0) {
         stats.fraction_passed_correct =
@@ -1363,13 +525,15 @@ static char *sparser_format_stats(sparser_stats_t *stats) {
     static char buf[8192];
 
     snprintf(buf, sizeof(buf),
-             "Distinct Query matches: %ld\n\
+		"Records Processed: %ld\n\
+Distinct Query matches: %ld\n\
 Sparser Passed Records: %ld\n\
 Callback Passed Records: %ld\n\
 Bytes Seeked Forward: %ld\n\
 Bytes Seeked Backward: %ld\n\
 Fraction Passed Correctly: %f\n\
 Fraction False Positives: %f",
+						 stats->records,
              stats->total_matches, stats->sparser_passed,
              stats->callback_passed, stats->bytes_seeked_forward,
              stats->bytes_seeked_backward, stats->fraction_passed_correct,
