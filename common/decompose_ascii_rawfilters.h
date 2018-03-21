@@ -1,3 +1,10 @@
+/** 
+ *
+ * decompose_ascii_rawfilters.h
+ *
+ * Generates raw filters for ASCII-based formats such as JSON and CSV.
+ */
+
 #ifndef _DECOMPOSE_H_
 #define _DECOMPOSE_H_
 
@@ -7,8 +14,8 @@
 // The length of produced substrings.
 #define REGSZ 4
 
-typedef struct decomposed {
-  // The decomposed strings.
+typedef struct ascii_rawfilters {
+  // The ascii_rawfilters strings.
 	const char **strings;
 	// The source of the string.
 	const int *sources;
@@ -17,12 +24,12 @@ typedef struct decomposed {
 	char *region;
 	// Number of strings created.
 	int num_strings;
-} decomposed_t;
+} ascii_rawfilters_t;
 
 // Decomposes each string into substrings of length REGSZ or less as search tokens.
-decomposed_t decompose(const char **predicates, int num_predicates) {
+ascii_rawfilters_t decompose(const char **predicates, int num_predicates) {
 
-	int num_decomposed = 0;
+	int num_ascii_rawfilters = 0;
 	int region_bytes = 0;
 
 	for (int i = 0; i < num_predicates; i++) {
@@ -31,14 +38,14 @@ decomposed_t decompose(const char **predicates, int num_predicates) {
 		// How many REGSZ-length substrings are possible from this string?
 		int possible_substrings = len - REGSZ > 0 ? len - REGSZ + 1: 1;
 		// Include the full string in the count.
-		num_decomposed += possible_substrings + 1;
+		num_ascii_rawfilters += possible_substrings + 1;
 
 		region_bytes += (possible_substrings * 5);
 	}
 
-	const char **result = (const char **)malloc(sizeof(char *) * num_decomposed);
-	int *sources = (int *)malloc(sizeof(int) * num_decomposed);
-	int *lens = (int *)malloc(sizeof(int) * num_decomposed);
+	const char **result = (const char **)malloc(sizeof(char *) * num_ascii_rawfilters);
+	int *sources = (int *)malloc(sizeof(int) * num_ascii_rawfilters);
+	int *lens = (int *)malloc(sizeof(int) * num_ascii_rawfilters);
 	char *region = (char *)malloc(sizeof(char) * region_bytes); 
 
 	// index into result.
@@ -70,7 +77,7 @@ decomposed_t decompose(const char **predicates, int num_predicates) {
 		}
 	}
 
-	decomposed_t d;
+	ascii_rawfilters_t d;
 	d.strings = result;
 	d.sources = sources;
 	d.lens = lens;
@@ -80,19 +87,11 @@ decomposed_t decompose(const char **predicates, int num_predicates) {
 	return d; 
 }
 
-#endif
-
-#if 0 // For testing.
-int main() {
-	int count;
-	const char **preds = sparser_zakir_query1(&count);
-
-	decomposed_t d = decompose(preds, count);
-
-	for (int i = 0; i < d.num_strings; i++) {
-		printf("%s (source=%d)\n", d.strings[i], d.sources[i]);
-	}
-	printf("Produced %d strings\n", d.num_strings);
-	free(d.region);
+void free_ascii_rawfilters(ascii_rawfilters_t *d) {
+  free((void *)d->strings);
+  free((void *)d->sources);
+  free((void *)d->lens);
+  free((void *)d->region);
 }
+
 #endif

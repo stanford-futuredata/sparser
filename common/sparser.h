@@ -1,8 +1,30 @@
+/**
+ *
+ * sparser.h
+ * Version 0.1.0
+ *
+ * Implements the sparser optimizer and the main search functionality.
+ *
+ * NOTE: This version of sparser is simplified and relies on the two-way search algorithm
+ * in glibc's memmem/strstr implementation rather than on explicit x86-based vector instructions.
+ * Glibc's memmem is highly optimized for small strings, so Sparser's optimizer still selects
+ * an effective filter cascade by measuring passthrough rates.
+ *
+ * See sparser_ss.h for examples of the substring search RF based on AVX2.
+ * These functions are specialized for specific string search lengths.
+ *
+ * This version of the schedule currently only considers conjunctive queries, but extending it to
+ * disjunctions is relatively straightforward and will be implemented in a subsequent release.
+ *
+ * Change Log:
+ *
+ * V0.1.0
+ *
+ * Initial Public release
+ *
+ */
 #ifndef _SPARSER_H_
 #define _SPARSER_H_
-
-
-#include <immintrin.h>
 
 #include <assert.h>
 #include <limits.h>
@@ -16,49 +38,48 @@
 
 #include <arpa/inet.h>
 
-#include "decompose.h"
+#include "decompose_ascii_rawfilters.h"
 #include "bitmap.h"
-#include "common.h"
 #include "rdtsc.h"
 
+// For debugging
 #ifdef DEBUG
-#define DBG(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( false )
+#define SPARSER_DBG(...) do{ fprintf( stderr, __VA_ARGS__ ); } while( false )
 #else
-#define DBG(...) do{ } while ( false )
+#define SPARSER_DBG(...) do{ } while ( false )
 #endif
 
 // Checks if bit i is set in n.
 #define IS_SET(n, i) (n & (0x1L << i))
 
-// Size of the register we use.
-const int VECSZ = 32;
 // Max size of a single search string.
 const int SPARSER_MAX_QUERY_LENGTH = 16;
 // Max number of search strings in a single query.
 const int SPARSER_MAX_QUERY_COUNT = 32;
 
+// Max substrings to consider.
 const int MAX_SUBSTRINGS = 32;
+// Max records to sample.
 const int MAX_SAMPLES  = 1000;
+// Max record depth.
 const int MAX_SCHEDULE_SIZE  = 4;
 
 const int PARSER_MEASUREMENT_SAMPLES = 10;
 
-// Defines a sparser query.
+typedef char BYTE;
+
+// Defines a sparser query, which is currently a set of conjunctive string
+// terms that we search for.
 typedef struct sparser_query_ {
     unsigned count;
     char queries[SPARSER_MAX_QUERY_COUNT][SPARSER_MAX_QUERY_LENGTH];
     size_t lens[SPARSER_MAX_QUERY_COUNT];
 } sparser_query_t;
 
-/// Takes a register containing a search token and a base address, and searches
-/// the base address for the search token.
-typedef int (*sparser_searchfunc_t)(__m256i, const char *);
-
 // The callback fro the single parse function. The callback MUST be able to
-// handle
-// NULL data (i.e., it should check for NULL and  still return true or false
-// appropriately).
-typedef int (*sparser_callback_t)(const char *input, void *);
+// handle NULL data (i.e., it should check for NULL and  still return true or
+// false appropriately).
+typedef int (*sparser_callback_t)(const BYTE *input, void *);
 
 typedef struct sparser_stats_ {
 		// Number of records processed.
@@ -90,7 +111,7 @@ typedef struct search_data {
 	double full_parse_cost;
 	// Best cost so far.
 	double best_cost;
-	// Best schedule (indexes into decomposed_t).
+	// Best schedule (indexes into ascii_rawfilters_t).
 	int best_schedule[MAX_SCHEDULE_SIZE];
 	// Length of the full parser.
 	int schedule_len;
@@ -107,6 +128,7 @@ typedef struct search_data {
 
 } search_data_t;
 
+/* Return a new empty sparser query. */
 sparser_query_t *sparser_new_query() {
     return (sparser_query_t *)calloc(sizeof(sparser_query_t), 1);
 }
@@ -118,50 +140,35 @@ sparser_query_t *sparser_new_query() {
  *
  * @return 0 if successful, nonzero otherwise.
  */
-int sparser_add_query(sparser_query_t *query, const char *string) {
+int sparser_add_query(sparser_query_t *query, const void *string, size_t len) {
     if (query->count >= SPARSER_MAX_QUERY_COUNT) {
         return -1;
     }
 
-    strncpy(query->queries[query->count], string, SPARSER_MAX_QUERY_LENGTH);
-    query->lens[query->count] = strnlen(string, SPARSER_MAX_QUERY_LENGTH);
+    // Clamp to the max length.
+    len = SPARSER_MAX_QUERY_LENGTH < len ? SPARSER_MAX_QUERY_LENGTH : len;
+    memcpy(query->queries[query->count], string, len);
+    query->lens[query->count] = len;
     query->count++;
+
     return 0;
 }
 
-/* Adds a binary search term to the query. The search term must be 1, 2, or 4
- * bytes long.
- *
- * @param query the query
- * @param string the search string, clipped to 1, 2, or 4 bytes.
- * @param length the length of the search string.
- *
- * @return 0 if successful, nonzero otherwise.
+/** Cost in CPU cycles of a raw filter which searches for a term of length `len`. */
+double rf_cost(const size_t len) {
+	return len * 8.0;
+}
+
+/** Searches through combinations of prefilters to evaluate the best schedule. 
+ * 
+ * @param predicates the predicates to search through
+ * @param len the number of predicates
+ * @param start the start offset, used to generate combinations
+ * @param result the indices of the chosen cascades.
+ * @param result_len the number of chosen cascades (and the length of result)
+ * 
  */
-int sparser_add_query_binary(sparser_query_t *query, const void *term,
-                             unsigned length) {
-    if (query->count >= SPARSER_MAX_QUERY_COUNT) {
-        return -1;
-    }
-
-    if (length != 1 && length != 2 && length != 4) {
-        return -1;
-    }
-
-    memcpy(query->queries[query->count], term, length);
-    query->lens[query->count] = length;
-    query->count++;
-    return 0;
-}
-
-
-/** Cost of a prefilter which searches for word. */
-double pf_cost(const char *word) {
-	return strlen(word) * 8.0;
-}
-
-/** Searches through combinations of prefilters to evaluate the best schedule. */
-void search_schedules(decomposed_t *predicates,
+void search_schedules(ascii_rawfilters_t *predicates,
 		search_data_t *sd,
 		int len,
 		int start,
@@ -185,13 +192,14 @@ void search_schedules(decomposed_t *predicates,
 			strcat(printer, predicates->strings[result[i]]);	
 			strcat(printer, " ");
 		}
+		SPARSER_DBG("Considering schedule %s...", printer);
 #endif
-		DBG("Considering schedule %s...", printer);
 
 		for (int i = 0; i < result_len; i++) {
 			for (int j = 0; j < result_len; j++) {
+        // Skip records with the same "source" string (e.g., don't consider both 'Athe' and 'hena' from Athena)
 				if (i != j && predicates->sources[result[i]] == predicates->sources[result[j]]) {
-					DBG("\x1b[0;33mskipped\x1b[0m due to duplicate source!\n");
+					SPARSER_DBG("\x1b[0;33mskipped\x1b[0m due to duplicate source!\n");
 					long end = rdtsc();
 					sd->skipped++;
 					sd->total_cycles += (end - start);
@@ -200,21 +208,21 @@ void search_schedules(decomposed_t *predicates,
 			}
 		}
 
-		DBG("\x1b[0;32mprocessing!\x1b[0m\n");
+		SPARSER_DBG("\x1b[0;32mprocessing!\x1b[0m\n");
 
 		int first_index = result[0];
 		bitmap_t *joint = &sd->joint;
 		bitmap_copy(joint, &sd->passthrough_masks[first_index]);
 
 		// First filter runs unconditionally.
-		double total_cost = pf_cost(predicates->strings[first_index]);
+		double total_cost = rf_cost(predicates->lens[first_index]);
 
 		for (int i = 1; i < result_len; i++) {
 			int index = result[i];
 			uint64_t joint_rate = bitmap_count(joint);
-			double filter_cost = pf_cost(predicates->strings[index]);
+			double filter_cost = rf_cost(predicates->lens[index]);
 			double rate = ((double)joint_rate) / sd->num_records;
-			DBG("\t Rate after %s: %f\n", predicates->strings[result[i-1]], rate);
+			SPARSER_DBG("\t Rate after %s: %f\n", predicates->strings[result[i-1]], rate);
 			total_cost += filter_cost * rate;
 
 			bitmap_and(joint, joint, &sd->passthrough_masks[index]);	
@@ -224,9 +232,9 @@ void search_schedules(decomposed_t *predicates,
 		uint64_t joint_rate = bitmap_count(joint);
 		double filter_cost = sd->full_parse_cost;
 		double rate = ((double)joint_rate) / sd->num_records;
-		DBG("\t Rate after %s (rate of full parse): %f\n", predicates->strings[result[result_len-1]], rate);
+		SPARSER_DBG("\t Rate after %s (rate of full parse): %f\n", predicates->strings[result[result_len-1]], rate);
 		total_cost += filter_cost * rate;
-		DBG("\tCost: %f\n", total_cost);
+		SPARSER_DBG("\tCost: %f\n", total_cost);
 
 		if (total_cost < sd->best_cost) {
 			assert(result_len <= MAX_SCHEDULE_SIZE);
@@ -264,7 +272,7 @@ struct calibrate_timing {
 };
 
 void print_timing(struct calibrate_timing *t) {
-	DBG("Calibrate Sampling Total: %f\n\
+	SPARSER_DBG("Calibrate Sampling Total: %f\n\
 Calibrate Searching Total: %f\n\
 Calibrate Grepping Total: %f\n\
 Cycles/Schedule: %lu\n\
@@ -293,10 +301,10 @@ Total Time: %f\n",
  * @return a search query, or NULL if an error occurred. The returned query
  * should be returned with free().
  */
-sparser_query_t *sparser_calibrate(char *sample,
+sparser_query_t *sparser_calibrate(BYTE *sample,
 		long length,
-		char delimiter,
-		decomposed_t *predicates,
+		BYTE delimiter,
+		ascii_rawfilters_t *predicates,
 		sparser_callback_t callback,
 		void *callback_arg) {
 
@@ -339,14 +347,14 @@ sparser_query_t *sparser_calibrate(char *sample,
 				bench_timer_t grep_timer = time_start();
         for (uint64_t i = 0; i < num_substrings; i++) {
             const char *predicate = predicates->strings[i];
-						DBG("grepping for %s...", predicate);
+						SPARSER_DBG("grepping for %s...", predicate);
 
             if (memmem(line, newline - line, predicate, predicates->lens[i])) {
                 // Set this record to found for this substring.
                 bitmap_set(&passthrough_masks[i], records);
-								DBG("found!\n");
+								SPARSER_DBG("found!\n");
             } else {
-							DBG("not found.\n");
+							SPARSER_DBG("not found.\n");
 						}
         }
 				double grep_time = time_stop(grep_timer);
@@ -377,7 +385,7 @@ sparser_query_t *sparser_calibrate(char *sample,
 		timing.sampling_total = time_stop(start);
 		start = time_start();
 
-		DBG("%lu passed\n", passed);
+		SPARSER_DBG("%lu passed\n", passed);
 
 		// The average parse cost.
 		parse_cost = parse_cost / parsed_records;
@@ -410,12 +418,13 @@ sparser_query_t *sparser_calibrate(char *sample,
 			strcat(printer, predicates->strings[sd.best_schedule[i]]);	
 			strcat(printer, " ");
 		}
-		DBG("Best schedule: %s\n", printer);
+		SPARSER_DBG("Best schedule: %s\n", printer);
 
     sparser_query_t *squery = sparser_new_query();
     memset(squery, 0, sizeof(sparser_query_t));
 		for (int i = 0; i < sd.schedule_len; i++) {
-			sparser_add_query(squery, predicates->strings[sd.best_schedule[i]]);
+			sparser_add_query(squery, predicates->strings[sd.best_schedule[i]],
+          predicates->lens[sd.best_schedule[i]]);
 		}
 
     for (int i = 0; i < MAX_SUBSTRINGS; i++) {
@@ -443,13 +452,13 @@ sparser_query_t *sparser_calibrate(char *sample,
  *
  * @return statistics about the run.
  * */
-sparser_stats_t *sparser_search(char *input, long length,
+sparser_stats_t *sparser_search(char *input, long length, BYTE delimiter,
                                 sparser_query_t *query,
                                 sparser_callback_t callback,
                                 void *callback_ctx) {
 
 		for (int i = 0; i < query->count; i++) {
-			 DBG("Search string %d: %s\n", i+1, query->queries[i]);
+			 SPARSER_DBG("Search string %d: %s\n", i+1, query->queries[i]);
 		}
 
     sparser_stats_t stats;
@@ -471,7 +480,10 @@ sparser_stats_t *sparser_search(char *input, long length,
 
 			stats.records++;
 
-			current_record_end = strchr(current_record_start, '\n');
+      // TODO for binary data, we don't want to do this: Instead, we search forward
+      // until we find a match, and then scan forward in the callback until the match point.
+			current_record_end = (char *)memchr(current_record_start, delimiter,
+          input_last_byte - current_record_start);
 			if (!current_record_end) {
 				current_record_end = input_last_byte;
 				current_record_len = length;
@@ -479,13 +491,11 @@ sparser_stats_t *sparser_search(char *input, long length,
 				current_record_len = current_record_end - current_record_start;
 			}
 
-			char tmp = *current_record_end;
-			*current_record_end = '\0';
-
+      size_t record_length = current_record_end - current_record_start;
 			int count = 0;
 			// Search for each of the prefilters.
 			for (int i = 0; i < query->count; i++) {
-				if (strstr(current_record_start, query->queries[i]) == NULL) {
+				if (memmem(current_record_start, record_length, query->queries[i], query->lens[i]) == NULL) {
 					break;	
 				}
 
@@ -502,8 +512,6 @@ sparser_stats_t *sparser_search(char *input, long length,
 				}
 
 			}
-
-			*current_record_end = tmp;
 
 			// Update to point to the next record. The top of the loop will update the remaining variables.
 			current_record_start = current_record_end + 1;

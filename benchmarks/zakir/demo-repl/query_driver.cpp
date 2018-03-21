@@ -51,7 +51,7 @@ double bench_rapidjson_engine(char *data, long length, json_query_t query, int q
   return elapsed;
 }
 
-double bench_sparser_engine(char *data, long length, json_query_t jquery, decomposed_t *predicates, int queryno) {
+double bench_sparser_engine(char *data, long length, json_query_t jquery, ascii_rawfilters_t *predicates, int queryno) {
   bench_timer_t s = time_start();
 
 	struct callback_data cdata;
@@ -59,7 +59,7 @@ double bench_sparser_engine(char *data, long length, json_query_t jquery, decomp
   cdata.query = jquery;
 
   sparser_query_t *query = sparser_calibrate(data, length, '\n', predicates, _rapidjson_parse_callback, &cdata);
-  sparser_stats_t *stats = sparser_search(data, length, query, _rapidjson_parse_callback, &cdata);
+  sparser_stats_t *stats = sparser_search(data, length, '\n', query, _rapidjson_parse_callback, &cdata);
 
   double elapsed = time_stop(s);
   printf("RapidJSON with Sparser:\t\x1b[1;33mResult: %ld (Execution Time: %f seconds)\x1b[0m\n", cdata.count, elapsed);
@@ -108,7 +108,7 @@ void process_query(char *raw, long length, int query_index) {
 	int count = 0;
 	json_query_t jquery = demo_queries[query_index]();
 	const char ** preds = sdemo_queries[query_index](&count);
-	decomposed_t d = decompose(preds, count);
+	ascii_rawfilters_t d = decompose(preds, count);
 	bench_sparser_engine(raw, length, jquery, &d, query_index);
 
 	json_query_t query = demo_queries[query_index]();
