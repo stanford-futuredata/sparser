@@ -7,7 +7,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
+// This is some data we pass to the callback. In this example, we pass a JSON query
+// so our JSON parser can parse the record, and a count to update the number of matching
+// records.
 struct callback_data {
 	long count;
 	json_query_t query;
@@ -16,10 +20,18 @@ struct callback_data {
 int _rapidjson_parse_callback(const char *line, void *query) {
   if (!query) return false;
 	struct callback_data *data = (struct callback_data *)query;
+  char *newline = (char *)strchr(line, '\n');
+  // Last one?
+  if (!newline) {
+    newline = (char *)(line + strlen(line) + 1);
+  }
+  char tmp = *newline;
+  *newline = '\0';
 	int passed = rapidjson_engine(data->query, line, NULL);
 	if (passed) {
 		data->count++;
 	}
+  *newline = tmp;
 	return passed;
 }
 
@@ -103,7 +115,8 @@ static int getLine (const char *prmpt, char *buff, size_t sz) {
 }
 
 void process_query(char *raw, long length, int query_index) {
-	printf("Running query:\n ---------------------\x1b[1;31m%s\x1b[0m\n ---------------------\n", demo_query_strings[query_index]);
+	printf("Running query:\n ---------------------\x1b[1;31m%s\x1b[0m\n ---------------------\n",
+      demo_query_strings[query_index]);
 
 	int count = 0;
 	json_query_t jquery = demo_queries[query_index]();
@@ -113,6 +126,8 @@ void process_query(char *raw, long length, int query_index) {
 
 	json_query_t query = demo_queries[query_index]();
 	bench_rapidjson_engine(raw, length, query, query_index);
+
+  free_ascii_rawfilters(&d);
 }
 
 void print_queries(int num_queries) {
@@ -127,7 +142,11 @@ int main(int argc, char **argv) {
   long length;
 
 	// Read in the data beforehand.
-  const char *filename = "/lfs/1/sparser/zakir-small.json";
+  const char *filename = argv[1];
+  if(access(filename, F_OK) == -1 ) {
+    fprintf(stderr, "File %s not found\n", filename);
+    exit(1);
+  }
 
 	printf("Reading data...");
 	fflush(stdout);

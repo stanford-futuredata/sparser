@@ -10,9 +10,6 @@
  * Glibc's memmem is highly optimized for small strings, so Sparser's optimizer still selects
  * an effective filter cascade by measuring passthrough rates.
  *
- * See sparser_ss.h for examples of the substring search RF based on AVX2.
- * These functions are specialized for specific string search lengths.
- *
  * This version of the schedule currently only considers conjunctive queries, but extending it to
  * disjunctions is relatively straightforward and will be implemented in a subsequent release.
  *
@@ -159,7 +156,7 @@ double rf_cost(const size_t len) {
 	return len * 8.0;
 }
 
-/** Searches through combinations of prefilters to evaluate the best schedule. 
+/** Searches through combinations of raw filters to evaluate the best schedule. 
  * 
  * @param predicates the predicates to search through
  * @param len the number of predicates
@@ -308,7 +305,6 @@ sparser_query_t *sparser_calibrate(BYTE *sample,
 		sparser_callback_t callback,
 		void *callback_arg) {
 
-
 		struct calibrate_timing timing;
 		memset(&timing, 0, sizeof(timing));
 		bench_timer_t start_e2e = time_start();
@@ -339,7 +335,6 @@ sparser_query_t *sparser_calibrate(BYTE *sample,
            (newline = (char *)memchr(sample, delimiter, remaining_length)) != NULL) {
 
         // Emulates behavior of strsep, but uses memchr's faster implementation.
-        *newline = '\0';
         line = sample;
         sample = newline + 1;
         remaining_length -= (sample - line);
@@ -372,14 +367,6 @@ sparser_query_t *sparser_calibrate(BYTE *sample,
         records++;
 
 				timing.cycles_per_parse_avg = parse_cost;
-
-        // Undo what our strsep emulation did so the input is not mutated.
-        if (sample) {
-            assert(*(sample - 1) == '\0');
-            sample--;
-            *sample = delimiter;
-            sample++;
-        }
     }
 
 		timing.sampling_total = time_stop(start);
@@ -493,7 +480,7 @@ sparser_stats_t *sparser_search(char *input, long length, BYTE delimiter,
 
       size_t record_length = current_record_end - current_record_start;
 			int count = 0;
-			// Search for each of the prefilters.
+			// Search for each of the raw filters.
 			for (int i = 0; i < query->count; i++) {
 				if (memmem(current_record_start, record_length, query->queries[i], query->lens[i]) == NULL) {
 					break;	
@@ -503,7 +490,7 @@ sparser_stats_t *sparser_search(char *input, long length, BYTE delimiter,
 				count++;
 			}
 
-			// If all prefilters matched...
+			// If all raw filters matched...
 			if (count == query->count) {
 				stats.sparser_passed++;
 

@@ -2,7 +2,11 @@
  *
  * decompose_ascii_rawfilters.h
  *
- * Generates raw filters for ASCII-based formats such as JSON and CSV.
+ * Generates substring search raw filters for ASCII-based formats such as JSON
+ * and CSV.
+ *
+ * This file is format-specific: different formats will have different
+ * ways of generating candidate RFs.
  */
 
 #ifndef _DECOMPOSE_H_
@@ -15,7 +19,7 @@
 #define REGSZ 4
 
 typedef struct ascii_rawfilters {
-  // The ascii_rawfilters strings.
+  // The ascii_rawfilters strings. Each pointer points into region.
 	const char **strings;
 	// The source of the string.
 	const int *sources;
