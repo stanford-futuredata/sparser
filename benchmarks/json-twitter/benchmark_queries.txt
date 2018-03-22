@@ -1,4 +1,0 @@
-SELECT count(*) FROM tweets WHERE text contains "Donald Trump" and created_at contains "Sep 13";
-SELECT user.id, SUM(retweet_count) FROM tweets WHERE text contains "Obama" GROUP BY user.id;
-SELECT id FROM tweets WHERE user.lang = "msa";
-SELECT distinct user.id FROM tweets WHERE text contains @realDonaldTrump;
