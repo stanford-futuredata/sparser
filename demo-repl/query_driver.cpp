@@ -76,8 +76,6 @@ double bench_sparser_engine(char *data, long length, json_query_t jquery, ascii_
   double elapsed = time_stop(s);
   printf("RapidJSON with Sparser:\t\x1b[1;33mResult: %ld (Execution Time: %f seconds)\x1b[0m\n", cdata.count, elapsed);
 
-  //assert(stats);
-  //printf("%s\n", sparser_format_stats(stats));
   free(stats);
   free(query);
 

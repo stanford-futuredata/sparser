@@ -1,8 +1,7 @@
 # sparser
 
-A fast parsing framework.
+A framework that implements raw filtering for faster analytics over raw data.
 
-### Naive Scheduler Branch
+## How to use Sparser
 
-This branch compares a naive scheduler which does not account for non-independence among different
-prefilters.
+To do!
