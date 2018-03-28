@@ -35,6 +35,8 @@
 
 #include <arpa/inet.h>
 
+// TODO(shoumik): This should be an interface different formats implement:
+// right now its tied to ASCII-based formats.
 #include "decompose_ascii_rawfilters.h"
 #include "bitmap.h"
 #include "rdtsc.h"
