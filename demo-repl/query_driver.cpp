@@ -70,7 +70,10 @@ double bench_sparser_engine(char *data, long length, json_query_t jquery, ascii_
 	cdata.count = 0;
   cdata.query = jquery;
 
+  // XXX Generate a schedule
   sparser_query_t *query = sparser_calibrate(data, length, '\n', predicates, _rapidjson_parse_callback, &cdata);
+
+  // XXX Apply the search.
   sparser_stats_t *stats = sparser_search(data, length, '\n', query, _rapidjson_parse_callback, &cdata);
 
   double elapsed = time_stop(s);
@@ -119,7 +122,10 @@ void process_query(char *raw, long length, int query_index) {
 	int count = 0;
 	json_query_t jquery = demo_queries[query_index]();
 	const char ** preds = sdemo_queries[query_index](&count);
+
+  // XXX First, get a set of candidate RFs.
 	ascii_rawfilters_t d = decompose(preds, count);
+
 	bench_sparser_engine(raw, length, jquery, &d, query_index);
 
 	json_query_t query = demo_queries[query_index]();
@@ -187,6 +193,5 @@ int main(int argc, char **argv) {
 
 		query_index--;
 		process_query(raw, length, query_index);
-
 	}
 }
