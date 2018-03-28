@@ -75,9 +75,31 @@ typedef struct sparser_query_ {
     size_t lens[SPARSER_MAX_QUERY_COUNT];
 } sparser_query_t;
 
-// The callback fro the single parse function. The callback MUST be able to
-// handle NULL data (i.e., it should check for NULL and  still return true or
-// false appropriately).
+// The callback for the calibrate and search functions. The callback MUST be
+// able to handle NULL data (i.e., it should check for NULL and  still return
+// true or false appropriately).
+//
+// The callback takes a pointer to a set of bytes and the context object that
+// was passed into `sparser_search` and `sparser_calibrate`. The context object
+// can be used to "process" the data (e.g., count the number of passing records,
+// store which pointers Sparser passed, perform projections, etc.).
+//
+// The `input` pointer passed via the callback is guarnateed to be in the data buffer
+// passed to `sparser_search` and `sparser_calibrate`. The callback should not modify
+// the length of the data buffer, as this can cause errors when the callback returns.
+//
+// XXX For now, a "record" starts at the specified delimiter character in
+// `sparser_search`.  For binary data, this doesn't work since there usually
+// isn't a single delimiting character between records. We still need to add
+// support for this.
+//
+// In the calibration function, the callback should return non-zero if the
+// search predicate passed the record passed to the callback and 0 otherwise.
+// In the search function, the callback *should* return non-zero if the search
+// predciate passes, but this is only used for recalibration and is not
+// strictly necessary. Users can pass different callback functions to calibrate
+// and search, and can also pass different callbacks across calls to search if
+// the same `sparser_query_t` is used on different batches of data.
 typedef int (*sparser_callback_t)(const BYTE *input, void *);
 
 typedef struct sparser_stats_ {
