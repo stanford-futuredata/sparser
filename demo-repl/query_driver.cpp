@@ -140,6 +140,10 @@ void print_queries(int num_queries) {
 	}
 }
 
+void print_usage(char **argv) {
+  fprintf(stderr, "Usage: %s <JSON filename>\n", argv[0]);
+}
+
 int main(int argc, char **argv) {
 
   char *raw;
@@ -148,8 +152,8 @@ int main(int argc, char **argv) {
 	// Read in the data beforehand.
   const char *filename = argv[1];
   if(access(filename, F_OK) == -1 ) {
-    fprintf(stderr, "File %s not found\n", filename);
-    exit(1);
+    print_usage(argv);
+    exit(EXIT_FAILURE);
   }
 
 	printf("Reading data...");
