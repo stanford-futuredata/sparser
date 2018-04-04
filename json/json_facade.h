@@ -128,7 +128,7 @@ query_node_t *json_node_new(const char *field_name, json_type_t type) {
  */
 query_node_t *json_node_child_with_field_name(query_node_t *node,
                                               const char *field) {
-    for (int i = 0; i < node->num_children; i++) {
+    for (unsigned i = 0; i < node->num_children; i++) {
         if (strcmp(field, node->children[i]->field_name) == 0) {
             return node->children[i];
         }

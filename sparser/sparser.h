@@ -364,7 +364,7 @@ sparser_query_t *sparser_calibrate(BYTE *sample,
         remaining_length -= (sample - line);
 
 				bench_timer_t grep_timer = time_start();
-        for (uint64_t i = 0; i < num_substrings; i++) {
+        for (int i = 0; i < num_substrings; i++) {
             const char *predicate = predicates->strings[i];
 						SPARSER_DBG("grepping for %s...", predicate);
 
@@ -468,7 +468,7 @@ sparser_stats_t *sparser_search(char *input, long length, BYTE delimiter,
                                 sparser_callback_t callback,
                                 void *callback_ctx) {
 
-		for (int i = 0; i < query->count; i++) {
+		for (unsigned i = 0; i < query->count; i++) {
 			 SPARSER_DBG("Search string %d: %s\n", i+1, query->queries[i]);
 		}
 
@@ -482,8 +482,6 @@ sparser_stats_t *sparser_search(char *input, long length, BYTE delimiter,
 		char *current_record_end;
 		// Points to the start of the current record.
 		char *current_record_start;
-		//  Length of the current record.
-		size_t current_record_len;
 
 		current_record_start = input;
 
@@ -497,15 +495,12 @@ sparser_stats_t *sparser_search(char *input, long length, BYTE delimiter,
           input_last_byte - current_record_start);
 			if (!current_record_end) {
 				current_record_end = input_last_byte;
-				current_record_len = length;
-			} else {
-				current_record_len = current_record_end - current_record_start;
 			}
 
       size_t record_length = current_record_end - current_record_start;
-			int count = 0;
+			unsigned count = 0;
 			// Search for each of the raw filters.
-			for (int i = 0; i < query->count; i++) {
+			for (unsigned i = 0; i < query->count; i++) {
 				if (memmem(current_record_start, record_length, query->queries[i], query->lens[i]) == NULL) {
 					break;	
 				}

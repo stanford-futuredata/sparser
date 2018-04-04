@@ -1,5 +1,5 @@
-CC=clang++
-CFLAGS=-std=c++11 -march=native -Wall -Wno-unused-function
+CC=clang
+CFLAGS=-std=c++11 -march=native -Wall -Wno-unused-function -lstdc++
 INCLUDES=-I../sparser -I../json -I../json/rapidjson/include
 
 .PHONY: all debug asm clean

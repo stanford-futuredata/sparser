@@ -83,7 +83,7 @@ void bitmap_and(bitmap_t *result, bitmap_t *bm1, const bitmap_t *bm2) {
   assert(result->capacity == bm1->capacity);
 
   result->count = 0;
-  for (int i = 0; i < bm1->words; i++) {
+  for (unsigned i = 0; i < bm1->words; i++) {
     result->bits[i] = bm1->bits[i] & bm2->bits[i];
     result->count += _mm_popcnt_u64(result->bits[i]);
   }
@@ -108,7 +108,7 @@ void printBits(size_t const size, void const * const ptr) {
 
 
 void bitmap_print(bitmap_t *bm) {
-	for (int i = 0; i < bm->words; i++) {
+	for (unsigned i = 0; i < bm->words; i++) {
 		printBits(sizeof(bm->bits[i]), &bm->bits[i]);
 	}
 	fprintf(stderr, "\n");
