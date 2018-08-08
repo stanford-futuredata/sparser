@@ -1,6 +1,6 @@
 # sparser
 
-A framework that implements raw filtering for faster analytics over raw data.
+This code base implements Sparser, raw filtering for faster analytics over raw data. Sparser can parse JSON, Avro, and Parquet data up to 22x faster than the state of the art. For more details, check out [our paper published at VLDB 2018](http://www.vldb.org/pvldb/vol11/p1576-palkar.pdf).
 
 See the `demo-repl` directory for a brief example. To run it:
 
