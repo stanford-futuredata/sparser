@@ -86,7 +86,7 @@ double bench_sparser_engine(char *data, long length, json_query_t jquery, ascii_
 }
 
 #define OK       0
-#define NO_INPUT 1
+#define END_OF_FILE 1
 #define TOO_LONG 2
 
 // From https://stackoverflow.com/questions/4023895/how-to-read-string-entered-by-user-in-c
@@ -99,7 +99,7 @@ static int getLine (const char *prmpt, char *buff, size_t sz) {
 		fflush (stdout);
 	}
 	if (fgets (buff, sz, stdin) == NULL)
-		return NO_INPUT;
+		return END_OF_FILE;
 
 	// If it was too long, there'll be no newline. In that case, we flush
 	// to end of line so that excess doesn't affect the next call.
@@ -172,9 +172,9 @@ int main(int argc, char **argv) {
     int rc;
     char buff[1024];
     rc = getLine ("Sparser> ", buff, sizeof(buff));
-    if (rc == NO_INPUT) {
-        printf ("\nNo input\n");
-				continue;
+    if (rc == END_OF_FILE) {
+        printf ("\nEOF\n");
+				break;
     }
 
 		if (rc == TOO_LONG) {
