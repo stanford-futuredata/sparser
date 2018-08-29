@@ -1,3 +1,6 @@
 [submodule "json/rapidjson"]
 	path = json/rapidjson
 	url = git@github.com:Tencent/rapidjson.git
+[submodule "spark/libhdfs3"]
+	path = spark/libhdfs3
+	url = https://github.com/erikmuttersbach/libhdfs3

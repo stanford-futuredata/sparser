@@ -39,6 +39,7 @@
 // right now its tied to ASCII-based formats.
 #include "decompose_ascii_rawfilters.h"
 #include "bitmap.h"
+#include "common.h"
 #include "rdtsc.h"
 
 // For debugging
