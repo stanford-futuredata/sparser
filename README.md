@@ -4,8 +4,14 @@ This code base implements Sparser, raw filtering for faster analytics over raw d
 
 See the `demo-repl` directory for a brief example. To run it:
 
-1. Build `json/rapidjson` (see the instructions there on how to do that)
-2. `make` in the `demo-repl` directory.
+    # update rapidjson submodule
+    git submodule init
+    git submodule update
+    cd demo-repl
+    make
+    ./bench /path/to/large/file.json
+
+Then enter `1` at the `Sparser>` prompt.
 
 Sparser itself is just a header file and only depends on standard C libraries available
 on most systems.
