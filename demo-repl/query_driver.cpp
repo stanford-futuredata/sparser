@@ -73,6 +73,7 @@ double bench_sparser_engine(char *data, long length, json_query_t jquery, ascii_
   // XXX Generate a schedule
   sparser_query_t *query = sparser_calibrate(data, length, '\n', predicates, _rapidjson_parse_callback, &cdata);
 
+	cdata.count = 0;
   // XXX Apply the search.
   sparser_stats_t *stats = sparser_search(data, length, '\n', query, _rapidjson_parse_callback, &cdata);
 
